@@ -16,7 +16,7 @@ import { estimateTargetCalories } from '@/utils/nutrition';
 
 export default function RecipeDetail() {
   const colors = useTheme();
-  const { currentRecipe, generateRecipe, selectRecipe, savedRecipes, saveRecipe, loadLocal } =
+  const { currentRecipe, generateRecipe, selectRecipe, savedRecipes, saveRecipe, unsaveRecipe, loadLocal } =
     useRecipeStore();
   const bodyData = useUserStore((s) => s.bodyData);
   const goal = useUserStore((s) => s.goal);
@@ -134,7 +134,8 @@ export default function RecipeDetail() {
             variant="outline"
             icon={saved ? 'heart' : 'heart-outline'}
             onPress={async () => {
-              await saveRecipe(recipe);
+              if (saved) await unsaveRecipe(recipe.id);
+              else await saveRecipe(recipe);
             }}
           />
           <View style={{ width: Spacing.two }} />

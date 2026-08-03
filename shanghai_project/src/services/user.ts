@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { BodyData, FitnessGoal } from '@/types/workout';
 import type { User } from '@/types/user';
 
-import { api, setToken } from './api';
+import { api, clearTokens, loadTokens, saveTokens } from './api';
 
 /**
  * 用户数据服务
@@ -15,7 +15,6 @@ const KEY_USER = 'user:profile';
 const KEY_BODY = 'user:bodyData';
 const KEY_GOAL = 'user:goal';
 const KEY_BODY_HISTORY = 'user:bodyHistory';
-const KEY_TOKEN = 'user:token';
 
 // ─── 本地存储工具 ───
 
@@ -35,28 +34,24 @@ async function setJSON(key: string, value: unknown): Promise<void> {
 
 // ─── Token 管理 ───
 
-export async function saveToken(token: string): Promise<void> {
-  setToken(token);
-  await AsyncStorage.setItem(KEY_TOKEN, token);
+export async function saveToken(token: string, refreshToken: string): Promise<void> {
+  await saveTokens(token, refreshToken);
 }
 
 export async function loadToken(): Promise<string | null> {
-  const token = await AsyncStorage.getItem(KEY_TOKEN);
-  if (token) setToken(token);
-  return token;
+  return loadTokens();
 }
 
 export async function clearToken(): Promise<void> {
-  setToken(null);
-  await AsyncStorage.removeItem(KEY_TOKEN);
+  await clearTokens();
 }
 
 // ─── 认证 API ───
 
 export async function register(email: string, password: string, nickname: string): Promise<User> {
   const res = await api.post('/api/v1/auth/register', { email, password, nickname });
-  const { accessToken, userId, nickname: nick } = res.data.data;
-  await saveToken(accessToken);
+  const { accessToken, refreshToken, userId, nickname: nick } = res.data.data;
+  await saveToken(accessToken, refreshToken);
   const user: User = { id: userId, nickname: nick };
   await saveUser(user);
   return user;
@@ -64,8 +59,8 @@ export async function register(email: string, password: string, nickname: string
 
 export async function login(email: string, password: string): Promise<User> {
   const res = await api.post('/api/v1/auth/login', { email, password });
-  const { accessToken, userId, nickname } = res.data.data;
-  await saveToken(accessToken);
+  const { accessToken, refreshToken, userId, nickname } = res.data.data;
+  await saveToken(accessToken, refreshToken);
   const user: User = { id: userId, nickname };
   await saveUser(user);
   return user;

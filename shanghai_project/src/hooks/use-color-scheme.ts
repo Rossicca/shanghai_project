@@ -8,6 +8,6 @@ import { useThemeStore } from '@/store/themeStore';
  */
 export function useColorScheme() {
   const preference = useThemeStore((s) => s.preference);
-  if (preference !== 'system') return preference;
-  return useSystemColorScheme() ?? 'light';
+  const systemColorScheme = useSystemColorScheme() ?? 'light';
+  return preference === 'system' ? systemColorScheme : preference;
 }

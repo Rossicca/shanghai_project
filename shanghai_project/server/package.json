@@ -2,11 +2,12 @@
   "name": "shanghai-project-server",
   "version": "2.0.0",
   "private": true,
-  "description": "Shanghai Project 后端服务 — Express + SQLite + JWT",
+  "description": "Shanghai Project 后端服务 — Express + JSON 文件存储 + JWT",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "test:smoke": "node tests/smoke.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -14,7 +15,6 @@
     "express": "^4.21.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
-    "toml": "^5.0.0",
-    "uuid": "^10.0.0"
+    "toml": "^5.0.0"
   }
 }

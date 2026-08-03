@@ -8,12 +8,10 @@ import { ThemedView } from '@/components/themed-view';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
 import { mockLogin } from '@/services/user';
 import { useUserStore } from '@/store/userStore';
 
 export default function Register() {
-  const colors = useTheme();
   const register = useUserStore((s) => s.register);
   const setUser = useUserStore((s) => s.setUser);
 

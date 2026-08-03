@@ -4,15 +4,15 @@
 
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const config = require('./config.json');
+const { config } = require('./config');
 
-const JWT_SECRET = config.jwtSecret || 'shanghai-project-default-secret';
+const JWT_SECRET = config.jwtSecret;
 const ACCESS_TOKEN_EXPIRES = '2h';
 const REFRESH_TOKEN_EXPIRES = '7d';
 
 /** 密码加密 */
 function hashPassword(password) {
-  return bcrypt.hashSync(password, 10);
+  return bcrypt.hashSync(password, 12);
 }
 
 /** 验证密码 */
@@ -22,18 +22,20 @@ function verifyPassword(password, hash) {
 
 /** 生成 Access Token */
 function generateAccessToken(payload) {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRES });
+  return jwt.sign({ ...payload, tokenType: 'access' }, JWT_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRES });
 }
 
 /** 生成 Refresh Token */
 function generateRefreshToken(payload) {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: REFRESH_TOKEN_EXPIRES });
+  return jwt.sign({ ...payload, tokenType: 'refresh' }, JWT_SECRET, { expiresIn: REFRESH_TOKEN_EXPIRES });
 }
 
 /** 验证 Token */
-function verifyToken(token) {
+function verifyToken(token, expectedType) {
   try {
-    return jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (expectedType && decoded.tokenType !== expectedType) return null;
+    return decoded;
   } catch {
     return null;
   }
@@ -66,7 +68,7 @@ function authMiddleware(req, res, next) {
   }
 
   const token = authHeader.slice(7);
-  const decoded = verifyToken(token);
+  const decoded = verifyToken(token, 'access');
   if (!decoded) {
     return res.status(401).json({
       error: { code: 'TOKEN_INVALID', message: '登录已过期，请重新登录' },

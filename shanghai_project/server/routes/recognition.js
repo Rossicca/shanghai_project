@@ -3,57 +3,52 @@
  */
 
 const express = require('express');
+const multer = require('multer');
 const router = express.Router();
 const db = require('../db');
 const { recognizeFood } = require('../ai');
-const { DEMO_INGREDIENTS } = require('../demo-data');
+
+const imageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, callback) => {
+    const allowed = new Set(['image/jpeg', 'image/png', 'image/webp']);
+    callback(allowed.has(file.mimetype) ? null : new Error('INVALID_IMAGE_TYPE'), allowed.has(file.mimetype));
+  },
+});
+
+function parseImageUpload(req, res, next) {
+  imageUpload.single('image')(req, res, (error) => {
+    if (!error) return next();
+
+    const tooLarge = error.code === 'LIMIT_FILE_SIZE';
+    return res.status(400).json({
+      error: {
+        code: tooLarge ? 'IMAGE_TOO_LARGE' : 'INVALID_IMAGE_TYPE',
+        message: tooLarge ? '图片不能超过 10MB' : '仅支持 jpg、png、webp 图片',
+      },
+    });
+  });
+}
 
 /**
  * POST /api/v1/recognition/upload — 上传图片并识别食材
  * Body: { image: base64字符串, mealType?: string }
  * 或 multipart/form-data: image 文件
  */
-router.post('/upload', async (req, res) => {
+router.post('/upload', parseImageUpload, async (req, res) => {
   try {
-    const imageBase64 = req.body.image || '';
+    const imageBase64 = req.body.image || req.file?.buffer.toString('base64') || '';
 
-    if (!imageBase64 && !req.file) {
-      // 演示模式：直接返回演示数据
-      const demoResult = DEMO_INGREDIENTS.map((i) => ({
-        id: db.generateId(),
-        name: i.name,
-        category: mapCategory(i.name),
-        confidence: i.confidence,
-        estimatedAmount: parseInt(i.amount) || 100,
-        unit: i.amount.includes('g') ? 'g' : '个',
-        nutritionPer100g: getNutrition(i.name),
-      }));
+    if (!imageBase64) {
+      return res.status(400).json({
+        error: { code: 'INVALID_PARAMS', message: '请上传图片' },
+      });
+    }
 
-      const totalNutrition = demoResult.reduce(
-        (acc, ing) => {
-          const ratio = ing.estimatedAmount / 100;
-          acc.calories += (ing.nutritionPer100g?.calories || 0) * ratio;
-          acc.protein += (ing.nutritionPer100g?.protein || 0) * ratio;
-          acc.fat += (ing.nutritionPer100g?.fat || 0) * ratio;
-          acc.carbs += (ing.nutritionPer100g?.carbs || 0) * ratio;
-          return acc;
-        },
-        { calories: 0, protein: 0, fat: 0, carbs: 0 }
-      );
-
-      return res.json({
-        data: {
-          imageId: 'demo_' + db.generateId(),
-          imageUrl: null,
-          ingredients: demoResult,
-          totalNutrition: {
-            calories: Math.round(totalNutrition.calories),
-            protein: Math.round(totalNutrition.protein * 10) / 10,
-            fat: Math.round(totalNutrition.fat * 10) / 10,
-            carbs: Math.round(totalNutrition.carbs * 10) / 10,
-          },
-        },
-        message: '识别成功（演示数据）',
+    if (!req.file && Buffer.byteLength(imageBase64, 'base64') > 10 * 1024 * 1024) {
+      return res.status(400).json({
+        error: { code: 'IMAGE_TOO_LARGE', message: '图片不能超过 10MB' },
       });
     }
 

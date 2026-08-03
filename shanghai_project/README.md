@@ -21,19 +21,37 @@ npx expo start
 
 ## 连接真实 AI（可选）
 
-编辑 `server/config.json`：
-```json
-{
-  "ai": {
-    "enabled": true,
-    "baseURL": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-    "apiKey": "你的key",
-    "visionModel": "qwen-vl-plus",
-    "textModel": "qwen-plus"
-  }
-}
+复制本地密钥模板（`config.toml` 已加入 `.gitignore`，不会被提交）：
+
+```powershell
+Copy-Item server/config.toml.example server/config.toml
 ```
-支持任何 OpenAI 兼容协议（通义/DeepSeek/Moonshot 等）。未配置时后端自动使用内置演示数据，页面已标注"演示数据"。
+
+然后编辑 `server/config.toml`，填写本机的 API Key、视觉模型和文本模型。非敏感的服务地址及开关保存在 `server/config.json`。支持火山方舟及其他 OpenAI 兼容协议；配置不完整时后端使用内置演示数据，配置完整后若真实 AI 调用失败则明确返回错误，不会用 Mock 伪装成功。
+
+> 不要把 API Key、真实测试账号密码或 JWT Secret 写进 `config.json`，也不要提交 `config.toml`。
+
+可通过健康检查确认当前模式：
+
+```powershell
+Invoke-RestMethod http://localhost:8787/health
+```
+
+返回 `mode: "demo"` 表示演示数据，`mode: "real"` 才表示本地真实 AI 配置完整。
+
+## 本地检查
+
+```bash
+# 前端类型检查与 lint
+npm run typecheck
+npm run lint
+
+# 前端 Web 构建
+npm run build:web
+
+# 后端接口冒烟测试（自动启动测试端口，不需要真实 AI 密钥）
+npm --prefix server run test:smoke
+```
 
 ## 目录结构
 

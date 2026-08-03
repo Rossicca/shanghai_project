@@ -21,7 +21,7 @@ export default function WorkoutDetail() {
     return (
       <ThemedView style={styles.container}>
         <View style={styles.empty}>
-          <ThemedText>视频不存在，回"练"页挑选一个吧</ThemedText>
+          <ThemedText>视频不存在，回“练”页挑选一个吧</ThemedText>
         </View>
       </ThemedView>
     );
@@ -94,7 +94,7 @@ export default function WorkoutDetail() {
         <Card>
           <ThemedText type="smallBold">跟练提示</ThemedText>
           <ThemedText type="small" themeColor="textSecondary" style={styles.tips}>
-            · 运动前充分热身，根据自身情况量力而行。\n· 感到不适请立即停止。\n· 点击"去B站观看"跳转到真实视频页面。
+            · 运动前充分热身，根据自身情况量力而行。\n· 感到不适请立即停止。\n· 点击“去B站观看”跳转到真实视频页面。
           </ThemedText>
         </Card>
 
