@@ -151,6 +151,12 @@ export default function Scan() {
     return (
       <ThemedView style={styles.container}>
         <SafeAreaView style={styles.safeArea} edges={['top']}>
+          <View style={styles.resultNav}>
+            <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.resultNavButton}>
+              <Ionicons name="arrow-back" size={20} color={colors.text} />
+              <ThemedText type="smallBold">返回</ThemedText>
+            </Pressable>
+          </View>
           {previewUri ? (
             <View style={styles.previewWrap}>
               <Image source={{ uri: previewUri }} style={styles.preview} resizeMode="contain" />
@@ -202,6 +208,12 @@ export default function Scan() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <View style={styles.resultNav}>
+          <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.resultNavButton}>
+            <Ionicons name="arrow-back" size={20} color={colors.text} />
+            <ThemedText type="smallBold">返回</ThemedText>
+          </Pressable>
+        </View>
         <View style={styles.hero}>
           <View style={[styles.heroIcon, { backgroundColor: colors.primarySoft }]}>
             <Ionicons name="camera" size={40} color={colors.primary} />
