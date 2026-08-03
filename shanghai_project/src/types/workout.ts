@@ -47,6 +47,7 @@ export interface FitnessGoal {
   type: '减脂' | '增肌' | '塑形' | '保持健康';
   targetWeight?: number;
   deadline?: string;
+  weeklyFrequency?: number;
 }
 
 /** 运动推荐请求 */

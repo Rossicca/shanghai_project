@@ -30,12 +30,14 @@ export function GoalSelector({ initial, onSave, saving }: Props) {
   const [type, setType] = useState<(typeof GOAL_TYPES)[number]>(initial?.type ?? '减脂');
   const [targetWeight, setTargetWeight] = useState(initial?.targetWeight ? String(initial.targetWeight) : '');
   const [deadline, setDeadline] = useState(initial?.deadline ?? '');
+  const [weeklyFrequency, setWeeklyFrequency] = useState(initial?.weeklyFrequency ?? 3);
 
   function handleSave() {
     onSave({
       type,
       targetWeight: parseFloat(targetWeight) || undefined,
       deadline: deadline || undefined,
+      weeklyFrequency,
     });
   }
 
@@ -84,6 +86,37 @@ export function GoalSelector({ initial, onSave, saving }: Props) {
         </View>
       </Card>
 
+      <Card>
+        <ThemedText type="subtitle">每周训练次数</ThemedText>
+        <ThemedText type="small" themeColor="textSecondary" style={styles.frequencyHint}>
+          用于生成与你时间安排匹配的训练计划
+        </ThemedText>
+        <View style={styles.frequencyRow}>
+          {[1, 2, 3, 4, 5, 6, 7].map((count) => {
+            const selected = weeklyFrequency === count;
+            return (
+              <Pressable
+                key={count}
+                accessibilityRole="button"
+                accessibilityLabel={`每周训练 ${count} 次`}
+                accessibilityState={{ selected }}
+                onPress={() => setWeeklyFrequency(count)}
+                style={[
+                  styles.frequencyChip,
+                  {
+                    backgroundColor: selected ? colors.primary : colors.backgroundElement,
+                    borderColor: selected ? colors.primary : colors.border,
+                  },
+                ]}>
+                <Text style={{ color: selected ? '#FFFFFF' : colors.text, fontWeight: '700' }}>
+                  {count}次
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </Card>
+
       <Button title={initial ? '保存修改' : '保存目标'} onPress={handleSave} loading={saving} size="large" />
     </View>
   );
@@ -101,4 +134,14 @@ const styles = StyleSheet.create({
   },
   row: { flexDirection: 'row', gap: Spacing.two, marginTop: Spacing.three },
   inputHalf: { width: '48%', flexGrow: 1 },
+  frequencyHint: { marginTop: Spacing.one },
+  frequencyRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two, marginTop: Spacing.three },
+  frequencyChip: {
+    minWidth: 58,
+    alignItems: 'center',
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    borderRadius: Radius.chip,
+    borderWidth: 1,
+  },
 });

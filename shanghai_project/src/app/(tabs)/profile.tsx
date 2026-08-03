@@ -133,7 +133,9 @@ export default function ProfileTab() {
                 <View style={{ flex: 1 }}>
                   <ThemedText type="smallBold">健身目标</ThemedText>
                   <ThemedText type="small" themeColor="textSecondary">
-                    {goal ? `${goal.type}${goal.deadline ? ` · ${goal.deadline}` : ''}` : '设定目标，推荐更有针对性 ›'}
+                    {goal
+                      ? `${goal.type}${goal.deadline ? ` · ${goal.deadline}` : ''}${goal.weeklyFrequency ? ` · 每周${goal.weeklyFrequency}次` : ''}`
+                      : '设定目标，推荐更有针对性 ›'}
                   </ThemedText>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
