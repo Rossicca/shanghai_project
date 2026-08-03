@@ -2,12 +2,9 @@
   "port": 8787,
   "jwtSecret": "shanghai-project-jwt-secret-2026-demo",
   "ai": {
-    "enabled": false,
+    "enabled": true,
     "provider": "volcano",
-    "baseURL": "https://ark.cn-beijing.volces.com/api/v3",
-    "apiKey": "YOUR_VOLCANO_API_KEY_HERE",
-    "visionModel": "doubao-vision-pro-32k",
-    "textModel": "doubao-pro-32k"
+    "baseURL": "https://ark.cn-beijing.volces.com/api/v3"
   },
   "demo": {
     "enabled": true,

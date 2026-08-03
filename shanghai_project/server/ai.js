@@ -2,14 +2,37 @@
  * AI 提供者 v2.0
  * - 兼容 OpenAI 协议（火山方舟 / 通义千问 / DeepSeek / Moonshot 等）
  * - 配置了真实 API Key 就走真调用，否则/失败时自动降级到演示数据
- * - 火山方舟配置：server/config.json 中 ai.enabled=true + apiKey
+ * - API Key 和接入点 ID 放在 server/config.toml 中（已加入 .gitignore，不会泄露）
+ * - 通用配置（port, jwtSecret, demo 等）仍在 server/config.json
  */
+
+const fs = require('fs');
+const path = require('path');
+const toml = require('toml');
 
 const { DEMO_INGREDIENTS, pickMockRecipe, mockRecommendWorkout } = require('./demo-data');
 
 const config = require('./config.json');
 
-const USE_MOCK = () => !config.ai.enabled || !config.ai.apiKey || config.ai.apiKey === 'YOUR_VOLCANO_API_KEY_HERE';
+// ─── 从 config.toml 读取密钥 ───────────────────────────────
+let aiSecrets = {};
+try {
+  const tomlPath = path.join(__dirname, 'config.toml');
+  if (fs.existsSync(tomlPath)) {
+    const raw = fs.readFileSync(tomlPath, 'utf-8');
+    aiSecrets = toml.parse(raw).ai || {};
+  }
+} catch (e) {
+  console.warn('[ai] config.toml 读取失败，使用演示模式:', e.message);
+}
+
+const USE_MOCK = () => {
+  // 如果 config.json 中 ai.enabled 为 false → 演示模式
+  if (!config.ai.enabled) return true;
+  // 如果 config.toml 中 apiKey 为空 → 演示模式
+  if (!aiSecrets.apiKey) return true;
+  return false;
+};
 
 function httpJson(url, options) {
   const u = new URL(url);
@@ -52,7 +75,7 @@ async function chat({ model, messages, temperature = 0.7, maxTokens = 1500 }) {
   const res = await httpJson(`${config.ai.baseURL}/chat/completions`, {
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${config.ai.apiKey}`,
+      Authorization: `Bearer ${aiSecrets.apiKey}`,
     },
     body: JSON.stringify({ model, messages, temperature, max_tokens: maxTokens }),
   });
@@ -67,7 +90,7 @@ async function recognizeFood(imageBase64) {
   if (USE_MOCK()) return DEMO_INGREDIENTS.map((i) => ({ ...i }));
   try {
     const content = await chat({
-      model: config.ai.visionModel,
+      model: aiSecrets.visionModel,
       maxTokens: 900,
       temperature: 0.2,
       messages: [
@@ -101,7 +124,7 @@ async function generateRecipe(params) {
   }
   try {
     const content = await chat({
-      model: config.ai.textModel,
+      model: aiSecrets.textModel,
       maxTokens: 2200,
       temperature: 0.8,
       messages: [
@@ -152,7 +175,7 @@ async function recommendWorkout(params) {
   if (USE_MOCK()) return mockRecommendWorkout(params);
   try {
     const content = await chat({
-      model: config.ai.textModel,
+      model: aiSecrets.textModel,
       maxTokens: 1500,
       temperature: 0.6,
       messages: [
