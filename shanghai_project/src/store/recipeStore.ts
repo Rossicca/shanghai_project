@@ -1,7 +1,8 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 
 import * as recipeService from '@/services/recipe';
+import { getScopedItem, setScopedItem } from '@/services/scopedStorage';
+import { getToken } from '@/services/api';
 import type { Ingredient, Recipe, RecipeGenerateParams } from '@/types/recipe';
 
 const KEY_SAVED = 'recipe:saved';
@@ -14,6 +15,7 @@ interface RecipeState {
   savedRecipes: Recipe[];
   recipeHistory: Recipe[];
   isLoading: boolean;
+  error: string;
   setIngredients: (ingredients: Ingredient[]) => void;
   setRecognitionSessionId: (sessionId: string | null) => void;
   selectRecipe: (recipe: Recipe) => void;
@@ -22,6 +24,8 @@ interface RecipeState {
   unsaveRecipe: (recipeId: string) => Promise<void>;
   loadLocal: () => Promise<void>;
   refreshSaved: () => Promise<void>;
+  refreshRemote: () => Promise<void>;
+  clearLocalData: () => void;
 }
 
 export const useRecipeStore = create<RecipeState>((set, get) => ({
@@ -30,7 +34,8 @@ export const useRecipeStore = create<RecipeState>((set, get) => ({
   currentRecipe: null,
   savedRecipes: [],
   recipeHistory: [],
-  isLoading: false,
+    isLoading: false,
+    error: '',
 
   setIngredients: (currentIngredients) => set({ currentIngredients }),
   setRecognitionSessionId: (recognitionSessionId) => set({ recognitionSessionId }),
@@ -49,7 +54,7 @@ export const useRecipeStore = create<RecipeState>((set, get) => ({
         currentRecipe: recipe,
         recipeHistory: [recipe, ...s.recipeHistory].slice(0, 20),
       }));
-      AsyncStorage.setItem(KEY_HISTORY, JSON.stringify(get().recipeHistory)).catch(() => {});
+      setScopedItem(KEY_HISTORY, JSON.stringify(get().recipeHistory)).catch(() => {});
       return recipe;
     } finally {
       set({ isLoading: false });
@@ -57,45 +62,68 @@ export const useRecipeStore = create<RecipeState>((set, get) => ({
   },
 
   saveRecipe: async (recipe) => {
-    // 同步到后端
-    try {
-      await recipeService.saveRecipe(recipe.id);
-    } catch {
-      // 后端不可用时仅本地保存
+    set({ error: '' });
+    if (getToken()) {
+      await recipeService.saveRecipe(recipe.id).catch((error) => {
+        const message = (error as Error).message || '收藏失败，请重试';
+        set({ error: message });
+        throw error;
+      });
     }
-    // 本地保存
     const saved = get().savedRecipes.some((r) => r.id === recipe.id)
       ? get().savedRecipes
       : [recipe, ...get().savedRecipes];
     set({ savedRecipes: saved });
-    await AsyncStorage.setItem(KEY_SAVED, JSON.stringify(saved));
+    await setScopedItem(KEY_SAVED, JSON.stringify(saved));
   },
 
   unsaveRecipe: async (recipeId) => {
-    try {
-      await recipeService.unsaveRecipe(recipeId);
-    } catch {
-      // ignore
+    set({ error: '' });
+    if (getToken()) {
+      await recipeService.unsaveRecipe(recipeId).catch((error) => {
+        const message = (error as Error).message || '取消收藏失败，请重试';
+        set({ error: message });
+        throw error;
+      });
     }
     const saved = get().savedRecipes.filter((r) => r.id !== recipeId);
     set({ savedRecipes: saved });
-    await AsyncStorage.setItem(KEY_SAVED, JSON.stringify(saved));
+    await setScopedItem(KEY_SAVED, JSON.stringify(saved));
   },
 
   refreshSaved: async () => {
     try {
       const data = await recipeService.fetchSavedRecipes();
-      if (data) set({ savedRecipes: data });
-    } catch {
-      // use local
+      if (data) {
+        set({ savedRecipes: data, error: '' });
+        await setScopedItem(KEY_SAVED, JSON.stringify(data));
+      }
+    } catch (error) {
+      set({ error: (error as Error).message || '收藏列表刷新失败' });
+    }
+  },
+
+  refreshRemote: async () => {
+    try {
+      const [savedRecipes, recipeHistory] = await Promise.all([
+        recipeService.fetchSavedRecipes(),
+        recipeService.fetchRecipeHistory(),
+      ]);
+      set({ savedRecipes, recipeHistory, error: '' });
+      await Promise.all([
+        setScopedItem(KEY_SAVED, JSON.stringify(savedRecipes)),
+        setScopedItem(KEY_HISTORY, JSON.stringify(recipeHistory)),
+      ]);
+    } catch (error) {
+      set({ error: (error as Error).message || '菜谱数据同步失败' });
     }
   },
 
   loadLocal: async () => {
     try {
       const [saved, history] = await Promise.all([
-        AsyncStorage.getItem(KEY_SAVED),
-        AsyncStorage.getItem(KEY_HISTORY),
+        getScopedItem(KEY_SAVED),
+        getScopedItem(KEY_HISTORY),
       ]);
       set({
         savedRecipes: saved ? JSON.parse(saved) : [],
@@ -105,4 +133,9 @@ export const useRecipeStore = create<RecipeState>((set, get) => ({
       // ignore
     }
   },
+
+  clearLocalData: () => set({
+    currentIngredients: [], recognitionSessionId: null, currentRecipe: null,
+    savedRecipes: [], recipeHistory: [], isLoading: false, error: '',
+  }),
 }));

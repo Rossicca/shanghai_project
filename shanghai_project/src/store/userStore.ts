@@ -5,6 +5,8 @@ import { loadToken } from '@/services/user';
 import type { BodySnapshot } from '@/services/user';
 import type { BodyData, FitnessGoal } from '@/types/workout';
 import type { User } from '@/types/user';
+import { useRecipeStore } from '@/store/recipeStore';
+import { useWorkoutStore } from '@/store/workoutStore';
 
 interface UserState {
   user: User | null;
@@ -31,14 +33,30 @@ export const useUserStore = create<UserState>((set) => ({
   isLoggedIn: false,
 
   load: async () => {
-    const [user, bodyData, goal, bodyHistory, token] = await Promise.all([
-      userService.loadUser(),
-      userService.loadBodyData(),
-      userService.loadGoal(),
-      userService.loadBodyHistory(),
-      loadToken(),
-    ]);
-    set({ user, bodyData, goal, bodyHistory, loaded: true, isLoggedIn: !!token });
+    const token = await loadToken();
+    try {
+      if (token) {
+        const account = await userService.fetchCurrentAccount();
+        set({ ...account, loaded: true, isLoggedIn: true });
+        return;
+      }
+      const user = await userService.loadUser();
+      const [bodyData, goal, bodyHistory] = await Promise.all([
+        userService.loadBodyData(),
+        userService.loadGoal(),
+        userService.loadBodyHistory(),
+      ]);
+      set({ user, bodyData, goal, bodyHistory, loaded: true, isLoggedIn: false });
+    } catch {
+      const [user, bodyData, goal, bodyHistory, remainingToken] = await Promise.all([
+        userService.loadUser(),
+        userService.loadBodyData(),
+        userService.loadGoal(),
+        userService.loadBodyHistory(),
+        loadToken(),
+      ]);
+      set({ user, bodyData, goal, bodyHistory, loaded: true, isLoggedIn: !!remainingToken });
+    }
   },
 
   setUser: async (user) => {
@@ -62,19 +80,23 @@ export const useUserStore = create<UserState>((set) => ({
   },
 
   login: async (email, password) => {
-    const user = await userService.login(email, password);
-    set({ user, isLoggedIn: true });
-    return user;
+    await userService.login(email, password);
+    const account = await userService.fetchCurrentAccount();
+    set({ ...account, loaded: true, isLoggedIn: true });
+    return account.user;
   },
 
   register: async (email, password, nickname) => {
-    const user = await userService.register(email, password, nickname);
-    set({ user, isLoggedIn: true });
-    return user;
+    await userService.register(email, password, nickname);
+    const account = await userService.fetchCurrentAccount();
+    set({ ...account, loaded: true, isLoggedIn: true });
+    return account.user;
   },
 
   logout: async () => {
     await userService.clearUser();
-    set({ user: null, bodyData: null, goal: null, isLoggedIn: false });
+    useRecipeStore.getState().clearLocalData();
+    useWorkoutStore.getState().clearLocalData();
+    set({ user: null, bodyData: null, goal: null, bodyHistory: [], isLoggedIn: false, loaded: true });
   },
 }));

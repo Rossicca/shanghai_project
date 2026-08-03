@@ -249,6 +249,21 @@ async function run() {
     });
 
     await request(`/api/v1/recipes/${generatedRecipeId}`, { token });
+    const secondAccount = await request('/api/v1/auth/register', {
+      method: 'POST',
+      body: {
+        email: `yan-other-${Date.now()}@example.com`,
+        password: 'TestPass123!',
+        nickname: 'YAN其他账号',
+      },
+      status: 201,
+    });
+    const secondToken = secondAccount.data.data.accessToken;
+    await request(`/api/v1/recipes/${generatedRecipeId}`, { token: secondToken, status: 404 });
+    await request(`/api/v1/recipes/${generatedRecipeId}/save`, { method: 'POST', token: secondToken, status: 404 });
+    await request(`/api/v1/recipes/${generatedRecipeId}/reimagine`, {
+      method: 'POST', token: secondToken, body: { style: 'steam' }, status: 404,
+    });
     await request(`/api/v1/recipes/${generatedRecipeId}/save`, { method: 'POST', token });
     const savedRecipes = await request('/api/v1/recipes/saved/list', { token });
     assert.ok(savedRecipes.data.data.some((item) => item.recipeId === generatedRecipeId));
@@ -273,6 +288,9 @@ async function run() {
       false
     );
     const workoutId = feed.data.data.items[0].id;
+    await request(`/api/v1/workouts/${workoutId}/complete`, { method: 'POST', token, status: 201 });
+    const workoutHistory = await request('/api/v1/workouts/history/list', { token });
+    assert.equal(workoutHistory.data.data.length, 1);
     await request(`/api/v1/workouts/${workoutId}/save`, { method: 'POST', token });
     const savedWorkouts = await request('/api/v1/workouts/saved/list', { token });
     assert.ok(savedWorkouts.data.data.some((item) => item.id === workoutId));
@@ -281,6 +299,8 @@ async function run() {
     assert.ok(!workoutsAfterUnsave.data.data.some((item) => item.id === workoutId));
     const dashboard = await request('/api/v1/stats/dashboard', { token });
     assert.ok(dashboard.data.data.totalRecipes >= 3);
+    assert.equal(dashboard.data.data.totalWorkouts, 1);
+    assert.ok(dashboard.data.data.totalCaloriesBurned > 0);
     await request('/api/v1/workouts/not-found', { token, status: 404 });
 
     const legacyRecognition = await request('/api/recognize', {

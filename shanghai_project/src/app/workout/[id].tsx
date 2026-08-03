@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
-import { Alert, Linking, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Linking, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { VideoPlayer } from '@/components/workout/VideoPlayer';
 import { ThemedText } from '@/components/themed-text';
@@ -9,14 +10,37 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { getToken } from '@/services/api';
+import { fetchWorkoutDetail } from '@/services/workout';
 import { useWorkoutStore } from '@/store/workoutStore';
 
 export default function WorkoutDetail() {
+  const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useTheme();
-  const { selectedVideo, savedVideos, toggleSave, addHistory } = useWorkoutStore();
+  const { selectedVideo, savedVideos, toggleSave, addHistory, selectVideo, error: storeError } = useWorkoutStore();
   const [playing, setPlaying] = useState(true);
+  const [detailVideo, setDetailVideo] = useState(selectedVideo?.id === id ? selectedVideo : null);
+  const [loading, setLoading] = useState(Boolean(id && selectedVideo?.id !== id && getToken()));
+  const [actionError, setActionError] = useState('');
 
-  const video = selectedVideo;
+  useEffect(() => {
+    if (!id || selectedVideo?.id === id || !getToken()) return;
+    let active = true;
+    fetchWorkoutDetail(id)
+      .then((next) => {
+        if (!active) return;
+        setDetailVideo(next);
+        selectVideo(next);
+      })
+      .catch((error) => active && setActionError((error as Error).message || '视频加载失败'))
+      .finally(() => active && setLoading(false));
+    return () => { active = false; };
+  }, [id, selectVideo, selectedVideo?.id]);
+
+  const video = selectedVideo?.id === id ? selectedVideo : detailVideo?.id === id ? detailVideo : null;
+  if (loading && !video) {
+    return <ThemedView style={styles.container}><View style={styles.empty}><ActivityIndicator /></View></ThemedView>;
+  }
   if (!video) {
     return (
       <ThemedView style={styles.container}>
@@ -127,13 +151,22 @@ export default function WorkoutDetail() {
           <Button
             title={playing ? '开始跟练' : '重新跟练'}
             icon="play"
-            onPress={() => {
-              addHistory(video);
-              setPlaying(true);
+            onPress={async () => {
+              setActionError('');
+              try {
+                await addHistory(video);
+                setPlaying(true);
+              } catch (error) {
+                setActionError((error as Error).message || '训练记录保存失败，请重试');
+              }
             }}
             style={{ flex: 1 }}
           />
         </View>
+
+        {actionError || storeError ? (
+          <ThemedText type="small" themeColor="danger">{actionError || storeError}</ThemedText>
+        ) : null}
 
         <ThemedText type="small" themeColor="textSecondary" style={styles.tip}>
           运动建议仅供参考，非医疗用途

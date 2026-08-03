@@ -11,6 +11,8 @@ export type WorkoutCategory =
 /** 跟练视频 */
 export interface WorkoutVideo {
   id: string;
+  historyId?: string;
+  completedAt?: number;
   title: string;
   coach: string;
   duration: number; // 秒

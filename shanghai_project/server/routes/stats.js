@@ -62,6 +62,10 @@ router.get('/dashboard', (req, res) => {
       data: {
         streakDays: Math.min(watchedWorkouts.length, 30),
         totalWorkouts: watchedWorkouts.length,
+        totalCaloriesBurned: watchedWorkouts.reduce(
+          (sum, workout) => sum + Number(workout.calories || 0),
+          0
+        ),
         totalRecipes: recipes.length,
         totalWatchTimeMinutes: watchedWorkouts.length * 15,
         currentWeight: currentBody?.weight || null,
