@@ -1,0 +1,11 @@
+{
+  "port": 8787,
+  "ai": {
+    "enabled": false,
+    "provider": "openai-compatible",
+    "baseURL": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "apiKey": "",
+    "visionModel": "qwen-vl-plus",
+    "textModel": "qwen-plus"
+  }
+}

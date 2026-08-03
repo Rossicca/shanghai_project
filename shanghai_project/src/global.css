@@ -1,0 +1,36 @@
+:root {
+  --font-display:
+    Spline Sans, Inter, ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji,
+    Segoe UI Symbol, Noto Color Emoji;
+  --font-mono:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
+  --font-rounded: 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif;
+  --font-serif: Georgia, 'Times New Roman', serif;
+}
+
+/* ============================================
+   手机 App 形态：网页版以手机屏幕宽度呈现
+   - 桌面/平板上：窄屏居中，模拟手机框
+   - 手机上：宽度 < 480px 时自然撑满，不受影响
+   ============================================ */
+body {
+  background: #e9edf0;
+}
+
+#root {
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100vh;
+  background: #ffffff;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.12);
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background: #0a0c10;
+  }
+  #root {
+    background: #0f1115;
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.55);
+  }
+}
