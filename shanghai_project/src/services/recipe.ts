@@ -3,6 +3,27 @@ import { AI_TIMEOUT } from '@/constants/config';
 
 import { api } from './api';
 
+function mapRecipe(data: any): Recipe {
+  return {
+    id: String(data.recipeId || data.id),
+    name: String(data.name || '未命名菜谱'),
+    description: String(data.description || ''),
+    coverEmoji: data.coverEmoji || '🍽️',
+    calories: Number(data.nutrition?.calories ?? data.calories ?? 0),
+    protein: Number(data.nutrition?.protein ?? data.protein ?? 0),
+    carbs: Number(data.nutrition?.carbs ?? data.carbs ?? 0),
+    fat: Number(data.nutrition?.fat ?? data.fat ?? 0),
+    ingredients: Array.isArray(data.ingredients) ? data.ingredients : [],
+    steps: (data.steps || []).map((step: any) => typeof step === 'string' ? step : step.description),
+    cookTime: Number(data.cookTime || 20),
+    difficulty: data.difficulty || '简单',
+    tips: Array.isArray(data.tips) ? data.tips : [],
+    servings: Number(data.servings || 1),
+    nutritionTarget: data.nutritionTarget || null,
+    createdAt: Date.parse(data.createdAt) || Number(data.createdAt) || Date.now(),
+  };
+}
+
 /** AI 生成菜谱（旧 API，兼容现有 store） */
 export async function generateRecipe(params: RecipeGenerateParams): Promise<Recipe> {
   const res = await api.post<{ recipe: Recipe }>('/api/recipe/generate', params, { timeout: AI_TIMEOUT });
@@ -58,17 +79,13 @@ export async function generateRecipeFromSession(
 export async function reimagineRecipe(recipeId: string, style?: string): Promise<Recipe> {
   const res = await api.post(`/api/v1/recipes/${recipeId}/reimagine`, { style }, { timeout: AI_TIMEOUT });
   const data = res.data.data;
-  return {
-    ...data,
-    id: data.recipeId || data.id,
-    createdAt: Date.parse(data.createdAt) || Date.now(),
-  };
+  return mapRecipe(data);
 }
 
 /** 获取菜谱详情 */
 export async function fetchRecipe(recipeId: string): Promise<Recipe> {
   const res = await api.get(`/api/v1/recipes/${recipeId}`);
-  return res.data.data;
+  return mapRecipe(res.data.data);
 }
 
 /** 收藏菜谱 */
@@ -84,11 +101,11 @@ export async function unsaveRecipe(recipeId: string): Promise<void> {
 /** 获取收藏列表 */
 export async function fetchSavedRecipes() {
   const res = await api.get('/api/v1/recipes/saved/list');
-  return res.data.data;
+  return (res.data.data || []).map(mapRecipe);
 }
 
 /** 获取菜谱历史 */
 export async function fetchRecipeHistory() {
   const res = await api.get('/api/v1/recipes/history/list');
-  return res.data.data;
+  return (res.data.data || []).map(mapRecipe);
 }

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -22,31 +22,49 @@ import type { WorkoutVideo } from '@/types/workout';
 
 export default function ProfileTab() {
   const colors = useTheme();
-  const { user, bodyData, goal, bodyHistory, load, logout } = useUserStore();
-  const { savedRecipes, recipeHistory, loadLocal: loadRecipes, selectRecipe } = useRecipeStore();
+  const { user, bodyData, goal, bodyHistory, logout } = useUserStore();
+  const { savedRecipes, recipeHistory, loadLocal: loadRecipes, refreshRemote: refreshRecipes, selectRecipe } = useRecipeStore();
   const {
     savedVideos,
     history: workoutHistory,
     loadLocal: loadWorkouts,
+    refreshSaved: refreshWorkouts,
     selectVideo,
   } = useWorkoutStore();
   const [dashboard, setDashboard] = useState<any>(null);
   const [dashboardError, setDashboardError] = useState('');
 
-  useEffect(() => {
-    load();
-    loadRecipes();
-    loadWorkouts();
-    if (getToken()) {
-      fetchDashboard().then(setDashboard).catch((error) => setDashboardError(error.message));
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    async function refresh() {
+      setDashboardError('');
+      await Promise.all([loadRecipes(), loadWorkouts()]);
+      if (!getToken()) {
+        if (active) setDashboard(null);
+        return;
+      }
+      try {
+        const [nextDashboard] = await Promise.all([
+          fetchDashboard(),
+          refreshRecipes(),
+          refreshWorkouts(),
+        ]);
+        if (active) setDashboard(nextDashboard);
+      } catch (error) {
+        if (active) setDashboardError((error as Error).message);
+      }
     }
-  }, [load, loadRecipes, loadWorkouts]);
+    refresh();
+    return () => { active = false; };
+  }, [loadRecipes, loadWorkouts, refreshRecipes, refreshWorkouts]));
 
   const bmi = calcBMI(bodyData);
   const bmiLabel = bmi ? (bmi < 18.5 ? '偏瘦' : bmi < 24 ? '正常' : bmi < 28 ? '偏胖' : '肥胖') : '';
 
   const totalWorkouts = Number(dashboard?.totalWorkouts ?? workoutHistory.length ?? 0);
-  const totalCalories = workoutHistory.reduce((sum, v) => sum + (v.calories ?? 0), 0);
+  const totalCalories = Number(
+    dashboard?.totalCaloriesBurned ?? workoutHistory.reduce((sum, v) => sum + (v.calories ?? 0), 0)
+  );
   const totalRecipes = Number(dashboard?.totalRecipes ?? recipeHistory.length ?? 0);
   const totalSaved = Number(
     dashboard
@@ -189,7 +207,7 @@ export default function ProfileTab() {
             <Card style={styles.section}>
               <ThemedText type="smallBold">最近记录</ThemedText>
               {workoutHistory.slice(0, 3).map((v) => (
-                <Pressable key={v.id} onPress={() => openVideo(v)} style={styles.snippet}>
+                <Pressable key={v.historyId || v.id} onPress={() => openVideo(v)} style={styles.snippet}>
                   <View style={[styles.snippetDot, { backgroundColor: v.coverColor }]} />
                   <ThemedText type="small" style={{ flex: 1 }} numberOfLines={1}>
                     {v.title}

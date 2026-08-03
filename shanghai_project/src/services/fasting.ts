@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getScopedItem, setScopedItem } from './scopedStorage';
 
 /**
  * 断食番茄钟（轻断食计时）。
@@ -37,7 +37,7 @@ export const AUTO_END_HOUR = 12; // 次日 12:00 结束
 
 export async function loadFasting(): Promise<FastingState> {
   try {
-    const raw = await AsyncStorage.getItem(KEY);
+    const raw = await getScopedItem(KEY);
     if (!raw) return DEFAULT_STATE;
     return { ...DEFAULT_STATE, ...JSON.parse(raw) };
   } catch {
@@ -47,7 +47,7 @@ export async function loadFasting(): Promise<FastingState> {
 
 export async function saveFasting(state: FastingState): Promise<void> {
   try {
-    await AsyncStorage.setItem(KEY, JSON.stringify(state));
+    await setScopedItem(KEY, JSON.stringify(state));
   } catch {
     // ignore
   }

@@ -18,8 +18,25 @@ function loadLocalSecrets() {
 }
 
 const localSecrets = loadLocalSecrets();
-const configuredJwtSecret =
-  process.env.JWT_SECRET || localSecrets.server?.jwtSecret;
+const jwtSecretPath = path.join(__dirname, '.jwt-secret');
+
+function loadOrCreateJwtSecret() {
+  const configured = process.env.JWT_SECRET || localSecrets.server?.jwtSecret;
+  if (configured) return configured;
+  try {
+    if (fs.existsSync(jwtSecretPath)) {
+      const stored = fs.readFileSync(jwtSecretPath, 'utf8').trim();
+      if (stored) return stored;
+    }
+    const generated = randomBytes(48).toString('hex');
+    fs.writeFileSync(jwtSecretPath, generated, { encoding: 'utf8', mode: 0o600 });
+    return generated;
+  } catch {
+    return randomBytes(48).toString('hex');
+  }
+}
+
+const configuredJwtSecret = loadOrCreateJwtSecret();
 
 const config = {
   ...publicConfig,
@@ -32,8 +49,8 @@ const config = {
   },
 };
 
-if (!configuredJwtSecret) {
-  console.warn('[config] 未配置 JWT_SECRET，本次演示进程将使用临时随机密钥。');
+if (!process.env.JWT_SECRET && !localSecrets.server?.jwtSecret) {
+  console.warn('[config] 未显式配置 JWT_SECRET，正在使用本机持久化随机密钥。');
 }
 
 function isMockMode() {

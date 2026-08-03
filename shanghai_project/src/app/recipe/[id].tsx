@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { NutritionInfo } from '@/components/recipe/NutritionInfo';
 import { ThemedText } from '@/components/themed-text';
@@ -10,12 +10,14 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { reimagineRecipe } from '@/services/recipe';
+import { getToken } from '@/services/api';
+import { fetchRecipe, reimagineRecipe } from '@/services/recipe';
 import { useRecipeStore } from '@/store/recipeStore';
 import { useUserStore } from '@/store/userStore';
 import { estimateTargetCalories } from '@/utils/nutrition';
 
 export default function RecipeDetail() {
+  const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useTheme();
   const { currentRecipe, selectRecipe, savedRecipes, saveRecipe, unsaveRecipe, loadLocal } =
     useRecipeStore();
@@ -24,13 +26,34 @@ export default function RecipeDetail() {
 
   const [switching, setSwitching] = useState(false);
   const [switchError, setSwitchError] = useState('');
-  const recipe = currentRecipe;
+  const [detailRecipe, setDetailRecipe] = useState(currentRecipe?.id === id ? currentRecipe : null);
+  const [detailLoading, setDetailLoading] = useState(Boolean(id && currentRecipe?.id !== id && getToken()));
+  const [saveError, setSaveError] = useState('');
+  const recipe = currentRecipe?.id === id ? currentRecipe : detailRecipe?.id === id ? detailRecipe : null;
   const saved = recipe ? savedRecipes.some((r) => r.id === recipe.id) : false;
   const targetCalories = recipe?.nutritionTarget?.targetCalories ?? estimateTargetCalories(bodyData, goal);
 
   useEffect(() => {
     loadLocal();
   }, [loadLocal]);
+
+  useEffect(() => {
+    if (!id || currentRecipe?.id === id || !getToken()) return;
+    let active = true;
+    fetchRecipe(id)
+      .then((next) => {
+        if (!active) return;
+        setDetailRecipe(next);
+        selectRecipe(next);
+      })
+      .catch((error) => active && setSwitchError((error as Error).message || '菜谱加载失败'))
+      .finally(() => active && setDetailLoading(false));
+    return () => { active = false; };
+  }, [currentRecipe?.id, id, selectRecipe]);
+
+  if (detailLoading && !recipe) {
+    return <ThemedView style={styles.container}><View style={styles.empty}><ActivityIndicator /></View></ThemedView>;
+  }
 
   if (!recipe) {
     return (
@@ -132,15 +155,20 @@ export default function RecipeDetail() {
             variant="outline"
             icon={saved ? 'heart' : 'heart-outline'}
             onPress={async () => {
-              if (saved) await unsaveRecipe(recipe.id);
-              else await saveRecipe(recipe);
+              setSaveError('');
+              try {
+                if (saved) await unsaveRecipe(recipe.id);
+                else await saveRecipe(recipe);
+              } catch (error) {
+                setSaveError((error as Error).message || '收藏操作失败，请重试');
+              }
             }}
           />
           <View style={{ width: Spacing.two }} />
           <Button title="换一种做法" icon="refresh" variant="secondary" onPress={switchRecipe} loading={switching} style={{ flex: 1 }} />
         </View>
 
-        {switchError ? <ThemedText type="small" themeColor="danger">{switchError}</ThemedText> : null}
+        {switchError || saveError ? <ThemedText type="small" themeColor="danger">{switchError || saveError}</ThemedText> : null}
 
         <ThemedText type="small" themeColor="textSecondary" style={styles.tip}>
           AI 生成的营养与用量为估算值，仅供日常饮食参考

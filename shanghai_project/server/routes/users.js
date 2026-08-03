@@ -185,10 +185,16 @@ router.get('/me/body-data/history', (req, res) => {
 router.put('/me/goal', (req, res) => {
   try {
     const { goalType, targetWeight, targetDate, activityLevel, weeklyFrequency } = req.body;
+    const normalizedFrequency = weeklyFrequency == null ? 3 : Number(weeklyFrequency);
     const allowedGoals = ['lose_fat', 'gain_muscle', 'shape', 'maintain', '减脂', '增肌', '塑形', '保持健康'];
     if (!allowedGoals.includes(goalType)) {
       return res.status(400).json({
         error: { code: 'INVALID_GOAL_TYPE', message: '请选择有效的健身目标' },
+      });
+    }
+    if (!Number.isInteger(normalizedFrequency) || normalizedFrequency < 1 || normalizedFrequency > 7) {
+      return res.status(400).json({
+        error: { code: 'INVALID_WEEKLY_FREQUENCY', message: '每周训练次数必须在 1 到 7 次之间' },
       });
     }
 
@@ -200,7 +206,7 @@ router.put('/me/goal', (req, res) => {
       targetWeight: targetWeight ? Number(targetWeight) : null,
       targetDate: targetDate || null,
       activityLevel: activityLevel || 'moderate',
-      weeklyFrequency: weeklyFrequency || 3,
+      weeklyFrequency: normalizedFrequency,
     });
 
     res.json({ data: goal, message: '健身目标已更新' });

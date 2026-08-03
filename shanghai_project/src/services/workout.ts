@@ -9,6 +9,8 @@ function mapWorkoutVideo(item: any): WorkoutVideo {
   };
   return {
     id: String(item.id),
+    historyId: item.historyId ? String(item.historyId) : undefined,
+    completedAt: item.completedAt ? (Date.parse(item.completedAt) || Number(item.completedAt)) : undefined,
     title: String(item.title || '\u672a\u547d\u540d\u8bad\u7ec3'),
     coach: String(item.coach || item.instructor || '\u5065\u8eab\u6559\u7ec3'),
     duration: Number(item.duration || 0),
@@ -85,7 +87,7 @@ export async function searchWorkouts(q: string, page = 1) {
 /** 获取视频详情（新 API） */
 export async function fetchWorkoutDetail(id: string) {
   const res = await api.get(`/api/v1/workouts/${id}`);
-  return res.data.data;
+  return mapWorkoutVideo(res.data.data);
 }
 
 /** 收藏视频（新 API） */
@@ -101,7 +103,16 @@ export async function unsaveWorkout(id: string): Promise<void> {
 /** 获取收藏列表（新 API） */
 export async function fetchSavedWorkouts() {
   const res = await api.get('/api/v1/workouts/saved/list');
-  return res.data.data;
+  return (res.data.data || []).map(mapWorkoutVideo);
+}
+
+export async function fetchWorkoutHistory() {
+  const res = await api.get('/api/v1/workouts/history/list');
+  return (res.data.data || []).map(mapWorkoutVideo);
+}
+
+export async function completeWorkout(id: string): Promise<void> {
+  await api.post(`/api/v1/workouts/${id}/complete`);
 }
 
 /** 获取数据看板（新 API） */

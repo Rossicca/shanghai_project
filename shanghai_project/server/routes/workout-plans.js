@@ -17,7 +17,7 @@ function numberInRange(value, fallback, min, max) {
 function normalizeRequest(body) {
   return {
     goalType: ALLOWED_GOALS.has(body.goalType) ? body.goalType : 'maintain',
-    weeklyFrequency: numberInRange(body.weeklyFrequency, 3, 1, 6),
+    weeklyFrequency: numberInRange(body.weeklyFrequency, 3, 1, 7),
     sessionDurationMinutes: numberInRange(body.sessionDurationMinutes, 30, 10, 90),
     workoutLocation: ALLOWED_LOCATIONS.has(body.workoutLocation) ? body.workoutLocation : 'home',
     hasEquipment: Boolean(body.hasEquipment),

@@ -11,6 +11,12 @@ const { pickMockRecipe } = require('../demo-data');
 // 每个用户每分钟最多生成 3 次
 const generationLimit = new Map();
 
+function findOwnedRecipe(req, recipeId) {
+  const recipe = db.findById('recipes', recipeId);
+  if (!recipe || recipe.userId !== req.user.userId) return null;
+  return recipe;
+}
+
 function checkRateLimit(userId) {
   const now = Date.now();
   const window = 60 * 1000;
@@ -175,7 +181,7 @@ router.post('/generate', async (req, res) => {
 router.post('/:id/reimagine', async (req, res) => {
   try {
     const { style, maxCookTime } = req.body;
-    const original = db.findById('recipes', req.params.id);
+    const original = findOwnedRecipe(req, req.params.id);
     if (!original) {
       return res.status(404).json({
         error: { code: 'RECIPE_NOT_FOUND', message: '菜谱不存在' },
@@ -234,7 +240,7 @@ router.post('/:id/reimagine', async (req, res) => {
  */
 router.get('/:id', (req, res) => {
   try {
-    const recipe = db.findById('recipes', req.params.id);
+    const recipe = findOwnedRecipe(req, req.params.id);
     if (!recipe) {
       return res.status(404).json({
         error: { code: 'RECIPE_NOT_FOUND', message: '菜谱不存在' },
@@ -254,7 +260,7 @@ router.get('/:id', (req, res) => {
  */
 router.post('/:id/save', (req, res) => {
   try {
-    const recipe = db.findById('recipes', req.params.id);
+    const recipe = findOwnedRecipe(req, req.params.id);
     if (!recipe) {
       return res.status(404).json({
         error: { code: 'RECIPE_NOT_FOUND', message: '菜谱不存在' },
@@ -281,6 +287,10 @@ router.post('/:id/save', (req, res) => {
  */
 router.delete('/:id/save', (req, res) => {
   try {
+    const recipe = findOwnedRecipe(req, req.params.id);
+    if (!recipe) {
+      return res.status(404).json({ error: { code: 'RECIPE_NOT_FOUND', message: '菜谱不存在' } });
+    }
     db.update('recipes', req.params.id, { isSaved: false });
     db.removeMany('saved_recipes', {
       userId: req.user?.userId || 'anonymous',
@@ -304,7 +314,7 @@ router.get('/saved/list', (req, res) => {
     const saved = db.find('saved_recipes', { userId });
     const recipes = saved
       .map((s) => db.findById('recipes', s.recipeId))
-      .filter(Boolean)
+      .filter((recipe) => recipe && recipe.userId === userId)
       .map((r) => ({ ...r, recipeId: r.id }));
     res.json({ data: recipes });
   } catch (e) {

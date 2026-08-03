@@ -30,7 +30,7 @@ function goalCode(value?: string): WorkoutPlanInput['goalType'] {
 export default function WorkoutPlanPage() {
   const colors = useTheme();
   const goal = useUserStore((state) => state.goal);
-  const [weeklyFrequency, setWeeklyFrequency] = useState(3);
+  const [weeklyFrequency, setWeeklyFrequency] = useState(() => goal?.weeklyFrequency ?? 3);
   const [duration, setDuration] = useState(30);
   const [location, setLocation] = useState<WorkoutPlanInput['workoutLocation']>('home');
   const [hasEquipment, setHasEquipment] = useState(false);
@@ -99,7 +99,7 @@ export default function WorkoutPlanPage() {
                 <Ionicons name="remove" size={18} color={colors.text} />
               </Pressable>
               <ThemedText type="subtitle">{weeklyFrequency} 天</ThemedText>
-              <Pressable style={[styles.stepButton, { backgroundColor: colors.backgroundElement }]} onPress={() => setWeeklyFrequency((value) => Math.min(6, value + 1))}>
+              <Pressable style={[styles.stepButton, { backgroundColor: colors.backgroundElement }]} onPress={() => setWeeklyFrequency((value) => Math.min(7, value + 1))}>
                 <Ionicons name="add" size={18} color={colors.text} />
               </Pressable>
             </View>
