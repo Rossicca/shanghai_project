@@ -5,6 +5,9 @@ import { Platform } from 'react-native';
 const DEV_PORT = 8787;
 
 function resolveBaseUrl(): string {
+  if (process.env.EXPO_PUBLIC_API_BASE_URL) {
+    return process.env.EXPO_PUBLIC_API_BASE_URL.replace(/\/$/, '');
+  }
   if (Platform.OS === 'web') {
     return `http://localhost:${DEV_PORT}`;
   }
@@ -18,7 +21,8 @@ function resolveBaseUrl(): string {
 export const API_BASE_URL = resolveBaseUrl();
 
 /** 识别/生成请求超时（毫秒） */
+export const REQUEST_TIMEOUT = 30000;
 export const AI_TIMEOUT = 60000;
 
 /** 是否启用演示兜底：后端失败时自动用内置演示数据 */
-export const ENABLE_DEMO_FALLBACK = true;
+export const ENABLE_DEMO_FALLBACK = false;

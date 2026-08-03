@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -11,6 +11,8 @@ import { ThemedView } from '@/components/themed-view';
 import { Card } from '@/components/ui/Card';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { getToken } from '@/services/api';
+import { fetchDashboard } from '@/services/workout';
 import { useRecipeStore } from '@/store/recipeStore';
 import { useUserStore } from '@/store/userStore';
 import { useWorkoutStore } from '@/store/workoutStore';
@@ -28,20 +30,29 @@ export default function ProfileTab() {
     loadLocal: loadWorkouts,
     selectVideo,
   } = useWorkoutStore();
+  const [dashboard, setDashboard] = useState<any>(null);
+  const [dashboardError, setDashboardError] = useState('');
 
   useEffect(() => {
     load();
     loadRecipes();
     loadWorkouts();
+    if (getToken()) {
+      fetchDashboard().then(setDashboard).catch((error) => setDashboardError(error.message));
+    }
   }, [load, loadRecipes, loadWorkouts]);
 
   const bmi = calcBMI(bodyData);
   const bmiLabel = bmi ? (bmi < 18.5 ? '偏瘦' : bmi < 24 ? '正常' : bmi < 28 ? '偏胖' : '肥胖') : '';
 
-  const totalWorkouts = workoutHistory.length;
+  const totalWorkouts = Number(dashboard?.totalWorkouts ?? workoutHistory.length ?? 0);
   const totalCalories = workoutHistory.reduce((sum, v) => sum + (v.calories ?? 0), 0);
-  const totalRecipes = recipeHistory.length;
-  const totalSaved = savedRecipes.length + savedVideos.length;
+  const totalRecipes = Number(dashboard?.totalRecipes ?? recipeHistory.length ?? 0);
+  const totalSaved = Number(
+    dashboard
+      ? (dashboard.totalSavedRecipes ?? 0) + (dashboard.totalSavedWorkouts ?? 0)
+      : savedRecipes.length + savedVideos.length
+  );
   const loggedIn = !!user;
 
   function openRecipe(r: Recipe) {
@@ -85,6 +96,11 @@ export default function ProfileTab() {
             <StatsCard icon="restaurant" label="生成菜谱" value={totalRecipes} tint={colors.success} />
             <StatsCard icon="heart" label="收藏" value={totalSaved} tint="#E74C3C" />
           </View>
+          {dashboardError ? (
+            <ThemedText type="small" themeColor="textSecondary">
+              在线统计暂时不可用，当前显示本机记录。
+            </ThemedText>
+          ) : null}
 
           {/* 身体数据 & 目标入口 */}
           <View style={styles.rows}>

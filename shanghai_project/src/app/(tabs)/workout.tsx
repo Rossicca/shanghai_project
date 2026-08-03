@@ -27,12 +27,16 @@ export default function WorkoutTab() {
     feed,
     currentCategory,
     isLoading,
+    isLoadingMore,
+    hasMore,
+    error,
     savedVideos,
     fetchFeed,
     switchCategory,
     toggleSave,
     selectVideo,
     addHistory,
+    loadMore,
   } = useWorkoutStore();
   const bodyData = useUserStore((s) => s.bodyData);
   const goal = useUserStore((s) => s.goal);
@@ -80,6 +84,22 @@ export default function WorkoutTab() {
           />
         </View>
 
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push('/workout/plan')}
+          style={[styles.planEntry, { backgroundColor: colors.primarySoft }]}>
+          <View style={[styles.planIcon, { backgroundColor: colors.primary }]}>
+            <Ionicons name="calendar-outline" size={20} color="#fff" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <ThemedText type="smallBold">生成每周训练计划</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              按目标、器械和身体限制安排动作与提醒
+            </ThemedText>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.primary} />
+        </Pressable>
+
         {/* 个性化提示 */}
         <View style={styles.personalBar}>
           <Ionicons
@@ -107,6 +127,23 @@ export default function WorkoutTab() {
             <ActivityIndicator size="large" color={colors.primary} />
             <ThemedText>AI 正在为你挑选视频...</ThemedText>
           </View>
+        ) : error && feed.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="cloud-offline-outline" size={32} color={colors.textSecondary} />
+            <ThemedText type="subtitle">视频暂时加载失败</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'center' }}>
+              {error}。你的身体数据和收藏不会丢失。
+            </ThemedText>
+            <Pressable onPress={() => fetchFeed({ bodyData: bodyData ?? undefined, goal: goal ?? undefined })}>
+              <ThemedText type="smallBold" themeColor="primary">重新加载</ThemedText>
+            </Pressable>
+          </View>
+        ) : feed.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="barbell-outline" size={32} color={colors.textSecondary} />
+            <ThemedText type="subtitle">这个分类还没有视频</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">可以切换其他分类，或稍后再来。</ThemedText>
+          </View>
         ) : (
           <View style={styles.feedWrap} onLayout={(e) => setListHeight(e.nativeEvent.layout.height)}>
             <FlatList
@@ -116,6 +153,9 @@ export default function WorkoutTab() {
               showsVerticalScrollIndicator={false}
               onViewableItemsChanged={onViewableItemsChanged}
               viewabilityConfig={viewabilityConfig}
+              onEndReached={() => { if (hasMore) loadMore(); }}
+              onEndReachedThreshold={0.6}
+              ListFooterComponent={isLoadingMore ? <ActivityIndicator color={colors.primary} /> : null}
               style={{ flex: 1 }}
               renderItem={({ item, index }) => (
                 <View style={{ height: listHeight || 600 }}>
@@ -147,6 +187,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.one,
   },
+  planEntry: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.two,
+    marginHorizontal: Spacing.three, marginBottom: Spacing.two,
+    padding: Spacing.three, borderRadius: 16,
+  },
+  planIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.three },
+  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.two, padding: Spacing.four },
   feedWrap: { flex: 1 },
 });

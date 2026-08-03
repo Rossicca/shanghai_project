@@ -30,6 +30,40 @@ router.post('/generate', async (req, res) => {
     const { sessionId, ingredients, mealType, servings, maxCookTime, difficulty, includeNutritionTarget } = req.body;
     const userId = req.user?.userId || 'anonymous';
 
+    let sourceIngredients = Array.isArray(ingredients) ? ingredients : [];
+    if (sessionId) {
+      const session = db.findById('recognition_sessions', sessionId);
+      if (!session) {
+        return res.status(404).json({
+          error: { code: 'RECOGNITION_SESSION_NOT_FOUND', message: '\u98df\u6750\u786e\u8ba4\u8bb0\u5f55\u4e0d\u5b58\u5728\uff0c\u8bf7\u91cd\u65b0\u786e\u8ba4\u98df\u6750' },
+        });
+      }
+      if (session.userId !== userId) {
+        return res.status(403).json({
+          error: { code: 'FORBIDDEN', message: '\u65e0\u6743\u4f7f\u7528\u8be5\u98df\u6750\u8bb0\u5f55' },
+        });
+      }
+      if (sourceIngredients.length === 0) sourceIngredients = session.ingredients || [];
+    }
+    if (sourceIngredients.length === 0) {
+      return res.status(400).json({
+        error: { code: 'INVALID_PARAMS', message: '\u8bf7\u5148\u786e\u8ba4\u81f3\u5c11\u4e00\u79cd\u98df\u6750' },
+      });
+    }
+    const preferences = db.find('preferences', { userId })[0] || {};
+    const allergies = Array.isArray(preferences.allergies) ? preferences.allergies : [];
+    const conflictingAllergen = allergies.find((allergen) =>
+      sourceIngredients.some((item) => String(item.name || '').includes(allergen))
+    );
+    if (conflictingAllergen) {
+      return res.status(422).json({
+        error: {
+          code: 'ALLERGEN_CONFLICT',
+          message: `\u5f53\u524d\u98df\u6750\u5305\u542b\u5df2\u8bbe\u7f6e\u7684\u8fc7\u654f\u6e90\u201c${conflictingAllergen}\u201d\uff0c\u8bf7\u79fb\u9664\u540e\u518d\u751f\u6210`,
+        },
+      });
+    }
+
     // 限流检查
     if (!checkRateLimit(userId)) {
       return res.status(429).json({
@@ -52,7 +86,12 @@ router.post('/generate', async (req, res) => {
 
     // 调用 AI 生成菜谱
     const recipe = await generateRecipe({
-      ingredients: ingredients || [],
+      ingredients: sourceIngredients.map((item) => ({
+        name: String(item.name || '').trim(),
+        amount: typeof item.amount === 'number'
+          ? `${item.amount}${item.unit || 'g'}`
+          : String(item.amount || item.estimatedAmount || '\u9002\u91cf'),
+      })).filter((item) => item.name),
       people: servings || 1,
       cookTime: maxCookTime || 20,
       difficulty: difficulty || '简单',
@@ -60,6 +99,8 @@ router.post('/generate', async (req, res) => {
         caloriesTarget: targetCalories,
         goal: goal?.goalType || '保持健康',
         bodyData,
+        allergies,
+        dietType: preferences.dietType || 'balanced',
       },
     });
 
@@ -112,7 +153,7 @@ router.post('/generate', async (req, res) => {
           carbs: recipeRecord.carbs,
           fiber: recipeRecord.fiber,
         },
-        nutritionTarget,
+        nutritionTarget: includeNutritionTarget === false ? null : nutritionTarget,
         steps: recipeRecord.steps,
         tips: recipeRecord.tips,
         isSaved: false,
@@ -122,7 +163,7 @@ router.post('/generate', async (req, res) => {
     });
   } catch (e) {
     console.error('[recipes] generate error:', e);
-    res.status(500).json({
+    res.status(502).json({
       error: { code: 'RECIPE_GENERATION_FAILED', message: '菜谱生成失败，请重试' },
     });
   }
@@ -182,7 +223,7 @@ router.post('/:id/reimagine', async (req, res) => {
     });
   } catch (e) {
     console.error('[recipes] reimagine error:', e);
-    res.status(500).json({
+    res.status(502).json({
       error: { code: 'RECIPE_GENERATION_FAILED', message: '换做法失败，请重试' },
     });
   }
@@ -315,19 +356,25 @@ function calculateTargetCalories(bodyData, goal) {
   };
   const tdee = bmr * (activityMap[goal.activityLevel] || 1.55);
 
+  let dailyTarget;
   switch (goal.goalType) {
     case 'lose_fat':
     case '减脂':
-      return Math.round(tdee - 500);
+      dailyTarget = tdee - 500;
+      break;
     case 'gain_muscle':
     case '增肌':
-      return Math.round(tdee + 300);
+      dailyTarget = tdee + 300;
+      break;
     case 'shape':
     case '塑形':
-      return Math.round(tdee);
+      dailyTarget = tdee;
+      break;
     default:
-      return Math.round(tdee);
+      dailyTarget = tdee;
   }
+  // 菜谱营养口径为每份/每餐，不能直接与全日 TDEE 比较。
+  return Math.min(900, Math.max(300, Math.round(dailyTarget / 3)));
 }
 
 module.exports = router;

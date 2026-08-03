@@ -9,11 +9,13 @@ const KEY_HISTORY = 'recipe:history';
 
 interface RecipeState {
   currentIngredients: Ingredient[];
+  recognitionSessionId: string | null;
   currentRecipe: Recipe | null;
   savedRecipes: Recipe[];
   recipeHistory: Recipe[];
   isLoading: boolean;
   setIngredients: (ingredients: Ingredient[]) => void;
+  setRecognitionSessionId: (sessionId: string | null) => void;
   selectRecipe: (recipe: Recipe) => void;
   generateRecipe: (params: RecipeGenerateParams) => Promise<Recipe>;
   saveRecipe: (recipe: Recipe) => Promise<void>;
@@ -24,19 +26,24 @@ interface RecipeState {
 
 export const useRecipeStore = create<RecipeState>((set, get) => ({
   currentIngredients: [],
+  recognitionSessionId: null,
   currentRecipe: null,
   savedRecipes: [],
   recipeHistory: [],
   isLoading: false,
 
   setIngredients: (currentIngredients) => set({ currentIngredients }),
+  setRecognitionSessionId: (recognitionSessionId) => set({ recognitionSessionId }),
 
   selectRecipe: (currentRecipe) => set({ currentRecipe }),
 
   generateRecipe: async (params) => {
     set({ isLoading: true });
     try {
-      const recipe = await recipeService.generateRecipe(params);
+      const sessionId = get().recognitionSessionId;
+      const recipe = sessionId
+        ? await recipeService.generateRecipeFromSession(sessionId, params)
+        : await recipeService.generateRecipe(params);
       recipe.createdAt = Date.now();
       set((s) => ({
         currentRecipe: recipe,

@@ -10,22 +10,23 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { reimagineRecipe } from '@/services/recipe';
 import { useRecipeStore } from '@/store/recipeStore';
 import { useUserStore } from '@/store/userStore';
 import { estimateTargetCalories } from '@/utils/nutrition';
 
 export default function RecipeDetail() {
   const colors = useTheme();
-  const { currentRecipe, generateRecipe, selectRecipe, savedRecipes, saveRecipe, unsaveRecipe, loadLocal } =
+  const { currentRecipe, selectRecipe, savedRecipes, saveRecipe, unsaveRecipe, loadLocal } =
     useRecipeStore();
   const bodyData = useUserStore((s) => s.bodyData);
   const goal = useUserStore((s) => s.goal);
-  const currentIngredients = useRecipeStore((s) => s.currentIngredients);
 
   const [switching, setSwitching] = useState(false);
+  const [switchError, setSwitchError] = useState('');
   const recipe = currentRecipe;
   const saved = recipe ? savedRecipes.some((r) => r.id === recipe.id) : false;
-  const targetCalories = estimateTargetCalories(bodyData, goal);
+  const targetCalories = recipe?.nutritionTarget?.targetCalories ?? estimateTargetCalories(bodyData, goal);
 
   useEffect(() => {
     loadLocal();
@@ -43,17 +44,14 @@ export default function RecipeDetail() {
   }
 
   async function switchRecipe() {
-    if (switching || currentIngredients.length === 0 || !recipe) return;
+    if (switching || !recipe) return;
     setSwitching(true);
+    setSwitchError('');
     try {
-      const next = await generateRecipe({
-        ingredients: currentIngredients,
-        people: 1,
-        cookTime: recipe.cookTime,
-        difficulty: recipe.difficulty,
-        user: { caloriesTarget: targetCalories, goal: goal?.type },
-      });
+      const next = await reimagineRecipe(recipe.id, 'stir_fry');
       selectRecipe(next);
+    } catch (error) {
+      setSwitchError((error as Error).message || '换做法失败，请重试');
     } finally {
       setSwitching(false);
     }
@@ -80,7 +78,7 @@ export default function RecipeDetail() {
           </View>
           <View style={[styles.metaItem, { backgroundColor: colors.backgroundElement }]}>
             <Ionicons name="people-outline" size={18} color={colors.success} />
-            <ThemedText type="small">1-2 人份</ThemedText>
+            <ThemedText type="small">{recipe.servings || 1} 人份</ThemedText>
           </View>
         </View>
 
@@ -142,8 +140,10 @@ export default function RecipeDetail() {
           <Button title="换一种做法" icon="refresh" variant="secondary" onPress={switchRecipe} loading={switching} style={{ flex: 1 }} />
         </View>
 
+        {switchError ? <ThemedText type="small" themeColor="danger">{switchError}</ThemedText> : null}
+
         <ThemedText type="small" themeColor="textSecondary" style={styles.tip}>
-          演示生成的食谱数据，仅供参考
+          AI 生成的营养与用量为估算值，仅供日常饮食参考
         </ThemedText>
       </ScrollView>
     </ThemedView>

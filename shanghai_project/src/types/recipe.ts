@@ -1,8 +1,11 @@
 /** 识别出的食材 */
 export interface Ingredient {
+  id?: string;
   name: string;
   amount: string;
   confidence: number;
+  category?: string;
+  unit?: string;
 }
 
 /** 菜谱 */
@@ -22,6 +25,13 @@ export interface Recipe {
   cookTime: number; // 分钟
   difficulty: '简单' | '中等' | '困难';
   tips?: string[];
+  servings?: number;
+  nutritionTarget?: {
+    targetCalories: number;
+    calorieDiff: number;
+    caloriePercentage: number;
+    isAcceptable: boolean;
+  } | null;
 }
 
 /** 生成菜谱的请求参数 */

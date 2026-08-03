@@ -60,3 +60,38 @@ export interface WorkoutRecommendParams {
   };
   limit?: number;
 }
+
+export interface WorkoutPlanInput {
+  goalType: 'lose_fat' | 'gain_muscle' | 'shape' | 'maintain';
+  weeklyFrequency: number;
+  sessionDurationMinutes: number;
+  workoutLocation: 'home' | 'gym' | 'outdoor';
+  hasEquipment: boolean;
+  fitnessLevel: 'beginner' | 'intermediate' | 'advanced';
+  limitations: string[];
+}
+
+export interface WorkoutPlanExercise {
+  name: string;
+  sets: number;
+  reps: string;
+  restSeconds: number;
+  notes: string;
+  videoId: string | null;
+  videoUrl: string | null;
+}
+
+export interface WorkoutPlan {
+  planId: string;
+  goalType: WorkoutPlanInput['goalType'];
+  summary: string;
+  weeklySchedule: {
+    day: number;
+    title: string;
+    durationMinutes: number;
+    exercises: WorkoutPlanExercise[];
+  }[];
+  reminders: string[];
+  disclaimer: string;
+  createdAt: string;
+}

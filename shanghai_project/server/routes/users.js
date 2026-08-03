@@ -44,6 +44,8 @@ router.get('/me', (req, res) => {
         bodyData: bodyData ? {
           height: bodyData.height,
           weight: bodyData.weight,
+          age: bodyData.age,
+          gender: bodyData.gender,
           bodyFat: bodyData.bodyFat,
           waist: bodyData.waist,
           hip: bodyData.hip,
@@ -100,17 +102,27 @@ router.put('/me', (req, res) => {
  */
 router.post('/me/body-data', (req, res) => {
   try {
-    const { height, weight, bodyFat, waist, hip } = req.body;
-    if (!height || !weight) {
+    const { height, weight, age, gender, bodyFat, waist, hip } = req.body;
+    const numericHeight = Number(height);
+    const numericWeight = Number(weight);
+    const numericAge = Number(age);
+    if (
+      !Number.isFinite(numericHeight) || numericHeight < 80 || numericHeight > 250 ||
+      !Number.isFinite(numericWeight) || numericWeight < 20 || numericWeight > 350 ||
+      !Number.isFinite(numericAge) || numericAge < 12 || numericAge > 100 ||
+      !['男', '女', 'male', 'female'].includes(gender)
+    ) {
       return res.status(400).json({
-        error: { code: 'INVALID_PARAMS', message: '身高和体重为必填项' },
+        error: { code: 'INVALID_BODY_DATA', message: '请填写有效的身高、体重、年龄和性别' },
       });
     }
 
     const record = db.insert('body_data', {
       userId: req.user.userId,
-      height: Number(height),
-      weight: Number(weight),
+      height: numericHeight,
+      weight: numericWeight,
+      age: numericAge,
+      gender,
       bodyFat: bodyFat ? Number(bodyFat) : null,
       waist: waist ? Number(waist) : null,
       hip: hip ? Number(hip) : null,
@@ -173,9 +185,10 @@ router.get('/me/body-data/history', (req, res) => {
 router.put('/me/goal', (req, res) => {
   try {
     const { goalType, targetWeight, targetDate, activityLevel, weeklyFrequency } = req.body;
-    if (!goalType) {
+    const allowedGoals = ['lose_fat', 'gain_muscle', 'shape', 'maintain', '减脂', '增肌', '塑形', '保持健康'];
+    if (!allowedGoals.includes(goalType)) {
       return res.status(400).json({
-        error: { code: 'INVALID_PARAMS', message: '请选择健身目标' },
+        error: { code: 'INVALID_GOAL_TYPE', message: '请选择有效的健身目标' },
       });
     }
 

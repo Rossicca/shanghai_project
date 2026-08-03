@@ -5,8 +5,7 @@ const path = require('path');
 const port = 8793;
 const baseUrl = `http://127.0.0.1:${port}`;
 const server = spawn(process.execPath, ['server.js'], {
-  cwd: path.join(__dirname, '..'),
-  env: { ...process.env, PORT: String(port) },
+  cwd: path.join(__dirname, '..'), env: { ...process.env, PORT: String(port) },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 
@@ -25,61 +24,78 @@ async function waitForServer() {
   throw new Error(`Backend did not start. ${serverOutput}`);
 }
 
+async function request(pathname, { method = 'GET', token, body, requestId } = {}) {
+  const response = await fetch(`${baseUrl}${pathname}`, {
+    method,
+    headers: {
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      'X-Request-ID': requestId || `yan-real-${Date.now()}`,
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return { response, data: await response.json() };
+}
+
 async function main() {
   const health = await waitForServer();
   if (health.mode !== 'real') throw new Error(`Expected real mode, got ${health.mode}`);
 
-  const imagePath = path.join(__dirname, '..', '..', 'assets', 'images', 'icon.png');
-  const image = fs.readFileSync(imagePath).toString('base64');
-  const response = await fetch(`${baseUrl}/api/recognize`, {
+  const registration = await request('/api/v1/auth/register', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Request-ID': 'yan-real-ai-check' },
-    body: JSON.stringify({ image }),
+    body: { email: `yan-real-${Date.now()}@example.com`, password: 'TestPass123!', nickname: 'YAN\u771f\u5b9e\u8054\u8c03' },
   });
-  const body = await response.json();
-  if (!response.ok) throw new Error(`Recognition failed: HTTP ${response.status} ${JSON.stringify(body)}`);
-  if (!Array.isArray(body.ingredients)) throw new Error('ingredients must be an array');
+  if (registration.response.status !== 201) throw new Error(`Registration failed: ${JSON.stringify(registration.data)}`);
+  const token = registration.data.data.accessToken;
 
-  const fixedDemoNames = ['\u9e21\u80f8\u8089', '\u897f\u5170\u82b1', '\u9e21\u86cb', '\u7cd9\u7c73'];
-  const names = body.ingredients.map((item) => item.name);
-  if (JSON.stringify(names) === JSON.stringify(fixedDemoNames)) {
-    throw new Error('Recognition still returned the fixed four demo ingredients');
+  const imagePath = path.join(__dirname, '..', '..', 'assets', 'images', 'icon.png');
+  const nonFood = await request('/api/v1/recognition/upload', {
+    method: 'POST', token, requestId: 'yan-real-non-food',
+    body: { image: fs.readFileSync(imagePath).toString('base64') },
+  });
+  if (nonFood.response.status !== 422 || nonFood.data.error?.code !== 'NO_INGREDIENTS_FOUND') {
+    throw new Error(`Non-food contract failed: HTTP ${nonFood.response.status} ${JSON.stringify(nonFood.data)}`);
   }
 
-  const recipeResponse = await fetch(`${baseUrl}/api/recipe/generate`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Request-ID': 'yan-real-recipe-check' },
-    body: JSON.stringify({
-      ingredients: [{ name: '\u9e21\u80f8\u8089', amount: '200g' }, { name: '\u897f\u5170\u82b1', amount: '150g' }],
-      people: 1,
-      cookTime: 20,
-      difficulty: '\u7b80\u5355',
-    }),
+  const confirmation = await request('/api/v1/recognition/confirm', {
+    method: 'POST', token,
+    body: { imageId: null, ingredients: [
+      { name: '\u9e21\u80f8\u8089', amount: 200, unit: 'g' },
+      { name: '\u897f\u5170\u82b1', amount: 150, unit: 'g' },
+    ] },
   });
-  const recipeBody = await recipeResponse.json();
-  if (!recipeResponse.ok || !recipeBody.recipe?.name || !Array.isArray(recipeBody.recipe.steps)) {
-    throw new Error(`Recipe generation failed: HTTP ${recipeResponse.status} ${JSON.stringify(recipeBody)}`);
+  if (!confirmation.response.ok || !confirmation.data.data?.sessionId) {
+    throw new Error(`Confirmation failed: ${JSON.stringify(confirmation.data)}`);
+  }
+
+  const recipe = await request('/api/v1/recipes/generate', {
+    method: 'POST', token, requestId: 'yan-real-recipe-v1',
+    body: {
+      sessionId: confirmation.data.data.sessionId,
+      servings: 1, maxCookTime: 30, difficulty: '\u7b80\u5355', includeNutritionTarget: true,
+    },
+  });
+  if (!recipe.response.ok || !recipe.data.data?.name || !Array.isArray(recipe.data.data.steps)) {
+    throw new Error(`Recipe v1 failed: HTTP ${recipe.response.status} ${JSON.stringify(recipe.data)}`);
   }
 
   console.log(JSON.stringify({
     health,
-    recognition: {
-      status: response.status,
-      requestId: response.headers.get('x-request-id'),
-      ingredients: body.ingredients,
+    nonFood: {
+      status: nonFood.response.status,
+      code: nonFood.data.error.code,
+      requestId: nonFood.data.error.requestId,
     },
     recipe: {
-      status: recipeResponse.status,
-      requestId: recipeResponse.headers.get('x-request-id'),
-      name: recipeBody.recipe.name,
-      stepCount: recipeBody.recipe.steps.length,
+      status: recipe.response.status,
+      requestId: recipe.response.headers.get('x-request-id'),
+      name: recipe.data.data.name,
+      stepCount: recipe.data.data.steps.length,
+      targetCalories: recipe.data.data.nutritionTarget?.targetCalories,
     },
   }));
 }
 
 main()
-  .catch((error) => {
-    console.error(JSON.stringify({ error: error.message }));
-    process.exitCode = 1;
-  })
+  .catch((error) => { console.error(JSON.stringify({ error: error.message })); process.exitCode = 1; })
   .finally(() => server.kill());
