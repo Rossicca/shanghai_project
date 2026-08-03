@@ -91,18 +91,6 @@ async function run() {
     assert.ok(refreshed.data.data.accessToken);
     assert.ok(refreshed.data.data.refreshToken);
 
-    const avatarUrl = 'data:image/png;base64,eWFuLWF2YXRhcg==';
-    await request('/api/v1/users/me', {
-      method: 'PUT',
-      token,
-      body: { avatarUrl },
-    });
-    const loginWithAvatar = await request('/api/v1/auth/login', {
-      method: 'POST',
-      body: { email, password: 'TestPass123!' },
-    });
-    assert.equal(loginWithAvatar.data.data.avatarUrl, avatarUrl, '重新登录后应返回已保存头像');
-
     await request('/api/v1/users/me/body-data', {
       method: 'POST',
       token,

@@ -1,8 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { StatsCard } from '@/components/profile/StatsCard';
@@ -13,7 +12,6 @@ import { Card } from '@/components/ui/Card';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { getToken } from '@/services/api';
-import { syncAvatar } from '@/services/user';
 import { fetchDashboard } from '@/services/workout';
 import { useRecipeStore } from '@/store/recipeStore';
 import { useUserStore } from '@/store/userStore';
@@ -24,7 +22,7 @@ import type { WorkoutVideo } from '@/types/workout';
 
 export default function ProfileTab() {
   const colors = useTheme();
-  const { user, bodyData, goal, bodyHistory, load, logout, setUser } = useUserStore();
+  const { user, bodyData, goal, bodyHistory, load, logout } = useUserStore();
   const { savedRecipes, recipeHistory, loadLocal: loadRecipes, selectRecipe } = useRecipeStore();
   const {
     savedVideos,
@@ -34,7 +32,6 @@ export default function ProfileTab() {
   } = useWorkoutStore();
   const [dashboard, setDashboard] = useState<any>(null);
   const [dashboardError, setDashboardError] = useState('');
-  const [avatarError, setAvatarError] = useState('');
 
   useEffect(() => {
     load();
@@ -67,51 +64,15 @@ export default function ProfileTab() {
     router.push({ pathname: '/workout/[id]', params: { id: v.id } });
   }
 
-  async function pickAvatar() {
-    if (!user) return;
-    setAvatarError('');
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.5,
-      base64: true,
-    });
-    if (result.canceled || !result.assets[0]) return;
-    const asset = result.assets[0];
-    if (asset.fileSize && asset.fileSize > 5 * 1024 * 1024) {
-      setAvatarError('头像图片不能超过 5MB');
-      return;
-    }
-    const avatar = asset.base64
-      ? `data:${asset.mimeType || 'image/jpeg'};base64,${asset.base64}`
-      : asset.uri;
-    await setUser({ ...user, avatar });
-    await syncAvatar(avatar);
-  }
-
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <ScrollView contentContainerStyle={styles.content}>
           {/* 用户头部 */}
           <View style={styles.header}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="选择头像"
-              onPress={pickAvatar}
-              style={[styles.avatar, { backgroundColor: colors.primarySoft }]}>
-              {user?.avatar ? (
-                <Image source={{ uri: user.avatar }} style={styles.avatarImage} />
-              ) : (
-                <Ionicons name="person" size={36} color={colors.primary} />
-              )}
-              {loggedIn ? (
-                <View style={[styles.avatarBadge, { backgroundColor: colors.primary }]}>
-                  <Ionicons name="camera" size={12} color="#FFFFFF" />
-                </View>
-              ) : null}
-            </Pressable>
+            <View style={[styles.avatar, { backgroundColor: colors.primarySoft }]}>
+              <Ionicons name="person" size={36} color={colors.primary} />
+            </View>
             <View style={{ flex: 1 }}>
               <ThemedText type="subtitle">{user?.nickname ?? '未登录'}</ThemedText>
               {loggedIn ? (
@@ -127,7 +88,6 @@ export default function ProfileTab() {
               )}
             </View>
           </View>
-          {avatarError ? <ThemedText type="small" themeColor="danger">{avatarError}</ThemedText> : null}
 
           {/* 数据统计看板 */}
           <View style={styles.statsRow}>
@@ -281,19 +241,6 @@ const styles = StyleSheet.create({
   content: { padding: Spacing.three, gap: Spacing.three },
   header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
   avatar: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center' },
-  avatarImage: { width: 64, height: 64, borderRadius: 32 },
-  avatarBadge: {
-    position: 'absolute',
-    right: -2,
-    bottom: -2,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-  },
   statsRow: { flexDirection: 'row', gap: Spacing.two },
   rows: { gap: Spacing.two },
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },

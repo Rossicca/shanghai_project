@@ -59,9 +59,9 @@ export async function register(email: string, password: string, nickname: string
 
 export async function login(email: string, password: string): Promise<User> {
   const res = await api.post('/api/v1/auth/login', { email, password });
-  const { accessToken, refreshToken, userId, nickname, avatarUrl } = res.data.data;
+  const { accessToken, refreshToken, userId, nickname } = res.data.data;
   await saveToken(accessToken, refreshToken);
-  const user: User = { id: userId, nickname, avatar: avatarUrl || undefined };
+  const user: User = { id: userId, nickname };
   await saveUser(user);
   return user;
 }
@@ -74,14 +74,6 @@ export async function loadUser(): Promise<User | null> {
 
 export async function saveUser(user: User): Promise<void> {
   await setJSON(KEY_USER, user);
-}
-
-export async function syncAvatar(avatar: string): Promise<void> {
-  try {
-    await api.put('/api/v1/users/me', { avatarUrl: avatar });
-  } catch {
-    // 本地头像仍可使用；网络恢复后用户可再次选择并同步。
-  }
 }
 
 // ─── 身体数据 ───
