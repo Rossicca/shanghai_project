@@ -66,10 +66,10 @@ async function run() {
       status: 401,
     });
 
-    const email = `person-c-${Date.now()}@example.com`;
+    const email = `yan-${Date.now()}@example.com`;
     const register = await request('/api/v1/auth/register', {
       method: 'POST',
-      body: { email, password: 'TestPass123!', nickname: '人员C联调' },
+      body: { email, password: 'TestPass123!', nickname: 'YAN联调' },
       status: 201,
     });
     const token = register.data.data.accessToken;

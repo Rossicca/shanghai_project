@@ -1,6 +1,6 @@
 # 当前可执行接口基线
 
-> 基线提交：`c8a8975`；人员 C 联调分支：`codex/person-c-integration`。字段命名统一以当前代码的 `camelCase` 为准。
+> 基线提交：`c8a8975`；YAN 联调分支：`codex/yan-integration`。字段命名统一以当前代码的 `camelCase` 为准。
 
 ## App 当前主流程（兼容接口）
 

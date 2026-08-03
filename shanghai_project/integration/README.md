@@ -1,4 +1,4 @@
-# 人员 C 联调材料
+# YAN 联调材料
 
 ## 快速执行
 
@@ -7,7 +7,7 @@ npm --prefix server run test:smoke
 npm run verify
 ```
 
-`person-c-test-data.json` 包含四组用户资料和八类图片用例。真实 AI 配置完成后，每组至少重复三次，并记录模型、Prompt 版本、输入、原始输出和结论。
+`yan-test-data.json` 包含四组用户资料和八类图片用例。真实 AI 配置完成后，每组至少重复三次，并记录模型、Prompt 版本、输入、原始输出和结论。
 
 ## 人工验证顺序
 
