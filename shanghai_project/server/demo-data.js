@@ -111,27 +111,27 @@ function pickMockRecipe(ingredients) {
 /** 运动视频库 */
 const WORKOUT_LIBRARY = [
   // 全身燃脂
-  { id: 'w1', title: '12分钟全身燃脂操·无器械', coach: 'Lina', duration: 720, difficulty: '入门', category: '全身燃脂', calories: 140, coverColor: '#FF6B35', reason: '短时高效燃脂，无器械在家就能做', tags: ['燃脂', '无器械', '新手'] },
-  { id: 'w2', title: 'HIIT 全身燃脂·暴汗 20 分钟', coach: 'Kevin', duration: 1200, difficulty: '进阶', category: '全身燃脂', calories: 260, coverColor: '#E74C3C', reason: '高强度间歇，突破平台期', tags: ['HIIT', '进阶', '暴汗'] },
-  { id: 'w3', title: '全身燃脂·站立版 15 分钟', coach: 'Lina', duration: 900, difficulty: '入门', category: '全身燃脂', calories: 160, coverColor: '#FFC94D', reason: '全程站立，膝盖友好', tags: ['站立', '膝盖友好'] },
+  { id: 'w1', title: '12分钟全身燃脂操·无器械', coach: '周六野Zoe', duration: 720, difficulty: '入门', category: '全身燃脂', calories: 140, coverColor: '#FF6B35', reason: '短时高效燃脂，无器械在家就能做', tags: ['燃脂', '无器械', '新手'], sourceUrl: 'https://search.bilibili.com/all?keyword=周六野+12分钟全身燃脂', platform: 'bilibili' },
+  { id: 'w2', title: '帕梅拉20分钟全身HIIT', coach: 'PamelaReif', duration: 1200, difficulty: '进阶', category: '全身燃脂', calories: 280, coverColor: '#E74C3C', reason: '高强度间歇，突破平台期', tags: ['HIIT', '进阶', '暴汗'], sourceUrl: 'https://search.bilibili.com/all?keyword=帕梅拉+20分钟全身HIIT', platform: 'bilibili' },
+  { id: 'w3', title: '刘畊宏本草纲目毽子操', coach: '刘畊宏', duration: 900, difficulty: '入门', category: '全身燃脂', calories: 200, coverColor: '#FFC94D', reason: '全程站立，膝盖友好，跟着音乐跳', tags: ['站立', '膝盖友好', '跟练'], sourceUrl: 'https://search.bilibili.com/all?keyword=刘畊宏+本草纲目毽子操', platform: 'bilibili' },
   // 臀腿
-  { id: 'w4', title: '徒手深蹲 100 次·翘臀腿训练', coach: 'Mia', duration: 780, difficulty: '入门', category: '臀腿', calories: 150, coverColor: '#2ECC71', reason: '强化臀腿肌群，改善久坐僵硬', tags: ['深蹲', '翘臀'] },
-  { id: 'w5', title: '进阶臀腿·弹力带训练', coach: 'Mia', duration: 1080, difficulty: '进阶', category: '臀腿', calories: 190, coverColor: '#1ABC9C', reason: '弹力带抗阻，针对性塑形', tags: ['弹力带', '塑形'] },
+  { id: 'w4', title: '周六野20分钟翘臀不粗腿训练', coach: '周六野Zoe', duration: 1200, difficulty: '入门', category: '臀腿', calories: 160, coverColor: '#2ECC71', reason: '强化臀腿肌群，改善久坐僵硬', tags: ['深蹲', '翘臀'], sourceUrl: 'https://search.bilibili.com/all?keyword=周六野+翘臀不粗腿', platform: 'bilibili' },
+  { id: 'w5', title: '帕梅拉15分钟蜜桃臀训练', coach: 'PamelaReif', duration: 900, difficulty: '进阶', category: '臀腿', calories: 190, coverColor: '#1ABC9C', reason: '弹力带抗阻，针对性塑形', tags: ['弹力带', '塑形'], sourceUrl: 'https://search.bilibili.com/all?keyword=帕梅拉+蜜桃臀训练', platform: 'bilibili' },
   // 肩背
-  { id: 'w6', title: '10分钟圆肩驼背纠正·肩背激活', coach: 'Ray', duration: 600, difficulty: '入门', category: '肩背', calories: 90, coverColor: '#4A90E2', reason: '改善体态，缓解久坐肩颈紧张', tags: ['体态', '久坐'] },
-  { id: 'w7', title: '上肢力量·俯卧撑进阶课', coach: 'Kevin', duration: 960, difficulty: '挑战', category: '肩背', calories: 170, coverColor: '#9B59B6', reason: '上肢力量强化，雕塑肩背线条', tags: ['力量', '俯卧撑'] },
+  { id: 'w6', title: '韩小四10分钟改善圆肩驼背', coach: '韩小四', duration: 600, difficulty: '入门', category: '肩背', calories: 90, coverColor: '#4A90E2', reason: '改善体态，缓解久坐肩颈紧张', tags: ['体态', '久坐'], sourceUrl: 'https://search.bilibili.com/all?keyword=韩小四+改善圆肩驼背', platform: 'bilibili' },
+  { id: 'w7', title: '欧阳春晓少女背训练', coach: '欧阳春晓', duration: 960, difficulty: '挑战', category: '肩背', calories: 170, coverColor: '#9B59B6', reason: '上肢力量强化，雕塑肩背线条', tags: ['力量', '俯卧撑'], sourceUrl: 'https://search.bilibili.com/all?keyword=欧阳春晓+少女背', platform: 'bilibili' },
   // 手臂
-  { id: 'w8', title: '手臂紧致·拜拜肉告别训练', coach: 'Vivi', duration: 660, difficulty: '入门', category: '手臂', calories: 110, coverColor: '#F39C12', reason: '小重量多次数，紧致手臂线条', tags: ['手臂', '紧致'] },
-  { id: 'w9', title: '哑铃手臂塑形 15 分钟', coach: 'Vivi', duration: 900, difficulty: '进阶', category: '手臂', calories: 140, coverColor: '#E67E22', reason: '哑铃抗阻，雕刻二头三头', tags: ['哑铃', '塑形'] },
+  { id: 'w8', title: '周六野手臂紧致·告别拜拜肉', coach: '周六野Zoe', duration: 660, difficulty: '入门', category: '手臂', calories: 110, coverColor: '#F39C12', reason: '小重量多次数，紧致手臂线条', tags: ['手臂', '紧致'], sourceUrl: 'https://search.bilibili.com/all?keyword=周六野+手臂紧致拜拜肉', platform: 'bilibili' },
+  { id: 'w9', title: 'Coffee林芊妤15分钟手臂塑形', coach: 'Coffee林芊妤', duration: 900, difficulty: '进阶', category: '手臂', calories: 140, coverColor: '#E67E22', reason: '哑铃抗阻，雕刻二头三头', tags: ['哑铃', '塑形'], sourceUrl: 'https://search.bilibili.com/all?keyword=Coffee林芊妤+手臂塑形', platform: 'bilibili' },
   // 核心
-  { id: 'w10', title: '8分钟腹肌撕裂者·核心强化', coach: 'Ray', duration: 480, difficulty: '进阶', category: '核心', calories: 120, coverColor: '#8E44AD', reason: '核心训练，稳定躯干保护腰椎', tags: ['腹肌', '核心'] },
-  { id: 'w11', title: '平板支撑挑战·核心耐力', coach: 'Mia', duration: 540, difficulty: '入门', category: '核心', calories: 100, coverColor: '#2ECC71', reason: '静态核心耐力，新手友好', tags: ['平板支撑', '新手'] },
+  { id: 'w10', title: '帕梅拉10分钟腹肌训练', coach: 'PamelaReif', duration: 600, difficulty: '进阶', category: '核心', calories: 130, coverColor: '#8E44AD', reason: '核心训练，稳定躯干保护腰椎', tags: ['腹肌', '核心'], sourceUrl: 'https://search.bilibili.com/all?keyword=帕梅拉+10分钟腹肌训练', platform: 'bilibili' },
+  { id: 'w11', title: '刘逗逗5分钟平板支撑挑战', coach: '刘逗逗', duration: 300, difficulty: '入门', category: '核心', calories: 80, coverColor: '#2ECC71', reason: '静态核心耐力，新手友好', tags: ['平板支撑', '新手'], sourceUrl: 'https://search.bilibili.com/all?keyword=刘逗逗+平板支撑', platform: 'bilibili' },
   // 有氧
-  { id: 'w12', title: '30分钟慢跑有氧·燃脂心率', coach: 'Kevin', duration: 1800, difficulty: '入门', category: '有氧', calories: 320, coverColor: '#FF6B35', reason: '中等强度有氧，稳定燃脂', tags: ['跑步', '有氧'] },
-  { id: 'w13', title: '跳绳有氧·间歇 15 分钟', coach: 'Lina', duration: 900, difficulty: '进阶', category: '有氧', calories: 230, coverColor: '#E74C3C', reason: '跳绳高效燃脂，空间占用小', tags: ['跳绳', '间歇'] },
+  { id: 'w12', title: '帕梅拉20分钟有氧燃脂舞', coach: 'PamelaReif', duration: 1200, difficulty: '入门', category: '有氧', calories: 250, coverColor: '#FF6B35', reason: '中等强度有氧，稳定燃脂', tags: ['跑步', '有氧'], sourceUrl: 'https://search.bilibili.com/all?keyword=帕梅拉+20分钟有氧燃脂舞', platform: 'bilibili' },
+  { id: 'w13', title: 'SomiFit 15分钟跳绳间歇', coach: 'SomiFit', duration: 900, difficulty: '进阶', category: '有氧', calories: 230, coverColor: '#E74C3C', reason: '跳绳高效燃脂，空间占用小', tags: ['跳绳', '间歇'], sourceUrl: 'https://search.bilibili.com/all?keyword=SomiFit+跳绳间歇', platform: 'bilibili' },
   // 拉伸
-  { id: 'w14', title: '全身放松拉伸·睡前舒缓', coach: 'Vivi', duration: 600, difficulty: '入门', category: '拉伸', calories: 60, coverColor: '#1ABC9C', reason: '放松肌肉，改善睡眠与柔韧', tags: ['拉伸', '睡前'] },
-  { id: 'w15', title: '运动后静态拉伸·15分钟', coach: 'Ray', duration: 900, difficulty: '入门', category: '拉伸', calories: 80, coverColor: '#4A90E2', reason: '运动后必做，缓解延迟酸痛', tags: ['拉伸', '恢复'] },
+  { id: 'w14', title: '周六野睡前全身拉伸', coach: '周六野Zoe', duration: 600, difficulty: '入门', category: '拉伸', calories: 60, coverColor: '#1ABC9C', reason: '放松肌肉，改善睡眠与柔韧', tags: ['拉伸', '睡前'], sourceUrl: 'https://search.bilibili.com/all?keyword=周六野+睡前拉伸', platform: 'bilibili' },
+  { id: 'w15', title: '韩小四运动后15分钟拉伸', coach: '韩小四', duration: 900, difficulty: '入门', category: '拉伸', calories: 80, coverColor: '#4A90E2', reason: '运动后必做，缓解延迟酸痛', tags: ['拉伸', '恢复'], sourceUrl: 'https://search.bilibili.com/all?keyword=韩小四+运动后拉伸', platform: 'bilibili' },
 ];
 
 /** 按身体数据 + 目标 做 mock 推荐 */

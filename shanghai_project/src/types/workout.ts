@@ -22,6 +22,10 @@ export interface WorkoutVideo {
   coverColor: string;
   /** 真实视频地址，可空（空则用示范动画代替） */
   source?: string;
+  /** 外部跳转链接（B站/YouTube 搜索页或视频页） */
+  sourceUrl?: string;
+  /** 视频平台 */
+  platform?: 'bilibili' | 'youtube' | 'douyin';
   /** AI 推荐理由 */
   reason: string;
   tags?: string[];

@@ -176,26 +176,36 @@ async function recommendWorkout(params) {
   try {
     const content = await chat({
       model: aiSecrets.textModel,
-      maxTokens: 1500,
-      temperature: 0.6,
+      maxTokens: 2000,
+      temperature: 0.7,
       messages: [
         {
           role: 'system',
-          content: `你是专业健身教练。根据用户身体数据与目标推荐跟练视频，严格只输出 JSON：
+          content: `你是专业健身教练，熟悉中国健身博主。根据用户身体数据与目标，推荐真实存在的跟练视频。
+
+要求：
+1. 推荐真实博主（如：周六野Zoe、帕梅拉PamelaReif、刘畊宏、韩小四、刘逗逗、欧阳春晓、Coffee林芊妤、SomiFit等）
+2. 每个视频的 sourceUrl 指向 B站搜索页：https://search.bilibili.com/all?keyword=博主名+视频主题
+3. platform 写 "bilibili"
+4. 视频标题和博主名用真实存在的
+
+严格只输出 JSON：
 {
   "videos": [
     {
-      "title": "标题",
-      "coach": "教练名",
+      "title": "视频标题",
+      "coach": "博主名",
       "duration": 秒数,
       "difficulty": "入门/进阶/挑战",
       "category": "全身燃脂/臀腿/肩背/手臂/核心/有氧/拉伸",
       "calories": 预估消耗千卡,
+      "sourceUrl": "https://search.bilibili.com/all?keyword=博主名+标题关键词",
+      "platform": "bilibili",
       "reason": "针对该用户的具体推荐理由（结合身体数据）"
     }
   ]
 }
-推荐 6 个视频，覆盖不同难度和类别。理由要结合他的身高体重年龄目标给出个性化建议。`,
+推荐 6 个视频，覆盖不同难度和类别。理由要结合用户的身高体重年龄目标给出个性化建议。`,
         },
         {
           role: 'user',

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { VideoPlayer } from '@/components/workout/VideoPlayer';
 import { ThemedText } from '@/components/themed-text';
@@ -94,11 +94,29 @@ export default function WorkoutDetail() {
         <Card>
           <ThemedText type="smallBold">跟练提示</ThemedText>
           <ThemedText type="small" themeColor="textSecondary" style={styles.tips}>
-            · 运动前充分热身，根据自身情况量力而行。\n· 感到不适请立即停止。\n· 演示视频以示范动画代替真实跟练内容。
+            · 运动前充分热身，根据自身情况量力而行。\n· 感到不适请立即停止。\n· 点击"去B站观看"跳转到真实视频页面。
           </ThemedText>
         </Card>
 
         <View style={styles.actions}>
+          {video.sourceUrl ? (
+            <Button
+              title={video.platform === 'bilibili' ? '去B站观看' : '跳转观看'}
+              variant="primary"
+              icon="logo-youtube"
+              onPress={() => {
+                if (Platform.OS === 'web') {
+                  window.open(video.sourceUrl!, '_blank');
+                } else {
+                  Linking.openURL(video.sourceUrl!).catch(() => {
+                    Alert.alert('提示', '无法打开链接');
+                  });
+                }
+              }}
+              style={{ flex: 1 }}
+            />
+          ) : null}
+          {video.sourceUrl ? <View style={{ width: Spacing.two }} /> : null}
           <Button
             title={saved ? '已收藏' : '收藏'}
             variant="outline"

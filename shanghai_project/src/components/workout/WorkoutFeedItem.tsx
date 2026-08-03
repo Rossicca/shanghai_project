@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Pressable, Share, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Platform, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 
 import { VideoPlayer } from '@/components/workout/VideoPlayer';
 import { Radius } from '@/constants/theme';
@@ -28,8 +28,23 @@ export function WorkoutFeedItem({ video, active, saved, onToggleSave, onOpen }: 
 
   async function share() {
     await Share.share({
-      message: `${video.title}（${video.category} · ${video.duration} 秒）——来自 AI 健身推荐`,
+      message: `${video.title}（${video.category} · ${video.duration} 秒）——来自 AI 健身推荐\n${video.sourceUrl || ''}`,
     });
+  }
+
+  function handleOpen() {
+    if (video.sourceUrl) {
+      const url = video.sourceUrl;
+      if (Platform.OS === 'web') {
+        window.open(url, '_blank');
+      } else {
+        Linking.openURL(url).catch(() => {
+          Alert.alert('提示', '无法打开链接，请手动搜索');
+        });
+      }
+    } else {
+      onOpen();
+    }
   }
 
   return (
@@ -63,11 +78,16 @@ export function WorkoutFeedItem({ video, active, saved, onToggleSave, onOpen }: 
             <Text style={styles.tagText}>{video.difficulty}</Text>
           </View>
         </View>
-        <Pressable onPress={onOpen}>
+        <Pressable onPress={handleOpen}>
           <Text style={styles.title} numberOfLines={2}>
             {video.title}
           </Text>
           <Text style={styles.coach}>@{video.coach}</Text>
+          {video.platform ? (
+            <Text style={styles.platformTag}>
+              {video.platform === 'bilibili' ? '📺 B站' : '▶️ YouTube'}
+            </Text>
+          ) : null}
           <View style={styles.reason}>
             <Ionicons name="sparkles" size={14} color="#FFC94D" />
             <Text style={styles.reasonText} numberOfLines={2}>
@@ -98,6 +118,7 @@ const styles = StyleSheet.create({
   tagText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   title: { color: '#fff', fontSize: 18, fontWeight: '800', lineHeight: 24 },
   coach: { color: 'rgba(255,255,255,0.9)', fontSize: 13, marginTop: 4 },
+  platformTag: { color: '#FB7299', fontSize: 12, fontWeight: '700', marginTop: 2 },
   reason: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, backgroundColor: 'rgba(0,0,0,0.25)', borderRadius: 10, padding: 8 },
   reasonText: { color: 'rgba(255,255,255,0.95)', fontSize: 12, lineHeight: 17, flex: 1 },
 });

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Platform, StyleSheet, Text, View } from 'react-native';
+import { Alert, Animated, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { VideoView, useVideoPlayer } from 'expo-video';
 
 import { CATEGORY_ICONS } from '@/constants/fitness';
@@ -16,7 +16,8 @@ type Props = {
 /**
  * 跟练视频播放器：
  * - 有真实 source 用 expo-video 播放
- * - 无 source（演示数据）用"示范动画"替代：脉冲图标 + 进度条模拟跟练
+ * - 无 source 但有 sourceUrl 显示"去B站观看"按钮
+ * - 无 source（纯演示数据）用"示范动画"替代：脉冲图标 + 进度条模拟跟练
  * 动画用 RN 内置 Animated（不用 reanimated，避免 Expo Go 原生崩溃问题）。
  */
 export function VideoPlayer({ video, playing = true, onEnd, showControls }: Props) {
@@ -55,12 +56,57 @@ export function VideoPlayer({ video, playing = true, onEnd, showControls }: Prop
 
   const remain = Math.max(0, Math.round((video.duration * (100 - progress)) / 100));
 
+  function openExternal() {
+    if (!video.sourceUrl) return;
+    if (Platform.OS === 'web') {
+      window.open(video.sourceUrl, '_blank');
+    } else {
+      Linking.openURL(video.sourceUrl).catch(() => {
+        Alert.alert('提示', '无法打开链接');
+      });
+    }
+  }
+
   // 真实视频
   if (video.source) {
     return <RealVideo source={video.source} playing={playing} />;
   }
 
-  // 示范动画
+  // 有外部链接（B站/YouTube）的推荐视频
+  if (video.sourceUrl) {
+    return (
+      <View style={[styles.container, { backgroundColor: video.coverColor }]}>
+        <Animated.View style={[styles.emojiWrap, { transform: [{ scale: pulse }] }]}>
+          <Text style={styles.emoji}>{CATEGORY_ICONS[video.category] ?? '💪'}</Text>
+        </Animated.View>
+        <View style={styles.bottomInfo}>
+          <Text style={styles.playingText}>
+            {playing ? '🔥 跟练中' : '⏸ 已暂停'} · {video.category}
+          </Text>
+          {showControls ? (
+            <Text style={styles.remainText}>还剩 {Math.floor(remain / 60)}:{String(remain % 60).padStart(2, '0')}</Text>
+          ) : null}
+        </View>
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: `${progress}%` }]} />
+        </View>
+        {showControls ? (
+          <View style={styles.tip}>
+            <Ionicons name="information-circle-outline" size={14} color="rgba(255,255,255,0.85)" />
+            <Text style={styles.tipText}>演示视频：以示范动画代替真实跟练视频</Text>
+          </View>
+        ) : null}
+        <Pressable style={styles.watchBtn} onPress={openExternal}>
+          <Ionicons name="logo-youtube" size={20} color="#fff" />
+          <Text style={styles.watchBtnText}>
+            {video.platform === 'bilibili' ? '去B站观看 ›' : '跳转观看 ›'}
+          </Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  // 纯演示动画（无任何链接）
   return (
     <View style={[styles.container, { backgroundColor: video.coverColor }]}>
       <Animated.View style={[styles.emojiWrap, { transform: [{ scale: pulse }] }]}>
@@ -110,4 +156,16 @@ const styles = StyleSheet.create({
   progressFill: { height: '100%', backgroundColor: '#fff' },
   tip: { position: 'absolute', bottom: 8, flexDirection: 'row', alignItems: 'center', gap: 4 },
   tipText: { color: 'rgba(255,255,255,0.85)', fontSize: 12 },
+  watchBtn: {
+    position: 'absolute',
+    bottom: 80,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FB7299',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  watchBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 });
