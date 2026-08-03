@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -41,12 +41,12 @@ export default function WorkoutTab() {
   const [listHeight, setListHeight] = useState(0);
   const savedIds = new Set(savedVideos.map((v) => v.id));
 
-  const onViewableItemsChanged = useRef(
-    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
+  const [onViewableItemsChanged] = useState(
+    () => ({ viewableItems }: { viewableItems: ViewToken[] }) => {
       if (viewableItems[0]) setActiveIndex(viewableItems[0].index ?? 0);
     }
-  ).current;
-  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 60 }).current;
+  );
+  const [viewabilityConfig] = useState(() => ({ itemVisiblePercentThreshold: 60 }));
 
   useEffect(() => {
     fetchFeed({ bodyData: bodyData ?? undefined, goal: goal ?? undefined });

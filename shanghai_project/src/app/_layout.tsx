@@ -3,12 +3,14 @@ import { useEffect } from 'react';
 import { useColorScheme } from 'react-native';
 
 import { useThemeStore } from '@/store/themeStore';
+import { useUserStore } from '@/store/userStore';
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   useEffect(() => {
     useThemeStore.getState().load();
+    useUserStore.getState().load();
   }, []);
 
   return (

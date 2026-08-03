@@ -4,7 +4,6 @@ import { Alert, Linking, Platform, Pressable, Share, StyleSheet, Text, View } fr
 
 import { VideoPlayer } from '@/components/workout/VideoPlayer';
 import { Radius } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
 import type { WorkoutVideo } from '@/types/workout';
 
 type Props = {
@@ -17,7 +16,6 @@ type Props = {
 
 /** 抖音式信息流单条：全屏视频 + 右侧操作 + 底部信息 */
 export function WorkoutFeedItem({ video, active, saved, onToggleSave, onOpen }: Props) {
-  const colors = useTheme();
   const [liked, setLiked] = useState(false);
   const [likes, setLikes] = useState(128 + Math.abs(video.id.length * 37) % 800);
 

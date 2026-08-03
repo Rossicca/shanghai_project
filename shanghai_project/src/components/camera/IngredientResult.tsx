@@ -29,6 +29,10 @@ export function IngredientResult({ ingredients, onChange, onRetake }: Props) {
     onChange(ingredients.filter((_, i) => i !== index));
   }
 
+  function updateAt(index: number, updates: Partial<Ingredient>) {
+    onChange(ingredients.map((item, i) => (i === index ? { ...item, ...updates } : item)));
+  }
+
   function addIngredient() {
     if (!name.trim()) return;
     const item: Ingredient = { name: name.trim(), amount: amount.trim() || '适量', confidence: 1 };
@@ -39,7 +43,8 @@ export function IngredientResult({ ingredients, onChange, onRetake }: Props) {
   }
 
   function goGenerate() {
-    setIngredients(ingredients);
+    const validIngredients = ingredients.filter((item) => item.name.trim());
+    setIngredients(validIngredients);
     router.push('/recipe/generate');
   }
 
@@ -61,13 +66,22 @@ export function IngredientResult({ ingredients, onChange, onRetake }: Props) {
         {ingredients.map((item, i) => (
           <Card key={`${item.name}-${i}`} style={styles.item}>
             <View style={{ flex: 1 }}>
-              <ThemedText type="smallBold">
-                {item.name}
-                <ThemedText type="small" themeColor="textSecondary">
-                  {' '}
-                  {item.amount}
-                </ThemedText>
-              </ThemedText>
+              <View style={styles.editRow}>
+                <TextInput
+                  value={item.name}
+                  onChangeText={(value) => updateAt(i, { name: value })}
+                  placeholder="食材名"
+                  placeholderTextColor={colors.textSecondary}
+                  style={[styles.itemInput, styles.nameInput, { color: colors.text, borderColor: colors.border }]}
+                />
+                <TextInput
+                  value={item.amount}
+                  onChangeText={(value) => updateAt(i, { amount: value })}
+                  placeholder="用量"
+                  placeholderTextColor={colors.textSecondary}
+                  style={[styles.itemInput, styles.amountInput, { color: colors.text, borderColor: colors.border }]}
+                />
+              </View>
               <View style={styles.confRow}>
                 <View style={[styles.confBar, { backgroundColor: colors.backgroundElement }]}>
                   <View
@@ -133,7 +147,7 @@ export function IngredientResult({ ingredients, onChange, onRetake }: Props) {
           icon="sparkles"
           size="large"
           style={{ flex: 1 }}
-          disabled={ingredients.length === 0}
+          disabled={!ingredients.some((item) => item.name.trim())}
         />
       </View>
     </View>
@@ -146,6 +160,10 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', gap: Spacing.two, alignItems: 'center' },
   list: { gap: Spacing.two, paddingBottom: Spacing.three },
   item: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  editRow: { flexDirection: 'row', gap: Spacing.two },
+  itemInput: { borderBottomWidth: 1, paddingVertical: 4, fontSize: 14 },
+  nameInput: { flex: 1, fontWeight: '700' },
+  amountInput: { width: 90, textAlign: 'right' },
   confRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, marginTop: Spacing.one },
   confBar: { flex: 1, height: 4, borderRadius: 2, overflow: 'hidden' },
   confFill: { height: '100%', borderRadius: 2 },

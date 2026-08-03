@@ -1,0 +1,9 @@
+[server]
+# 仅用于本地开发。请替换为随机长字符串，不要提交真实值。
+jwtSecret = "replace-with-a-random-local-secret"
+
+[ai]
+# 火山方舟或其他 OpenAI 兼容服务的本地配置。
+apiKey = "replace-with-your-api-key"
+visionModel = "replace-with-vision-endpoint-or-model"
+textModel = "replace-with-text-endpoint-or-model"

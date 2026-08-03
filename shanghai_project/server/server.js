@@ -3,13 +3,14 @@
  * Express + JSON 文件数据库 + JWT 认证 + AI 集成
  *
  * 启动：node server/server.js   →   http://localhost:8787
- * 模式：config.json 中 ai.enabled=true 开启真实 AI，false 使用演示数据
+ * 模式：config.json 开启 AI，config.toml 提供本地密钥和模型；配置不完整时使用演示数据
  */
 
 const express = require('express');
 const cors = require('cors');
+const { randomUUID } = require('crypto');
 const { authMiddleware } = require('./auth');
-const config = require('./config.json');
+const { config, isMockMode } = require('./config');
 
 // 路由
 const authRoutes = require('./routes/auth');
@@ -29,11 +30,21 @@ const PORT = config.port || 8787;
 // ---- 中间件 ----
 app.use(cors({
   origin: '*',
-  methods: 'GET, POST, PUT, DELETE, OPTIONS',
-  allowedHeaders: 'Content-Type, Authorization',
+  methods: 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+  allowedHeaders: 'Content-Type, Authorization, X-Request-ID',
+  exposedHeaders: 'X-Request-ID',
 }));
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
+
+// 请求链路 ID：优先透传前端值，否则由后端生成。
+app.use((req, res, next) => {
+  const supplied = req.get('X-Request-ID');
+  const requestId = supplied && supplied.length <= 128 ? supplied : randomUUID();
+  req.requestId = requestId;
+  res.set('X-Request-ID', requestId);
+  next();
+});
 
 // 请求日志
 app.use((req, res, next) => {
@@ -49,7 +60,7 @@ app.use((req, res, next) => {
 
 // ---- 健康检查 ----
 app.get('/health', (req, res) => {
-  res.json({ ok: true, mode: config.ai.enabled ? 'real' : 'demo', timestamp: new Date().toISOString() });
+  res.json({ ok: true, mode: isMockMode() ? 'demo' : 'real', timestamp: new Date().toISOString() });
 });
 
 // ---- API v1 路由 (带认证) ----
@@ -69,7 +80,13 @@ app.post('/api/recognize', async (req, res) => {
     res.json({ ingredients });
   } catch (e) {
     console.error('[compat] recognize error:', e);
-    res.json({ ingredients: DEMO_INGREDIENTS.map((i) => ({ ...i })) });
+    res.status(502).json({
+      ingredients: [],
+      error: {
+        code: 'AI_RECOGNITION_FAILED',
+        message: '\u56fe\u7247\u8bc6\u522b\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5',
+      },
+    });
   }
 });
 
@@ -86,8 +103,12 @@ app.post('/api/recipe/generate', async (req, res) => {
     res.json({ recipe: { ...recipe, id: 'r' + Date.now() } });
   } catch (e) {
     console.error('[compat] recipe error:', e);
-    const recipe = pickMockRecipe(req.body.ingredients || []);
-    res.json({ recipe: { ...recipe, id: 'r' + Date.now() } });
+    res.status(502).json({
+      error: {
+        code: 'AI_RECIPE_FAILED',
+        message: '\u83dc\u8c31\u751f\u6210\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5',
+      },
+    });
   }
 });
 
@@ -157,14 +178,14 @@ app.use((err, req, res, next) => {
 
 // ---- 启动 ----
 app.listen(PORT, () => {
-  const mode = config.ai.enabled ? '真实 AI' : '演示数据(mock)';
+  const mode = isMockMode() ? '演示数据(mock)' : '真实 AI';
   console.log(`\n╔══════════════════════════════════════════════╗`);
   console.log(`║   Shanghai Project 后端 v2.0                ║`);
   console.log(`║   地址: http://localhost:${PORT}                  ║`);
   console.log(`║   模式: ${mode}                         ║`);
   console.log(`║   文档: http://localhost:${PORT}/health          ║`);
   console.log(`╚══════════════════════════════════════════════╝\n`);
-  if (!config.ai.enabled) {
-    console.log('💡 提示: 编辑 server/config.json 配置 ai.apiKey 并 enabled=true 即可切换真实 AI。');
+  if (isMockMode()) {
+    console.log('💡 提示: 复制 server/config.toml.example 为 config.toml，填写本地密钥和模型后可切换真实 AI。');
   }
 });

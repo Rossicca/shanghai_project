@@ -23,7 +23,7 @@ type Props = {
 export function VideoPlayer({ video, playing = true, onEnd, showControls }: Props) {
   const [progress, setProgress] = useState(0);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
-  const pulse = useRef(new Animated.Value(1)).current;
+  const [pulse] = useState(() => new Animated.Value(1));
 
   useEffect(() => {
     let loop: Animated.CompositeAnimation | null = null;

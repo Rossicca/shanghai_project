@@ -44,8 +44,11 @@ export default function Scan() {
   }
 
   async function openCamera() {
-    if (!permission?.granted) {
-      await requestPermission();
+    const nextPermission = permission?.granted ? permission : await requestPermission();
+    if (!nextPermission.granted) {
+      setError('未获得相机权限，请在系统设置中允许相机访问，或改用相册选图');
+      setMode('idle');
+      return;
     }
     setError('');
     setMode('camera');
@@ -66,6 +69,7 @@ export default function Scan() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       base64: true,
+      allowsEditing: true,
       quality: 0.7,
     });
     if (!result.canceled && result.assets[0]) {
@@ -90,7 +94,7 @@ export default function Scan() {
     }
   }
 
-  function useHistoryItem(name: string) {
+  function handleHistoryItem(name: string) {
     const existing = ingredients.find((i) => i.name === name);
     if (existing) return;
     setIngredients((prev) => [...prev, { name, amount: '适量', confidence: 1 }]);
@@ -187,13 +191,18 @@ export default function Scan() {
 
         <Button title="打开相机拍照" icon="camera" onPress={openCamera} size="large" />
         <Button title="从相册选择图片" variant="secondary" icon="images" onPress={pickFromGallery} size="large" />
+        {error ? (
+          <ThemedText type="small" themeColor="danger" style={styles.errorText}>
+            {error}
+          </ThemedText>
+        ) : null}
 
         {history.length > 0 ? (
           <Card style={styles.historyCard}>
             <ThemedText type="smallBold">最近识别的食材</ThemedText>
             <View style={styles.chips}>
               {history.slice(0, 8).map((name) => (
-                <Pressable key={name} onPress={() => useHistoryItem(name)}>
+                <Pressable key={name} onPress={() => handleHistoryItem(name)}>
                   <View style={[styles.chip, { backgroundColor: colors.successSoft }]}>
                     <Text style={{ color: colors.success, fontSize: 13, fontWeight: '600' }}>{name}</Text>
                   </View>
@@ -221,6 +230,7 @@ const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
   chip: { paddingHorizontal: Spacing.three, paddingVertical: Spacing.two, borderRadius: Radius.chip },
   tip: { textAlign: 'center', marginTop: Spacing.one },
+  errorText: { textAlign: 'center' },
 
   // camera
   cameraOverlay: { flex: 1, justifyContent: 'space-between' },
