@@ -74,9 +74,13 @@ export function IngredientResult({ ingredients, imageId, notice, onChange, onRet
         <View style={styles.headerRow}>
           <Ionicons name="checkmark-circle" size={22} color={colors.success} />
           <View style={{ flex: 1 }}>
-            <ThemedText type="smallBold">识别到 {ingredients.length} 种食材</ThemedText>
+            <ThemedText type="smallBold">
+              {ingredients.length > 0 ? `识别到 ${ingredients.length} 种食材` : '没有识别到食材'}
+            </ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
-              可删除误识别，或手动补充漏掉的食材
+              {ingredients.length > 0
+                ? '可删除误识别，或手动补充漏掉的食材'
+                : '请返回重新选择图片，或直接手动添加食材'}
             </ThemedText>
           </View>
         </View>

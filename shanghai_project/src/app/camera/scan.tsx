@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
+import { router } from 'expo-router';
 import { useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -179,6 +180,12 @@ export default function Scan() {
     return (
       <ThemedView style={styles.container}>
         <SafeAreaView style={styles.safeArea} edges={['top']}>
+          <View style={styles.resultNav}>
+            <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.resultNavButton}>
+              <Ionicons name="arrow-back" size={20} color={colors.text} />
+              <ThemedText type="smallBold">返回</ThemedText>
+            </Pressable>
+          </View>
           <IngredientResult
             ingredients={ingredients}
             imageId={imageId}
@@ -247,6 +254,8 @@ const styles = StyleSheet.create({
   chip: { paddingHorizontal: Spacing.three, paddingVertical: Spacing.two, borderRadius: Radius.chip },
   tip: { textAlign: 'center', marginTop: Spacing.one },
   errorText: { textAlign: 'center' },
+  resultNav: { flexDirection: 'row', alignItems: 'center' },
+  resultNavButton: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one, paddingVertical: Spacing.two },
 
   // camera
   cameraOverlay: { flex: 1, justifyContent: 'space-between' },
