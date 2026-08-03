@@ -1,11 +1,16 @@
 {
   "port": 8787,
+  "jwtSecret": "shanghai-project-jwt-secret-2026-demo",
   "ai": {
     "enabled": false,
-    "provider": "openai-compatible",
-    "baseURL": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-    "apiKey": "",
-    "visionModel": "qwen-vl-plus",
-    "textModel": "qwen-plus"
+    "provider": "volcano",
+    "baseURL": "https://ark.cn-beijing.volces.com/api/v3",
+    "apiKey": "YOUR_VOLCANO_API_KEY_HERE",
+    "visionModel": "doubao-vision-pro-32k",
+    "textModel": "doubao-pro-32k"
+  },
+  "demo": {
+    "enabled": true,
+    "label": "演示数据"
   }
 }

@@ -15,46 +15,30 @@ import { useUserStore } from '@/store/userStore';
 
 export default function Login() {
   const colors = useTheme();
+  const login = useUserStore((s) => s.login);
   const setUser = useUserStore((s) => s.setUser);
 
-  const [phone, setPhone] = useState('');
-  const [code, setCode] = useState('');
-  const [countdown, setCountdown] = useState(0);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  function sendCode() {
-    if (!/^1\d{10}$/.test(phone)) {
-      setError('请输入正确的手机号');
-      return;
-    }
-    setError('');
-    setCode('123456'); // 演示：自动填充验证码
-    setCountdown(60);
-    const timer = setInterval(() => {
-      setCountdown((c) => {
-        if (c <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return c - 1;
-      });
-    }, 1000);
-  }
-
   async function handleLogin() {
-    if (!/^1\d{10}$/.test(phone)) {
-      setError('请输入正确的手机号');
+    if (!email.trim()) {
+      setError('请输入邮箱');
       return;
     }
-    if (code.length < 4) {
-      setError('请输入验证码（演示自动填充了 123456）');
+    if (!password) {
+      setError('请输入密码');
       return;
     }
     setLoading(true);
+    setError('');
     try {
-      await setUser(await mockLogin(phone));
+      await login(email.trim(), password);
       router.replace('/(tabs)/profile');
+    } catch (e: any) {
+      setError(e?.message || '登录失败，请重试');
     } finally {
       setLoading(false);
     }
@@ -76,50 +60,29 @@ export default function Login() {
 
           <View style={styles.form}>
             <Input
-              label="手机号"
-              value={phone}
-              onChangeText={(t) => setPhone(t.replace(/[^\d]/g, ''))}
-              placeholder="请输入手机号"
-              keyboardType="phone-pad"
-              maxLength={11}
-              error={error && !/^1\d{10}$/.test(phone) ? error : undefined}
+              label="邮箱"
+              value={email}
+              onChangeText={(t) => { setEmail(t); setError(''); }}
+              placeholder="请输入邮箱"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              error={error}
             />
             <Input
-              label="验证码"
-              value={code}
-              onChangeText={(t) => setCode(t.replace(/[^\d]/g, ''))}
-              placeholder="6 位验证码（演示自动填 123456）"
-              keyboardType="number-pad"
-              maxLength={6}
-              rightElement={
-                <Pressable onPress={sendCode} disabled={countdown > 0}>
-                  <Text style={{ color: countdown > 0 ? colors.textSecondary : colors.primary, fontSize: 13, fontWeight: '600' }}>
-                    {countdown > 0 ? `${countdown}s` : '发送验证码'}
-                  </Text>
-                </Pressable>
-              }
+              label="密码"
+              value={password}
+              onChangeText={(t) => { setPassword(t); setError(''); }}
+              placeholder="请输入密码"
+              secureTextEntry
             />
 
             <Button title="登录" onPress={handleLogin} loading={loading} size="large" />
 
             <View style={styles.divider}>
               <View style={[styles.line, { backgroundColor: colors.border }]} />
-              <ThemedText type="small" themeColor="textSecondary">
-                或
-              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">或</ThemedText>
               <View style={[styles.line, { backgroundColor: colors.border }]} />
             </View>
-
-            <Button
-              title="微信一键登录"
-              variant="secondary"
-              icon="logo-wechat"
-              onPress={() => {
-                setPhone('13800000000');
-                setCode('123456');
-                handleLogin();
-              }}
-            />
 
             <View style={styles.links}>
               <Pressable onPress={() => router.push('/auth/register')}>
@@ -146,12 +109,8 @@ const styles = StyleSheet.create({
   content: { padding: Spacing.four, gap: Spacing.four },
   header: { alignItems: 'center', gap: Spacing.two, marginTop: Spacing.four },
   logo: {
-    width: 72,
-    height: 72,
-    borderRadius: Radius.card,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.two,
+    width: 72, height: 72, borderRadius: Radius.card,
+    alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.two,
   },
   title: { fontSize: 28, lineHeight: 36 },
   form: { gap: Spacing.three, marginTop: Spacing.four },

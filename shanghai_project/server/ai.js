@@ -1,12 +1,15 @@
 /**
- * AI 提供者：配置了真实 API 就走真调用，否则/失败时自动降级到演示数据。
- * 兼容 OpenAI 协议（通义千问 / DeepSeek / Moonshot 等）。
+ * AI 提供者 v2.0
+ * - 兼容 OpenAI 协议（火山方舟 / 通义千问 / DeepSeek / Moonshot 等）
+ * - 配置了真实 API Key 就走真调用，否则/失败时自动降级到演示数据
+ * - 火山方舟配置：server/config.json 中 ai.enabled=true + apiKey
  */
+
 const { DEMO_INGREDIENTS, pickMockRecipe, mockRecommendWorkout } = require('./demo-data');
 
-const config = require('./config');
+const config = require('./config.json');
 
-const USE_MOCK = () => !config.ai.enabled || !config.ai.apiKey;
+const USE_MOCK = () => !config.ai.enabled || !config.ai.apiKey || config.ai.apiKey === 'YOUR_VOLCANO_API_KEY_HERE';
 
 function httpJson(url, options) {
   const u = new URL(url);
@@ -34,7 +37,7 @@ function httpJson(url, options) {
   });
 }
 
-/** 从模型输出里稳健地提取 JSON（去掉 markdown 围栏/多余文字） */
+/** 从模型输出里稳健地提取 JSON */
 function parseJson(text) {
   const str = String(text);
   const fence = str.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -71,12 +74,12 @@ async function recognizeFood(imageBase64) {
         {
           role: 'system',
           content:
-            '你是营养师，识别图片中的食物。严格只输出 JSON：{"ingredients":[{"name":"食材名","amount":"估重","confidence":0-1}]}，最多 6 项。',
+            '你是专业营养师，识别图片中的食物。严格只输出 JSON：{"ingredients":[{"name":"食材名","amount":"估重(g)","confidence":0-1}]}，最多 6 项。',
         },
         {
           role: 'user',
           content: [
-            { type: 'text', text: '识别这张图片里的食物' },
+            { type: 'text', text: '识别这张图片里的食物，给出名称、估算重量和置信度。' },
             { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imageBase64}` } },
           ],
         },
@@ -104,12 +107,34 @@ async function generateRecipe(params) {
       messages: [
         {
           role: 'system',
-          content:
-            '你是营养师兼大厨。根据用户食材与要求生成一份健康菜谱，严格只输出 JSON：{"name":"菜名","coverEmoji":"emoji","description":"一句话","calories":数字千卡,"protein":克,"carbs":克,"fat":克,"ingredients":[{"name":"食材","amount":"用量"}],"steps":["步骤1","步骤2"],"cookTime":分钟,"difficulty":"简单/中等/困难","tips":["提示"]}。数值要合理，标注演示数据。',
+          content: `你是健身营养师兼大厨。根据用户食材与要求生成健康菜谱，严格只输出 JSON：
+{
+  "name": "菜名",
+  "coverEmoji": "emoji",
+  "description": "一句话描述",
+  "calories": 数字千卡,
+  "protein": 克,
+  "carbs": 克,
+  "fat": 克,
+  "fiber": 克,
+  "ingredients": [{"name":"食材","amount":"用量"}],
+  "steps": ["步骤1","步骤2"],
+  "prepTime": 准备时间(分钟),
+  "cookTime": 烹饪时间(分钟),
+  "difficulty": "简单/中等/困难",
+  "tips": ["提示1","提示2"]
+}
+数值要合理，确保总热量在目标热量 ±10% 范围内。`,
         },
         {
           role: 'user',
-          content: `食材：${JSON.stringify(params.ingredients)}\n人数：${params.people}\n限时：${params.cookTime}分钟\n难度：${params.difficulty}${params.user ? `\n用户目标：${JSON.stringify(params.user)}` : ''}`,
+          content: `食材：${JSON.stringify(params.ingredients)}
+人数：${params.people || 1}
+限时：${params.cookTime || 20}分钟
+难度：${params.difficulty || '简单'}
+${params.style ? `做法偏好：${params.style}` : ''}
+${params.user?.caloriesTarget ? `目标热量：${params.user.caloriesTarget}kcal/餐` : ''}
+${params.user?.goal ? `健身目标：${params.user.goal}` : ''}`,
         },
       ],
     });
@@ -133,12 +158,30 @@ async function recommendWorkout(params) {
       messages: [
         {
           role: 'system',
-          content:
-            '你是健身教练。根据用户身体数据与目标，推荐 6 个跟练视频。严格只输出 JSON：{"videos":[{"title":"标题","coach":"教练","duration":秒,"difficulty":"入门/进阶/挑战","category":"全身燃脂/臀腿/肩背/手臂/核心/有氧/拉伸","calories":千卡,"reason":"针对该用户的具体推荐理由"}]}。理由要结合他的身高体重年龄目标。',
+          content: `你是专业健身教练。根据用户身体数据与目标推荐跟练视频，严格只输出 JSON：
+{
+  "videos": [
+    {
+      "title": "标题",
+      "coach": "教练名",
+      "duration": 秒数,
+      "difficulty": "入门/进阶/挑战",
+      "category": "全身燃脂/臀腿/肩背/手臂/核心/有氧/拉伸",
+      "calories": 预估消耗千卡,
+      "reason": "针对该用户的具体推荐理由（结合身体数据）"
+    }
+  ]
+}
+推荐 6 个视频，覆盖不同难度和类别。理由要结合他的身高体重年龄目标给出个性化建议。`,
         },
         {
           role: 'user',
-          content: JSON.stringify(params),
+          content: JSON.stringify({
+            bodyData: params.bodyData || { height: 170, weight: 65, age: 25, gender: '男' },
+            goal: params.goal || { type: '保持健康' },
+            preference: params.preference || {},
+            limit: params.limit || 8,
+          }),
         },
       ],
     });

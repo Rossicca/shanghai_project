@@ -17,7 +17,9 @@ interface RecipeState {
   selectRecipe: (recipe: Recipe) => void;
   generateRecipe: (params: RecipeGenerateParams) => Promise<Recipe>;
   saveRecipe: (recipe: Recipe) => Promise<void>;
+  unsaveRecipe: (recipeId: string) => Promise<void>;
   loadLocal: () => Promise<void>;
+  refreshSaved: () => Promise<void>;
 }
 
 export const useRecipeStore = create<RecipeState>((set, get) => ({
@@ -48,11 +50,38 @@ export const useRecipeStore = create<RecipeState>((set, get) => ({
   },
 
   saveRecipe: async (recipe) => {
+    // 同步到后端
+    try {
+      await recipeService.saveRecipe(recipe.id);
+    } catch {
+      // 后端不可用时仅本地保存
+    }
+    // 本地保存
     const saved = get().savedRecipes.some((r) => r.id === recipe.id)
       ? get().savedRecipes
       : [recipe, ...get().savedRecipes];
     set({ savedRecipes: saved });
     await AsyncStorage.setItem(KEY_SAVED, JSON.stringify(saved));
+  },
+
+  unsaveRecipe: async (recipeId) => {
+    try {
+      await recipeService.unsaveRecipe(recipeId);
+    } catch {
+      // ignore
+    }
+    const saved = get().savedRecipes.filter((r) => r.id !== recipeId);
+    set({ savedRecipes: saved });
+    await AsyncStorage.setItem(KEY_SAVED, JSON.stringify(saved));
+  },
+
+  refreshSaved: async () => {
+    try {
+      const data = await recipeService.fetchSavedRecipes();
+      if (data) set({ savedRecipes: data });
+    } catch {
+      // use local
+    }
   },
 
   loadLocal: async () => {

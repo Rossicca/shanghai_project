@@ -14,26 +14,27 @@ import { useUserStore } from '@/store/userStore';
 
 export default function Register() {
   const colors = useTheme();
+  const register = useUserStore((s) => s.register);
   const setUser = useUserStore((s) => s.setUser);
 
   const [nickname, setNickname] = useState('');
-  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   async function handleRegister() {
-    if (!nickname.trim()) {
-      setError('请填写昵称');
-      return;
-    }
-    if (!/^1\d{10}$/.test(phone)) {
-      setError('请输入正确的手机号');
-      return;
-    }
+    if (!nickname.trim()) { setError('请填写昵称'); return; }
+    if (!email.trim()) { setError('请输入邮箱'); return; }
+    if (!password || password.length < 6) { setError('密码至少6位'); return; }
+
     setLoading(true);
+    setError('');
     try {
-      await setUser(await mockLogin(nickname.trim()));
+      await register(email.trim(), password, nickname.trim());
       router.replace('/(tabs)/profile');
+    } catch (e: any) {
+      setError(e?.message || '注册失败，请重试');
     } finally {
       setLoading(false);
     }
@@ -53,20 +54,45 @@ export default function Register() {
           <View style={styles.form}>
             <Input label="昵称" value={nickname} onChangeText={setNickname} placeholder="怎么称呼你" maxLength={12} />
             <Input
-              label="手机号"
-              value={phone}
-              onChangeText={(t) => setPhone(t.replace(/[^\d]/g, ''))}
-              placeholder="请输入手机号"
-              keyboardType="phone-pad"
-              maxLength={11}
+              label="邮箱"
+              value={email}
+              onChangeText={(t) => { setEmail(t); setError(''); }}
+              placeholder="请输入邮箱"
+              keyboardType="email-address"
+              autoCapitalize="none"
               error={error}
+            />
+            <Input
+              label="密码"
+              value={password}
+              onChangeText={(t) => { setPassword(t); setError(''); }}
+              placeholder="至少6位密码"
+              secureTextEntry
             />
             <Button title="注册并进入" onPress={handleRegister} loading={loading} size="large" />
           </View>
 
-          <ThemedText type="small" themeColor="textSecondary" style={styles.tip}>
-            演示版本：账号信息仅保存在本机，不涉及真实注册。
-          </ThemedText>
+          <View style={styles.links}>
+            <ThemedText
+              type="small"
+              themeColor="textSecondary"
+              style={styles.tip}
+              onPress={() => router.back()}
+            >
+              已有账号？去登录 ›
+            </ThemedText>
+          </View>
+
+          <View style={styles.guest}>
+            <Button
+              title="游客模式体验"
+              variant="secondary"
+              onPress={async () => {
+                await setUser(await mockLogin(nickname.trim() || '健身新人'));
+                router.replace('/(tabs)/profile');
+              }}
+            />
+          </View>
         </ScrollView>
       </SafeAreaView>
     </ThemedView>
@@ -80,4 +106,6 @@ const styles = StyleSheet.create({
   title: { fontSize: 28, lineHeight: 36 },
   form: { gap: Spacing.three, marginTop: Spacing.four },
   tip: { marginTop: Spacing.two },
+  links: { marginTop: Spacing.two, alignItems: 'center' },
+  guest: { marginTop: Spacing.four },
 });
