@@ -1,0 +1,42 @@
+{
+  "profiles": [
+    {
+      "id": "USR-LOSE-FAT",
+      "description": "减脂、居家、无器械",
+      "bodyData": { "height": 165, "weight": 68, "age": 26, "gender": "female", "bodyFat": 29 },
+      "goal": { "type": "lose_fat", "targetWeight": 60, "weeklyFrequency": 4 },
+      "preferences": { "workoutLocation": "home", "hasEquipment": false, "allergies": [] }
+    },
+    {
+      "id": "USR-GAIN-MUSCLE",
+      "description": "增肌、健身房、有器械",
+      "bodyData": { "height": 178, "weight": 66, "age": 24, "gender": "male", "bodyFat": 14 },
+      "goal": { "type": "gain_muscle", "targetWeight": 72, "weeklyFrequency": 5 },
+      "preferences": { "workoutLocation": "gym", "hasEquipment": true, "allergies": ["peanut"] }
+    },
+    {
+      "id": "USR-SHAPE",
+      "description": "塑形、时间受限",
+      "bodyData": { "height": 160, "weight": 52, "age": 31, "gender": "female", "bodyFat": 23 },
+      "goal": { "type": "shape", "targetWeight": 51, "weeklyFrequency": 3 },
+      "preferences": { "workoutLocation": "home", "hasEquipment": true, "maxCookTime": 20, "allergies": ["seafood"] }
+    },
+    {
+      "id": "USR-INCOMPLETE",
+      "description": "资料不完整，用于验证兜底",
+      "bodyData": { "height": 0, "weight": 0, "age": 0, "gender": "unknown" },
+      "goal": { "type": "maintain_health", "weeklyFrequency": 0 },
+      "preferences": { "workoutLocation": "unknown", "hasEquipment": false, "allergies": [] }
+    }
+  ],
+  "imageCases": [
+    { "id": "IMG-01", "description": "单一且光线良好的食材", "expected": "识别至少一个食材" },
+    { "id": "IMG-02", "description": "肉类、蔬菜、主食组合", "expected": "识别多食材并汇总营养" },
+    { "id": "IMG-03", "description": "食材遮挡或重叠", "expected": "允许手动补充漏识别项" },
+    { "id": "IMG-04", "description": "弱光或轻微模糊", "expected": "低置信度时提示重拍或修正" },
+    { "id": "IMG-05", "description": "无食材图片", "expected": "返回无食材兜底，不生成虚假菜谱" },
+    { "id": "IMG-06", "description": "非 jpg/png/webp 文件", "expected": "返回 INVALID_IMAGE_TYPE" },
+    { "id": "IMG-07", "description": "超过 10MB 的图片", "expected": "返回 IMAGE_TOO_LARGE" },
+    { "id": "IMG-08", "description": "包装食品或混合菜", "expected": "展示不确定性并允许人工修正" }
+  ]
+}

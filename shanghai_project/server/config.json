@@ -1,6 +1,5 @@
 {
   "port": 8787,
-  "jwtSecret": "shanghai-project-jwt-secret-2026-demo",
   "ai": {
     "enabled": true,
     "provider": "volcano",

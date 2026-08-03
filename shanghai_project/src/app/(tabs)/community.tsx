@@ -25,7 +25,7 @@ import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useCommunityStore } from '@/store/communityStore';
 import { useUserStore } from '@/store/userStore';
-import type { CommunityPost, TimelineEntry } from '@/types/community';
+import type { TimelineEntry } from '@/types/community';
 
 type TabKey = 'feed' | 'wall';
 

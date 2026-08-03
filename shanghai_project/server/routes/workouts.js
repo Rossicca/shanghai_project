@@ -61,8 +61,6 @@ router.get('/feed', async (req, res) => {
       videos = [...WORKOUT_LIBRARY];
     }
 
-    videos.sort(() => Math.random() - 0.5);
-
     const p = parseInt(page) || 1;
     const ps = Math.min(parseInt(pageSize) || 10, 20);
     const start = (p - 1) * ps;
@@ -297,7 +295,10 @@ router.post('/:id/save', (req, res) => {
     if (!video) {
       return res.status(404).json({ error: { code: 'VIDEO_NOT_FOUND', message: '视频不存在' } });
     }
-    db.insert('saved_workouts', { userId, workoutId: req.params.id });
+    const existing = db.find('saved_workouts', { userId, workoutId: req.params.id });
+    if (existing.length === 0) {
+      db.insert('saved_workouts', { userId, workoutId: req.params.id });
+    }
     res.json({ data: { workoutId: req.params.id }, message: '已收藏' });
   } catch (e) {
     console.error('[workouts] save error:', e);
@@ -327,18 +328,21 @@ router.get('/saved/list', (req, res) => {
     const userId = req.user?.userId || 'anonymous';
     const saved = db.find('saved_workouts', { userId });
     const videos = saved
-      .map((s) => WORKOUT_LIBRARY.find((w) => w.id === s.workoutId))
-      .filter(Boolean)
-      .map((v) => ({
-        id: v.id,
-        title: v.title,
-        coverUrl: `https://picsum.photos/seed/${v.id}/400/600`,
-        duration: v.duration,
-        difficulty: v.difficulty,
-        category: v.category,
-        instructor: v.coach,
-        tags: v.tags || [],
-        savedAt: s.createdAt,
+      .map((savedItem) => ({
+        savedItem,
+        video: WORKOUT_LIBRARY.find((workout) => workout.id === savedItem.workoutId),
+      }))
+      .filter(({ video }) => Boolean(video))
+      .map(({ savedItem, video }) => ({
+        id: video.id,
+        title: video.title,
+        coverUrl: `https://picsum.photos/seed/${video.id}/400/600`,
+        duration: video.duration,
+        difficulty: video.difficulty,
+        category: video.category,
+        instructor: video.coach,
+        tags: video.tags || [],
+        savedAt: savedItem.createdAt,
       }));
     res.json({ data: videos });
   } catch (e) {

@@ -7,7 +7,6 @@ const router = express.Router();
 const db = require('../db');
 const { generateRecipe } = require('../ai');
 const { pickMockRecipe } = require('../demo-data');
-const config = require('../config.json');
 
 // 每个用户每分钟最多生成 3 次
 const generationLimit = new Map();
@@ -222,10 +221,11 @@ router.post('/:id/save', (req, res) => {
     }
     db.update('recipes', req.params.id, { isSaved: true });
     // 记录到收藏表
-    db.insert('saved_recipes', {
-      userId: req.user?.userId || 'anonymous',
-      recipeId: req.params.id,
-    });
+    const userId = req.user?.userId || 'anonymous';
+    const existing = db.find('saved_recipes', { userId, recipeId: req.params.id });
+    if (existing.length === 0) {
+      db.insert('saved_recipes', { userId, recipeId: req.params.id });
+    }
     res.json({ data: { recipeId: req.params.id }, message: '已收藏' });
   } catch (e) {
     console.error('[recipes] save error:', e);

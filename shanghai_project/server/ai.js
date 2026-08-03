@@ -3,36 +3,11 @@
  * - 兼容 OpenAI 协议（火山方舟 / 通义千问 / DeepSeek / Moonshot 等）
  * - 配置了真实 API Key 就走真调用，否则/失败时自动降级到演示数据
  * - API Key 和接入点 ID 放在 server/config.toml 中（已加入 .gitignore，不会泄露）
- * - 通用配置（port, jwtSecret, demo 等）仍在 server/config.json
+ * - 非敏感通用配置仍在 server/config.json
  */
 
-const fs = require('fs');
-const path = require('path');
-const toml = require('toml');
-
 const { DEMO_INGREDIENTS, pickMockRecipe, mockRecommendWorkout } = require('./demo-data');
-
-const config = require('./config.json');
-
-// ─── 从 config.toml 读取密钥 ───────────────────────────────
-let aiSecrets = {};
-try {
-  const tomlPath = path.join(__dirname, 'config.toml');
-  if (fs.existsSync(tomlPath)) {
-    const raw = fs.readFileSync(tomlPath, 'utf-8');
-    aiSecrets = toml.parse(raw).ai || {};
-  }
-} catch (e) {
-  console.warn('[ai] config.toml 读取失败，使用演示模式:', e.message);
-}
-
-const USE_MOCK = () => {
-  // 如果 config.json 中 ai.enabled 为 false → 演示模式
-  if (!config.ai.enabled) return true;
-  // 如果 config.toml 中 apiKey 为空 → 演示模式
-  if (!aiSecrets.apiKey) return true;
-  return false;
-};
+const { config, isMockMode } = require('./config');
 
 function httpJson(url, options) {
   const u = new URL(url);
@@ -75,7 +50,7 @@ async function chat({ model, messages, temperature = 0.7, maxTokens = 1500 }) {
   const res = await httpJson(`${config.ai.baseURL}/chat/completions`, {
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${aiSecrets.apiKey}`,
+      Authorization: `Bearer ${config.ai.apiKey}`,
     },
     body: JSON.stringify({ model, messages, temperature, max_tokens: maxTokens }),
   });
@@ -87,10 +62,10 @@ async function chat({ model, messages, temperature = 0.7, maxTokens = 1500 }) {
 
 /** 1. 识别食物 */
 async function recognizeFood(imageBase64) {
-  if (USE_MOCK()) return DEMO_INGREDIENTS.map((i) => ({ ...i }));
+  if (isMockMode()) return DEMO_INGREDIENTS.map((i) => ({ ...i }));
   try {
     const content = await chat({
-      model: aiSecrets.visionModel,
+      model: config.ai.visionModel,
       maxTokens: 900,
       temperature: 0.2,
       messages: [
@@ -111,20 +86,20 @@ async function recognizeFood(imageBase64) {
     const parsed = parseJson(content);
     return parsed.ingredients ?? [];
   } catch (e) {
-    console.warn('[ai] recognize fallback to mock:', e.message);
-    return DEMO_INGREDIENTS.map((i) => ({ ...i }));
+    console.error('[ai] 真实图片识别调用失败:', e.message);
+    throw e;
   }
 }
 
 /** 2. 生成菜谱 */
 async function generateRecipe(params) {
-  if (USE_MOCK()) {
+  if (isMockMode()) {
     const recipe = pickMockRecipe(params.ingredients);
     return { ...recipe, id: 'r' + Date.now() };
   }
   try {
     const content = await chat({
-      model: aiSecrets.textModel,
+      model: config.ai.textModel,
       maxTokens: 2200,
       temperature: 0.8,
       messages: [
@@ -164,18 +139,17 @@ ${params.user?.goal ? `健身目标：${params.user.goal}` : ''}`,
     const parsed = parseJson(content);
     return { ...parsed, id: 'r' + Date.now() };
   } catch (e) {
-    console.warn('[ai] recipe fallback to mock:', e.message);
-    const recipe = pickMockRecipe(params.ingredients);
-    return { ...recipe, id: 'r' + Date.now() };
+    console.error('[ai] 真实菜谱生成调用失败:', e.message);
+    throw e;
   }
 }
 
 /** 3. 运动推荐 */
 async function recommendWorkout(params) {
-  if (USE_MOCK()) return mockRecommendWorkout(params);
+  if (isMockMode()) return mockRecommendWorkout(params);
   try {
     const content = await chat({
-      model: aiSecrets.textModel,
+      model: config.ai.textModel,
       maxTokens: 2000,
       temperature: 0.7,
       messages: [
@@ -222,8 +196,8 @@ async function recommendWorkout(params) {
     if (parsed.videos?.length) return parsed.videos;
     return mockRecommendWorkout(params);
   } catch (e) {
-    console.warn('[ai] workout fallback to mock:', e.message);
-    return mockRecommendWorkout(params);
+    console.error('[ai] 真实健身推荐调用失败:', e.message);
+    throw e;
   }
 }
 

@@ -15,7 +15,7 @@ import type { Recipe } from '@/types/recipe';
 
 export default function RecipeTab() {
   const colors = useTheme();
-  const { savedRecipes, recipeHistory, saveRecipe, loadLocal, selectRecipe } = useRecipeStore();
+  const { savedRecipes, recipeHistory, saveRecipe, unsaveRecipe, loadLocal, selectRecipe } = useRecipeStore();
 
   useEffect(() => {
     loadLocal();
@@ -50,7 +50,7 @@ export default function RecipeTab() {
               <RecipeList
                 recipes={savedRecipes}
                 onPress={openRecipe}
-                onSave={(r) => saveRecipe(r)}
+                onSave={(r) => unsaveRecipe(r.id)}
                 savedIds={savedIds}
               />
             </>
@@ -62,7 +62,7 @@ export default function RecipeTab() {
               <RecipeList
                 recipes={recipeHistory.slice(0, 5)}
                 onPress={openRecipe}
-                onSave={(r) => saveRecipe(r)}
+                onSave={(r) => (savedIds.has(r.id) ? unsaveRecipe(r.id) : saveRecipe(r))}
                 savedIds={savedIds}
               />
             </>

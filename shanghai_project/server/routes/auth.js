@@ -12,11 +12,12 @@ const { hashPassword, verifyPassword, generateAccessToken, generateRefreshToken,
  */
 router.post('/register', (req, res) => {
   try {
-    const { email, password, nickname, gender, birthday } = req.body;
+    const { password, nickname, gender, birthday } = req.body;
+    const email = String(req.body.email || '').trim().toLowerCase();
 
-    if (!email || !password) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || typeof password !== 'string' || password.length < 6) {
       return res.status(400).json({
-        error: { code: 'INVALID_PARAMS', message: '邮箱和密码不能为空' },
+        error: { code: 'INVALID_PARAMS', message: '请输入有效邮箱，密码至少 6 位' },
       });
     }
 
@@ -65,7 +66,8 @@ router.post('/register', (req, res) => {
  */
 router.post('/login', (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { password } = req.body;
+    const email = String(req.body.email || '').trim().toLowerCase();
 
     if (!email || !password) {
       return res.status(400).json({
@@ -122,7 +124,7 @@ router.post('/refresh', (req, res) => {
       });
     }
 
-    const decoded = verifyToken(refreshToken);
+    const decoded = verifyToken(refreshToken, 'refresh');
     if (!decoded) {
       return res.status(401).json({
         error: { code: 'TOKEN_EXPIRED', message: 'Refresh Token 已过期，请重新登录' },

@@ -41,7 +41,6 @@ export function NutritionInfo({ calories, protein, carbs, fat, targetCalories }:
     return { ...s, dash, startOffset };
   });
 
-  const target = targetCalories ? targetCalories : calories;
   const status = targetCalories
     ? calories <= targetCalories * 1.05
       ? calories >= targetCalories * 0.85

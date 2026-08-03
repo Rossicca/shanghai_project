@@ -21,7 +21,7 @@ export default function HomeScreen() {
   const colors = useTheme();
   const { bodyData, goal, bodyHistory } = useUserStore();
   const { recipeHistory, loadLocal: loadRecipes, selectRecipe } = useRecipeStore();
-  const { history: workoutHistory, loadLocal: loadWorkouts, selectVideo } = useWorkoutStore();
+  const { history: workoutHistory, loadLocal: loadWorkouts } = useWorkoutStore();
   const [noticesOpen, setNoticesOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
 
