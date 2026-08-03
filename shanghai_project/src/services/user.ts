@@ -104,6 +104,7 @@ export async function saveGoal(goal: FitnessGoal): Promise<void> {
       goalType: goal.type,
       targetWeight: goal.targetWeight,
       targetDate: goal.deadline,
+      weeklyFrequency: goal.weeklyFrequency,
     });
   } catch {
     // 仅本地保存
