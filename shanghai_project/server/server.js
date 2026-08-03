@@ -103,17 +103,22 @@ app.post('/api/workout/recommend', async (req, res) => {
     res.json({ videos });
   } catch (e) {
     console.error('[compat] recommend error:', e);
-    res.json({ videos: mockRecommendWorkout(req.body) });
+    // 降级：从数据库随机取
+    const db = require('./db');
+    const fallback = db.readCollection('workout_videos').sort(() => Math.random() - 0.5).slice(0, 8);
+    res.json({ videos: fallback.length > 0 ? fallback : mockRecommendWorkout(req.body) });
   }
 });
 
 // POST /api/workout/list — 分类视频列表
 app.post('/api/workout/list', (req, res) => {
+  const db = require('./db');
+  const videos = db.readCollection('workout_videos');
   const category = req.body.category;
-  const videos = category
-    ? WORKOUT_LIBRARY.filter((w) => w.category === category)
-    : WORKOUT_LIBRARY;
-  res.json({ videos });
+  const filtered = category
+    ? videos.filter((w) => w.category === category)
+    : videos;
+  res.json({ videos: filtered.slice(0, 20) });
 });
 
 // GET /api/workout/categories — 分类列表

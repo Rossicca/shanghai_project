@@ -1,12 +1,11 @@
 /**
  * 健身视频路由 — 推荐流 / 分类 / 搜索 / 互动
+ * 视频数据来自 B站爬虫种子脚本（seed-workout-videos.js）
  */
 
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
-const { WORKOUT_LIBRARY } = require('../demo-data');
-const { recommendWorkout } = require('../ai');
 
 const CATEGORIES = [
   { slug: 'recommended', name: '为你推荐', icon: '🔥' },
@@ -29,8 +28,24 @@ const SLUG_TO_CATEGORY = {
   stretch: '拉伸',
 };
 
+const GOAL_CATEGORY_MAP = {
+  '减脂': ['全身燃脂', '有氧'],
+  '增肌': ['臀腿', '肩背', '手臂'],
+  '塑形': ['核心', '臀腿', '手臂'],
+  '保持健康': ['全身燃脂', '有氧', '拉伸'],
+};
+
+/** 获取视频库 */
+function getVideoDB() {
+  const videos = db.readCollection('workout_videos');
+  if (videos.length > 0) return videos;
+  // 如果还没有爬取数据，返回空数组
+  return [];
+}
+
 /**
  * GET /api/v1/workouts/feed — 推荐视频流
+ * 有身体数据时按目标推荐，无数据时随机推荐
  */
 router.get('/feed', async (req, res) => {
   try {
@@ -42,26 +57,33 @@ router.get('/feed', async (req, res) => {
     )[0] || null;
     const goal = db.find('fitness_goals', { userId })[0] || null;
 
-    let videos;
+    let videos = getVideoDB();
+
     if (category && category !== 'recommended') {
+      // 按分类筛选
       const catName = SLUG_TO_CATEGORY[category];
-      videos = WORKOUT_LIBRARY.filter((w) => w.category === catName);
+      if (catName) {
+        videos = videos.filter((v) => v.category === catName);
+      }
     } else if (bodyData || goal) {
-      videos = await recommendWorkout({
-        bodyData: bodyData ? {
-          height: bodyData.height,
-          weight: bodyData.weight,
-          age: bodyData.age || 25,
-          gender: bodyData.gender || '男',
-        } : null,
-        goal: goal ? { type: goal.goalType } : null,
-        limit: 20,
-      });
+      // 有身体数据/目标 → 按目标推荐对应分类
+      const goalType = goal?.goalType || '保持健康';
+      const targetCats = GOAL_CATEGORY_MAP[goalType] || ['全身燃脂', '有氧', '拉伸'];
+      videos = videos.filter((v) => targetCats.includes(v.category));
+      // 按播放量排序
+      videos.sort((a, b) => (b.playCount || 0) - (a.playCount || 0));
     } else {
-      videos = [...WORKOUT_LIBRARY];
+      // 无数据 → 随机打乱
+      videos.sort(() => Math.random() - 0.5);
     }
 
-    videos.sort(() => Math.random() - 0.5);
+    // 去重（按 id）
+    const seen = new Set();
+    videos = videos.filter((v) => {
+      if (seen.has(v.id)) return false;
+      seen.add(v.id);
+      return true;
+    });
 
     const p = parseInt(page) || 1;
     const ps = Math.min(parseInt(pageSize) || 10, 20);
@@ -75,23 +97,25 @@ router.get('/feed', async (req, res) => {
         items: items.map((v) => ({
           id: v.id,
           title: v.title,
-          coverUrl: `https://picsum.photos/seed/${v.id}/400/600`,
-          videoUrl: v.source || null,
-          source: v.source ? 'external' : 'demo',
+          coverUrl: v.coverUrl || `https://picsum.photos/seed/${v.id}/400/600`,
+          videoUrl: v.sourceUrl || null,
+          sourceUrl: v.sourceUrl,
+          platform: v.platform || 'bilibili',
+          source: v.sourceUrl ? 'external' : 'demo',
           duration: v.duration,
           difficulty: v.difficulty,
           category: v.category,
           categoryName: v.category,
           instructor: v.coach,
-          targetMuscles: v.tags?.filter((t) => ['臀腿', '核心', '手臂', '肩背'].includes(t)) || [],
+          targetMuscles: [],
           equipment: [],
           tags: v.tags || [],
-          viewCount: Math.floor(Math.random() * 100000) + 5000,
+          viewCount: v.playCount || Math.floor(Math.random() * 100000) + 5000,
           likeCount: Math.floor(Math.random() * 10000) + 500,
           isLiked: false,
           isSaved: saved.some((s) => s.workoutId === v.id),
           reason: v.reason || '',
-          createdAt: new Date().toISOString(),
+          createdAt: v.fetchedAt || new Date().toISOString(),
         })),
         total: videos.length,
         page: p,
@@ -112,12 +136,14 @@ router.get('/feed', async (req, res) => {
  */
 router.get('/categories', (req, res) => {
   try {
-    const data = CATEGORIES.map((c) => ({
-      ...c,
-      count: c.slug === 'recommended'
-        ? WORKOUT_LIBRARY.length
-        : WORKOUT_LIBRARY.filter((w) => w.category === SLUG_TO_CATEGORY[c.slug]).length,
-    }));
+    const videos = getVideoDB();
+    const data = CATEGORIES.map((c) => {
+      const catName = SLUG_TO_CATEGORY[c.slug];
+      const count = catName
+        ? videos.filter((v) => v.category === catName).length
+        : videos.length;
+      return { ...c, count };
+    });
     res.json({ data });
   } catch (e) {
     console.error('[workouts] categories error:', e);
@@ -135,21 +161,22 @@ router.get('/category/:slug', (req, res) => {
     const { slug } = req.params;
     const { page = 1, pageSize = 10, difficulty, sort = 'hot' } = req.query;
 
+    let videos = getVideoDB();
     const catName = SLUG_TO_CATEGORY[slug];
-    let videos = catName
-      ? WORKOUT_LIBRARY.filter((w) => w.category === catName)
-      : [...WORKOUT_LIBRARY];
+    if (catName) {
+      videos = videos.filter((v) => v.category === catName);
+    }
 
     if (difficulty) {
-      videos = videos.filter((w) => w.difficulty === difficulty);
+      videos = videos.filter((v) => v.difficulty === difficulty);
     }
 
     if (sort === 'newest') {
-      videos.sort((a, b) => b.id.localeCompare(a.id));
+      videos.sort((a, b) => (b.fetchedAt || '').localeCompare(a.fetchedAt || ''));
     } else if (sort === 'trending') {
-      videos.sort(() => Math.random() - 0.5);
+      videos.sort((a, b) => (b.playCount || 0) - (a.playCount || 0));
     } else {
-      videos.sort((a, b) => b.duration - a.duration);
+      videos.sort((a, b) => (b.playCount || 0) - (a.playCount || 0));
     }
 
     const p = parseInt(page) || 1;
@@ -161,13 +188,15 @@ router.get('/category/:slug', (req, res) => {
         items: videos.slice(start, start + ps).map((v) => ({
           id: v.id,
           title: v.title,
-          coverUrl: `https://picsum.photos/seed/${v.id}/400/600`,
+          coverUrl: v.coverUrl || `https://picsum.photos/seed/${v.id}/400/600`,
+          sourceUrl: v.sourceUrl,
+          platform: v.platform || 'bilibili',
           duration: v.duration,
           difficulty: v.difficulty,
           category: v.category,
           instructor: v.coach,
           tags: v.tags || [],
-          viewCount: Math.floor(Math.random() * 100000) + 5000,
+          viewCount: v.playCount || Math.floor(Math.random() * 100000) + 5000,
           isLiked: false,
           isSaved: false,
         })),
@@ -196,12 +225,12 @@ router.get('/search', (req, res) => {
     }
 
     const keyword = q.toLowerCase();
-    let videos = WORKOUT_LIBRARY.filter(
-      (w) =>
-        w.title.toLowerCase().includes(keyword) ||
-        w.coach.toLowerCase().includes(keyword) ||
-        w.category.includes(keyword) ||
-        w.tags?.some((t) => t.includes(keyword))
+    let videos = getVideoDB().filter(
+      (v) =>
+        (v.title && v.title.toLowerCase().includes(keyword)) ||
+        (v.coach && v.coach.toLowerCase().includes(keyword)) ||
+        (v.category && v.category.includes(keyword)) ||
+        (v.tags && v.tags.some((t) => t.includes(keyword)))
     );
 
     const p = parseInt(page) || 1;
@@ -213,13 +242,15 @@ router.get('/search', (req, res) => {
         items: videos.slice(start, start + ps).map((v) => ({
           id: v.id,
           title: v.title,
-          coverUrl: `https://picsum.photos/seed/${v.id}/400/600`,
+          coverUrl: v.coverUrl || `https://picsum.photos/seed/${v.id}/400/600`,
+          sourceUrl: v.sourceUrl,
+          platform: v.platform || 'bilibili',
           duration: v.duration,
           difficulty: v.difficulty,
           category: v.category,
           instructor: v.coach,
           tags: v.tags || [],
-          viewCount: Math.floor(Math.random() * 100000) + 5000,
+          viewCount: v.playCount || Math.floor(Math.random() * 100000) + 5000,
         })),
         total: videos.length,
         page: p,
@@ -238,7 +269,8 @@ router.get('/search', (req, res) => {
  */
 router.get('/:id', (req, res) => {
   try {
-    const video = WORKOUT_LIBRARY.find((w) => w.id === req.params.id);
+    const videos = getVideoDB();
+    const video = videos.find((v) => v.id === req.params.id);
     if (!video) {
       return res.status(404).json({ error: { code: 'VIDEO_NOT_FOUND', message: '视频不存在或已失效' } });
     }
@@ -250,21 +282,23 @@ router.get('/:id', (req, res) => {
       data: {
         id: video.id,
         title: video.title,
-        coverUrl: `https://picsum.photos/seed/${video.id}/400/600`,
-        videoUrl: video.source || null,
-        source: video.source ? 'external' : 'demo',
+        coverUrl: video.coverUrl || `https://picsum.photos/seed/${video.id}/400/600`,
+        sourceUrl: video.sourceUrl,
+        platform: video.platform || 'bilibili',
+        videoUrl: video.sourceUrl,
+        source: 'external',
         duration: video.duration,
         difficulty: video.difficulty,
         category: video.category,
         categoryName: video.category,
         instructor: video.coach,
         tags: video.tags || [],
-        viewCount: Math.floor(Math.random() * 100000) + 5000,
+        viewCount: video.playCount || Math.floor(Math.random() * 100000) + 5000,
         likeCount: Math.floor(Math.random() * 10000) + 500,
         isLiked: false,
         isSaved: saved.length > 0,
         reason: video.reason || '',
-        description: `${video.coach} 教练的「${video.title}」跟练课程，${video.difficulty}级别，适合${video.category}训练。`,
+        description: `${video.coach} 的「${video.title}」跟练视频，${video.difficulty}级别，适合${video.category}训练。`,
       },
     });
   } catch (e) {
@@ -293,10 +327,6 @@ router.delete('/:id/like', (req, res) => {
 router.post('/:id/save', (req, res) => {
   try {
     const userId = req.user?.userId || 'anonymous';
-    const video = WORKOUT_LIBRARY.find((w) => w.id === req.params.id);
-    if (!video) {
-      return res.status(404).json({ error: { code: 'VIDEO_NOT_FOUND', message: '视频不存在' } });
-    }
     db.insert('saved_workouts', { userId, workoutId: req.params.id });
     res.json({ data: { workoutId: req.params.id }, message: '已收藏' });
   } catch (e) {
@@ -320,19 +350,22 @@ router.delete('/:id/save', (req, res) => {
 });
 
 /**
- * GET /api/v1/workouts/saved — 收藏列表
+ * GET /api/v1/workouts/saved/list — 收藏列表
  */
 router.get('/saved/list', (req, res) => {
   try {
     const userId = req.user?.userId || 'anonymous';
     const saved = db.find('saved_workouts', { userId });
-    const videos = saved
-      .map((s) => WORKOUT_LIBRARY.find((w) => w.id === s.workoutId))
+    const videos = getVideoDB();
+    const items = saved
+      .map((s) => videos.find((v) => v.id === s.workoutId))
       .filter(Boolean)
       .map((v) => ({
         id: v.id,
         title: v.title,
-        coverUrl: `https://picsum.photos/seed/${v.id}/400/600`,
+        coverUrl: v.coverUrl || `https://picsum.photos/seed/${v.id}/400/600`,
+        sourceUrl: v.sourceUrl,
+        platform: v.platform || 'bilibili',
         duration: v.duration,
         difficulty: v.difficulty,
         category: v.category,
@@ -340,7 +373,7 @@ router.get('/saved/list', (req, res) => {
         tags: v.tags || [],
         savedAt: s.createdAt,
       }));
-    res.json({ data: videos });
+    res.json({ data: items });
   } catch (e) {
     console.error('[workouts] saved list error:', e);
     res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: '服务器内部错误' } });

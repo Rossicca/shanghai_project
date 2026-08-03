@@ -1,5 +1,7 @@
 # 数据库文件（自动生成，不提交）
-/data/
+/data/*.json
+# 但保留种子数据
+!/data/workout_videos.json
 
 # 密钥配置（含 API Key，不入库）
 config.toml
