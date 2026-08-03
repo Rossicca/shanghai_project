@@ -94,19 +94,30 @@ app.post('/api/recipe/generate', async (req, res) => {
 // POST /api/workout/recommend — 推荐视频
 app.post('/api/workout/recommend', async (req, res) => {
   try {
-    const videos = await recommendWorkout({
-      bodyData: req.body.bodyData,
-      goal: req.body.goal,
-      preference: req.body.preference,
-      limit: req.body.limit,
-    });
-    res.json({ videos });
+    const db = require('./db');
+    let videos = db.readCollection('workout_videos');
+    if (!videos || videos.length === 0) {
+      videos = mockRecommendWorkout(req.body);
+    } else {
+      // 根据目标筛选
+      const goalType = req.body.goal?.type || '保持健康';
+      const goalMap = {
+        '减脂': ['全身燃脂', '有氧'],
+        '增肌': ['臀腿', '肩背', '手臂'],
+        '塑形': ['核心', '臀腿', '手臂'],
+        '保持健康': ['全身燃脂', '有氧', '拉伸'],
+      };
+      const targetCats = goalMap[goalType] || ['全身燃脂', '有氧', '拉伸'];
+      const filtered = videos.filter((v) => targetCats.includes(v.category));
+      if (filtered.length >= 4) videos = filtered;
+      // 按播放量排序
+      videos.sort((a, b) => (b.playCount || 0) - (a.playCount || 0));
+    }
+    const limit = req.body.limit || 8;
+    res.json({ videos: videos.slice(0, limit) });
   } catch (e) {
     console.error('[compat] recommend error:', e);
-    // 降级：从数据库随机取
-    const db = require('./db');
-    const fallback = db.readCollection('workout_videos').sort(() => Math.random() - 0.5).slice(0, 8);
-    res.json({ videos: fallback.length > 0 ? fallback : mockRecommendWorkout(req.body) });
+    res.json({ videos: mockRecommendWorkout(req.body) });
   }
 });
 
