@@ -18,6 +18,7 @@ const userRoutes = require('./routes/users');
 const recognitionRoutes = require('./routes/recognition');
 const recipeRoutes = require('./routes/recipes');
 const workoutRoutes = require('./routes/workouts');
+const workoutPlanRoutes = require('./routes/workout-plans');
 const statsRoutes = require('./routes/stats');
 
 // 旧版兼容路由（保持前端现有调用可用）
@@ -43,6 +44,11 @@ app.use((req, res, next) => {
   const requestId = supplied && supplied.length <= 128 ? supplied : randomUUID();
   req.requestId = requestId;
   res.set('X-Request-ID', requestId);
+  const sendJson = res.json.bind(res);
+  res.json = (body) => {
+    if (body?.error && !body.error.requestId) body.error.requestId = requestId;
+    return sendJson(body);
+  };
   next();
 });
 
@@ -69,6 +75,7 @@ app.use('/api/v1/users', authMiddleware, userRoutes);
 app.use('/api/v1/recognition', authMiddleware, recognitionRoutes);
 app.use('/api/v1/recipes', authMiddleware, recipeRoutes);
 app.use('/api/v1/workouts', authMiddleware, workoutRoutes);
+app.use('/api/v1/workout-plans', authMiddleware, workoutPlanRoutes);
 app.use('/api/v1/stats', authMiddleware, statsRoutes);
 
 // ---- 旧版 API 兼容 (前端现有调用) ----

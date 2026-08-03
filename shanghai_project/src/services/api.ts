@@ -1,12 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'axios';
+import { router } from 'expo-router';
 
-import { AI_TIMEOUT, API_BASE_URL } from '@/constants/config';
+import { API_BASE_URL, REQUEST_TIMEOUT } from '@/constants/config';
 
 /** Axios 实例 + 拦截器（统一处理网络错误 + 认证） */
 export const api = create({
   baseURL: API_BASE_URL,
-  timeout: AI_TIMEOUT,
+  timeout: REQUEST_TIMEOUT,
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -66,13 +67,15 @@ api.interceptors.response.use(
   (res) => res,
   async (error) => {
     if (!error.response) {
-      error.message = '网络连接失败，请检查网络设置';
+      error.message = error.code === 'ECONNABORTED'
+        ? '请求超时，请检查网络后重试'
+        : '网络连接失败，请检查网络设置';
     } else if (error.response.status === 401 && refreshToken && !error.config?._retry) {
       error.config._retry = true;
       try {
         if (!refreshRequest) {
           refreshRequest = (async () => {
-            const refreshClient = create({ baseURL: API_BASE_URL, timeout: AI_TIMEOUT });
+            const refreshClient = create({ baseURL: API_BASE_URL, timeout: REQUEST_TIMEOUT });
             const response = await refreshClient.post('/api/v1/auth/refresh', { refreshToken });
             const next = response.data.data;
             await saveTokens(next.accessToken, next.refreshToken || refreshToken!);
@@ -86,12 +89,18 @@ api.interceptors.response.use(
       } catch {
         await clearTokens();
         error.message = '登录已失效，请重新登录';
+        router.replace('/auth/login');
       }
     } else if (error.response.status === 401) {
       await clearTokens();
       error.message = '登录已失效，请重新登录';
+      router.replace('/auth/login');
     } else if (error.response.data?.error?.message) {
       error.message = error.response.data.error.message;
+    }
+    const requestId = error.response?.data?.error?.requestId || error.response?.headers?.['x-request-id'];
+    if (requestId && error.response?.status >= 500) {
+      error.message = `${error.message}（请求编号：${requestId}）`;
     }
     return Promise.reject(error);
   }

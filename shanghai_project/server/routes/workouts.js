@@ -43,6 +43,22 @@ function getVideoDB() {
   return [];
 }
 
+function safeExternalUrl(value) {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    const allowed = ['bilibili.com', 'www.bilibili.com', 'search.bilibili.com'];
+    return url.protocol === 'https:' && allowed.includes(url.hostname) ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+function stableMetric(id, base, range) {
+  const hash = String(id).split('').reduce((total, char) => ((total * 31) + char.charCodeAt(0)) >>> 0, 7);
+  return base + (hash % range);
+}
+
 /**
  * GET /api/v1/workouts/feed — 推荐视频流
  * 有身体数据时按目标推荐，无数据时按热度稳定排序
@@ -103,10 +119,10 @@ router.get('/feed', async (req, res) => {
           id: v.id,
           title: v.title,
           coverUrl: v.coverUrl || `https://picsum.photos/seed/${v.id}/400/600`,
-          videoUrl: v.sourceUrl || null,
-          sourceUrl: v.sourceUrl,
+          videoUrl: safeExternalUrl(v.sourceUrl),
+          sourceUrl: safeExternalUrl(v.sourceUrl),
           platform: v.platform || 'bilibili',
-          source: v.sourceUrl ? 'external' : 'demo',
+          source: safeExternalUrl(v.sourceUrl) ? 'external' : 'demo',
           duration: v.duration,
           difficulty: v.difficulty,
           category: v.category,
@@ -115,8 +131,8 @@ router.get('/feed', async (req, res) => {
           targetMuscles: [],
           equipment: [],
           tags: v.tags || [],
-          viewCount: v.playCount || Math.floor(Math.random() * 100000) + 5000,
-          likeCount: Math.floor(Math.random() * 10000) + 500,
+          viewCount: v.playCount || stableMetric(v.id, 5000, 100000),
+          likeCount: stableMetric(v.id, 500, 10000),
           isLiked: false,
           isSaved: saved.some((s) => s.workoutId === v.id),
           reason: v.reason || '',
@@ -194,14 +210,14 @@ router.get('/category/:slug', (req, res) => {
           id: v.id,
           title: v.title,
           coverUrl: v.coverUrl || `https://picsum.photos/seed/${v.id}/400/600`,
-          sourceUrl: v.sourceUrl,
+          sourceUrl: safeExternalUrl(v.sourceUrl),
           platform: v.platform || 'bilibili',
           duration: v.duration,
           difficulty: v.difficulty,
           category: v.category,
           instructor: v.coach,
           tags: v.tags || [],
-          viewCount: v.playCount || Math.floor(Math.random() * 100000) + 5000,
+          viewCount: v.playCount || stableMetric(v.id, 5000, 100000),
           isLiked: false,
           isSaved: false,
         })),
@@ -248,14 +264,14 @@ router.get('/search', (req, res) => {
           id: v.id,
           title: v.title,
           coverUrl: v.coverUrl || `https://picsum.photos/seed/${v.id}/400/600`,
-          sourceUrl: v.sourceUrl,
+          sourceUrl: safeExternalUrl(v.sourceUrl),
           platform: v.platform || 'bilibili',
           duration: v.duration,
           difficulty: v.difficulty,
           category: v.category,
           instructor: v.coach,
           tags: v.tags || [],
-          viewCount: v.playCount || Math.floor(Math.random() * 100000) + 5000,
+          viewCount: v.playCount || stableMetric(v.id, 5000, 100000),
         })),
         total: videos.length,
         page: p,
@@ -288,18 +304,18 @@ router.get('/:id', (req, res) => {
         id: video.id,
         title: video.title,
         coverUrl: video.coverUrl || `https://picsum.photos/seed/${video.id}/400/600`,
-        sourceUrl: video.sourceUrl,
+        sourceUrl: safeExternalUrl(video.sourceUrl),
         platform: video.platform || 'bilibili',
-        videoUrl: video.sourceUrl,
-        source: 'external',
+        videoUrl: safeExternalUrl(video.sourceUrl),
+        source: safeExternalUrl(video.sourceUrl) ? 'external' : 'demo',
         duration: video.duration,
         difficulty: video.difficulty,
         category: video.category,
         categoryName: video.category,
         instructor: video.coach,
         tags: video.tags || [],
-        viewCount: video.playCount || Math.floor(Math.random() * 100000) + 5000,
-        likeCount: Math.floor(Math.random() * 10000) + 500,
+        viewCount: video.playCount || stableMetric(video.id, 5000, 100000),
+        likeCount: stableMetric(video.id, 500, 10000),
         isLiked: false,
         isSaved: saved.length > 0,
         reason: video.reason || '',
@@ -379,7 +395,7 @@ router.get('/saved/list', (req, res) => {
         id: video.id,
         title: video.title,
         coverUrl: video.coverUrl || `https://picsum.photos/seed/${video.id}/400/600`,
-        sourceUrl: video.sourceUrl,
+        sourceUrl: safeExternalUrl(video.sourceUrl),
         platform: video.platform || 'bilibili',
         duration: video.duration,
         difficulty: video.difficulty,

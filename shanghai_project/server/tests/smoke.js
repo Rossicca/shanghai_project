@@ -1,6 +1,7 @@
 const assert = require('assert/strict');
 const path = require('path');
 const { spawn } = require('child_process');
+const yanTestData = require('../../integration/yan-test-data.json');
 
 const PORT = Number(process.env.TEST_PORT || 8791);
 const BASE_URL = `http://127.0.0.1:${PORT}`;
@@ -59,7 +60,8 @@ async function run() {
     assert.equal(health.data.mode, 'demo', '没有本地 AI 密钥时必须明确标记为 demo');
     assert.ok(health.headers.get('x-request-id'), '响应必须包含 X-Request-ID');
 
-    await request('/api/v1/recognition/history', { status: 401 });
+    const unauthenticated = await request('/api/v1/recognition/history', { status: 401 });
+    assert.ok(unauthenticated.data.error.requestId, '\u9519\u8bef\u54cd\u5e94\u5fc5\u987b\u5305\u542b requestId');
     await request('/api/v1/auth/login', {
       method: 'POST',
       body: { email: 'missing@example.com', password: 'wrong' },
@@ -98,6 +100,58 @@ async function run() {
       method: 'PUT',
       token,
       body: { goalType: 'lose_fat', targetWeight: 55, activityLevel: 'moderate' },
+    });
+    await request('/api/v1/users/me/body-data', {
+      method: 'POST', token,
+      body: { height: 0, weight: -1, age: 0, gender: 'unknown' },
+      status: 400,
+    });
+    await request('/api/v1/users/me/preferences', {
+      method: 'PUT', token,
+      body: { dietType: 'balanced', allergies: ['\u867e'], workoutLocation: 'home', hasEquipment: false },
+    });
+    await request('/api/v1/recipes/generate', {
+      method: 'POST', token, status: 422,
+      body: { ingredients: [{ name: '\u867e', amount: '200g' }], servings: 1 },
+    });
+
+    const workoutPlan = await request('/api/v1/workout-plans/generate', {
+      method: 'POST',
+      token,
+      body: {
+        goalType: 'lose_fat', weeklyFrequency: 4, sessionDurationMinutes: 30,
+        workoutLocation: 'home', hasEquipment: false, fitnessLevel: 'beginner',
+        limitations: ['\u819d\u5173\u8282\u907f\u514d\u9ad8\u51b2\u51fb'],
+      },
+    });
+    assert.equal(workoutPlan.data.data.weeklySchedule.length, 4);
+    assert.ok(workoutPlan.data.data.weeklySchedule.every((day) => Array.isArray(day.exercises) && day.exercises.length > 0));
+    assert.ok(workoutPlan.data.data.weeklySchedule.flatMap((day) => day.exercises)
+      .every((exercise) => exercise.videoUrl === null || /^https:\/\/(www\.|search\.)?bilibili\.com\//.test(exercise.videoUrl)));
+    const latestPlan = await request('/api/v1/workout-plans/latest', { token });
+    assert.equal(latestPlan.data.data.planId, workoutPlan.data.data.planId);
+    for (const profile of yanTestData.profiles.slice(1)) {
+      const profilePlan = await request('/api/v1/workout-plans/generate', {
+        method: 'POST', token,
+        body: {
+          goalType: profile.goal.type,
+          weeklyFrequency: profile.goal.weeklyFrequency,
+          sessionDurationMinutes: profile.preferences.maxCookTime || 30,
+          workoutLocation: profile.preferences.workoutLocation,
+          hasEquipment: profile.preferences.hasEquipment,
+          fitnessLevel: 'beginner', limitations: [],
+        },
+      });
+      assert.ok(profilePlan.data.data.weeklySchedule.length >= 1);
+      assert.ok(profilePlan.data.data.weeklySchedule.every((day) => day.durationMinutes >= 10));
+    }
+    await request('/api/v1/workout-plans/generate', {
+      method: 'POST', token, status: 422,
+      body: {
+        goalType: 'maintain', weeklyFrequency: 2, sessionDurationMinutes: 20,
+        workoutLocation: 'home', hasEquipment: false, fitnessLevel: 'beginner',
+        limitations: ['\u6000\u5b55\u671f\u95f4\u6709\u80f8\u75db'],
+      },
     });
 
     const recognition = await request('/api/v1/recognition/upload', {
@@ -167,7 +221,6 @@ async function run() {
 
     const recipeBody = {
       sessionId: confirmation.data.data.sessionId,
-      ingredients: confirmedIngredients,
       mealType: 'lunch',
       servings: 1,
       maxCookTime: 30,
@@ -183,6 +236,9 @@ async function run() {
       });
       assert.ok(recipe.data.data.recipeId);
       assert.ok(recipe.data.data.name);
+      assert.ok(recipe.data.data.nutritionTarget.targetCalories >= 300 && recipe.data.data.nutritionTarget.targetCalories <= 900);
+      assert.equal(recipe.data.data.servings, 1);
+      assert.ok(Number.isFinite(recipe.data.data.nutrition.calories));
       generatedRecipeId = recipe.data.data.recipeId;
     }
     await request('/api/v1/recipes/generate', {

@@ -9,21 +9,27 @@ import { Card } from '@/components/ui/Card';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useRecipeStore } from '@/store/recipeStore';
+import { confirmIngredients } from '@/services/recognition';
 import type { Ingredient } from '@/types/recipe';
 
 type Props = {
   ingredients: Ingredient[];
+  imageId?: string | null;
+  notice?: string;
   onChange: (list: Ingredient[]) => void;
   onRetake: () => void;
 };
 
 /** 识别结果展示：食材列表 + 置信度，支持删除/手动添加 */
-export function IngredientResult({ ingredients, onChange, onRetake }: Props) {
+export function IngredientResult({ ingredients, imageId, notice, onChange, onRetake }: Props) {
   const colors = useTheme();
   const setIngredients = useRecipeStore((s) => s.setIngredients);
+  const setRecognitionSessionId = useRecipeStore((s) => s.setRecognitionSessionId);
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
+  const [confirming, setConfirming] = useState(false);
+  const [confirmError, setConfirmError] = useState('');
 
   function removeAt(index: number) {
     onChange(ingredients.filter((_, i) => i !== index));
@@ -42,10 +48,24 @@ export function IngredientResult({ ingredients, onChange, onRetake }: Props) {
     setAdding(false);
   }
 
-  function goGenerate() {
+  async function goGenerate() {
     const validIngredients = ingredients.filter((item) => item.name.trim());
-    setIngredients(validIngredients);
-    router.push('/recipe/generate');
+    setConfirming(true);
+    setConfirmError('');
+    try {
+      if (imageId) {
+        const confirmation = await confirmIngredients(imageId, validIngredients);
+        setRecognitionSessionId(confirmation.sessionId);
+      } else {
+        setRecognitionSessionId(null);
+      }
+      setIngredients(validIngredients);
+      router.push('/recipe/generate');
+    } catch (error) {
+      setConfirmError((error as Error).message || '食材确认失败，请重试');
+    } finally {
+      setConfirming(false);
+    }
   }
 
   return (
@@ -61,6 +81,19 @@ export function IngredientResult({ ingredients, onChange, onRetake }: Props) {
           </View>
         </View>
       </Card>
+
+      {notice ? (
+        <Card style={styles.noticeCard}>
+          <Ionicons name="information-circle" size={20} color={colors.warning} />
+          <ThemedText type="small" style={{ flex: 1 }}>{notice}</ThemedText>
+        </Card>
+      ) : null}
+
+      {ingredients.some((item) => item.confidence < 0.6) ? (
+        <ThemedText type="small" themeColor="warning" style={styles.inlineNotice}>
+          部分食材置信度较低，请核对名称和用量；不确定时建议重拍。
+        </ThemedText>
+      ) : null}
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.list}>
         {ingredients.map((item, i) => (
@@ -139,6 +172,9 @@ export function IngredientResult({ ingredients, onChange, onRetake }: Props) {
       </ScrollView>
 
       <View style={styles.footer}>
+        {confirmError ? (
+          <ThemedText type="small" themeColor="danger" style={styles.confirmError}>{confirmError}</ThemedText>
+        ) : null}
         <Button title="重拍" variant="outline" icon="camera-reverse" onPress={onRetake} />
         <View style={{ width: Spacing.two }} />
         <Button
@@ -148,6 +184,7 @@ export function IngredientResult({ ingredients, onChange, onRetake }: Props) {
           size="large"
           style={{ flex: 1 }}
           disabled={!ingredients.some((item) => item.name.trim())}
+          loading={confirming}
         />
       </View>
     </View>
@@ -158,6 +195,8 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   headerCard: { marginBottom: Spacing.three },
   headerRow: { flexDirection: 'row', gap: Spacing.two, alignItems: 'center' },
+  noticeCard: { flexDirection: 'row', gap: Spacing.two, alignItems: 'center', marginBottom: Spacing.two },
+  inlineNotice: { marginBottom: Spacing.two },
   list: { gap: Spacing.two, paddingBottom: Spacing.three },
   item: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   editRow: { flexDirection: 'row', gap: Spacing.two },
@@ -179,5 +218,6 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     borderWidth: 1,
   },
-  footer: { flexDirection: 'row', paddingTop: Spacing.two },
+  footer: { flexDirection: 'row', flexWrap: 'wrap', paddingTop: Spacing.two },
+  confirmError: { width: '100%', marginBottom: Spacing.two },
 });

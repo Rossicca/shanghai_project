@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -28,6 +28,13 @@ export default function GenerateRecipe() {
   const [difficulty, setDifficulty] = useState<(typeof DIFFICULTIES)[number]>('简单');
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState('');
+  const [retryAfter, setRetryAfter] = useState(0);
+
+  useEffect(() => {
+    if (retryAfter <= 0) return;
+    const timer = setInterval(() => setRetryAfter((value) => Math.max(0, value - 1)), 1000);
+    return () => clearInterval(timer);
+  }, [retryAfter]);
 
   function updateAmount(index: number, amount: string) {
     setIngredients((prev) => prev.map((it, i) => (i === index ? { ...it, amount } : it)));
@@ -56,7 +63,10 @@ export default function GenerateRecipe() {
       const recipe = await generateRecipe(params);
       selectRecipe(recipe);
       router.push({ pathname: '/recipe/[id]', params: { id: recipe.id } });
-    } catch (e) {
+    } catch (e: any) {
+      if (e?.response?.status === 429) {
+        setRetryAfter(Number(e.response.data?.error?.detail?.retryAfterSeconds || 35));
+      }
       setError((e as Error).message || '生成失败，请重试');
     } finally {
       setGenerating(false);
@@ -171,11 +181,11 @@ export default function GenerateRecipe() {
           </Card>
         ) : (
           <Button
-            title="生成菜谱"
+            title={retryAfter > 0 ? `${retryAfter} 秒后可重试` : '生成菜谱'}
             icon="sparkles"
             size="large"
             onPress={runGenerate}
-            disabled={ingredients.length === 0}
+            disabled={ingredients.length === 0 || retryAfter > 0}
           />
         )}
 

@@ -1,6 +1,28 @@
-import type { WorkoutRecommendParams, WorkoutVideo } from '@/types/workout';
+import type { WorkoutPlan, WorkoutPlanInput, WorkoutRecommendParams, WorkoutVideo } from '@/types/workout';
+import { AI_TIMEOUT } from '@/constants/config';
 
 import { api } from './api';
+
+function mapWorkoutVideo(item: any): WorkoutVideo {
+  const difficultyMap: Record<string, WorkoutVideo['difficulty']> = {
+    beginner: '\u5165\u95e8', intermediate: '\u8fdb\u9636', advanced: '\u6311\u6218',
+  };
+  return {
+    id: String(item.id),
+    title: String(item.title || '\u672a\u547d\u540d\u8bad\u7ec3'),
+    coach: String(item.coach || item.instructor || '\u5065\u8eab\u6559\u7ec3'),
+    duration: Number(item.duration || 0),
+    difficulty: difficultyMap[item.difficulty] || item.difficulty || '\u5165\u95e8',
+    category: item.category || item.categoryName || '\u5168\u8eab\u71c3\u8102',
+    calories: Number(item.calories || 0),
+    coverColor: item.coverColor || '#2FA886',
+    source: typeof item.source === 'string' && /^https?:\/\//.test(item.source) ? item.source : undefined,
+    sourceUrl: item.sourceUrl || item.videoUrl || undefined,
+    platform: item.platform || 'bilibili',
+    reason: item.reason || '\u9002\u5408\u5f53\u524d\u8bad\u7ec3\u76ee\u6807',
+    tags: Array.isArray(item.tags) ? item.tags : [],
+  };
+}
 
 /** 按身体数据推荐运动视频（旧 API） */
 export async function recommendWorkout(params: WorkoutRecommendParams): Promise<WorkoutVideo[]> {
@@ -21,7 +43,7 @@ export async function fetchFeed(params?: { category?: string; page?: number; pag
   if (params?.page) query.set('page', String(params.page));
   if (params?.pageSize) query.set('pageSize', String(params.pageSize));
   const res = await api.get(`/api/v1/workouts/feed?${query.toString()}`);
-  return res.data.data;
+  return { ...res.data.data, items: (res.data.data.items || []).map(mapWorkoutVideo) };
 }
 
 /** 获取分类列表（新 API） */
@@ -41,6 +63,16 @@ export async function fetchWorkoutsByCategory(
   if (params?.difficulty) query.set('difficulty', params.difficulty);
   if (params?.sort) query.set('sort', params.sort);
   const res = await api.get(`/api/v1/workouts/category/${slug}?${query.toString()}`);
+  return { ...res.data.data, items: (res.data.data.items || []).map(mapWorkoutVideo) };
+}
+
+export async function generateWorkoutPlan(input: WorkoutPlanInput): Promise<WorkoutPlan> {
+  const res = await api.post('/api/v1/workout-plans/generate', input, { timeout: AI_TIMEOUT });
+  return res.data.data;
+}
+
+export async function fetchLatestWorkoutPlan(): Promise<WorkoutPlan | null> {
+  const res = await api.get('/api/v1/workout-plans/latest');
   return res.data.data;
 }
 

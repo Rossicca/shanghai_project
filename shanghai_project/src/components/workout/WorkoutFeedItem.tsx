@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Alert, Linking, Platform, Pressable, Share, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 
 import { VideoPlayer } from '@/components/workout/VideoPlayer';
 import { Radius } from '@/constants/theme';
@@ -30,19 +30,16 @@ export function WorkoutFeedItem({ video, active, saved, onToggleSave, onOpen }: 
     });
   }
 
-  function handleOpen() {
+  async function handleOpen() {
     if (video.sourceUrl) {
-      const url = video.sourceUrl;
-      if (Platform.OS === 'web') {
-        window.open(url, '_blank');
-      } else {
-        Linking.openURL(url).catch(() => {
-          Alert.alert('提示', '无法打开链接，请手动搜索');
-        });
+      const supported = await Linking.canOpenURL(video.sourceUrl).catch(() => false);
+      if (supported) {
+        await Linking.openURL(video.sourceUrl);
+        return;
       }
-    } else {
-      onOpen();
+      Alert.alert('视频暂时不可用', '已为你保留文字训练信息，可以继续查看。');
     }
+    onOpen();
   }
 
   return (

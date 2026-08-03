@@ -58,13 +58,9 @@ export function VideoPlayer({ video, playing = true, onEnd, showControls }: Prop
 
   function openExternal() {
     if (!video.sourceUrl) return;
-    if (Platform.OS === 'web') {
-      window.open(video.sourceUrl, '_blank');
-    } else {
-      Linking.openURL(video.sourceUrl).catch(() => {
-        Alert.alert('提示', '无法打开链接');
-      });
-    }
+    Linking.canOpenURL(video.sourceUrl)
+      .then((supported) => supported ? Linking.openURL(video.sourceUrl!) : Promise.reject())
+      .catch(() => Alert.alert('视频暂时不可用', '文字动作说明仍可正常使用。'));
   }
 
   // 真实视频

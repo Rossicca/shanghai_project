@@ -5,9 +5,11 @@
 ```bash
 npm --prefix server run test:smoke
 npm run verify
+npm --prefix server run test:ai-quality
+node server/tests/real-recognition.js
 ```
 
-`yan-test-data.json` 包含四组用户资料和八类图片用例。真实 AI 配置完成后，每组至少重复三次，并记录模型、Prompt 版本、输入、原始输出和结论。
+`yan-test-data.json` 包含四组用户资料和八类图片用例。`test:ai-quality` 对同一菜谱输入连续生成三次并校验结构、食材一致性、营养、目标匹配、可执行性和中文表达；测试不会打印 API Key。
 
 ## 人工验证顺序
 

@@ -38,11 +38,12 @@ router.get('/dashboard', (req, res) => {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
       const dateStr = d.toISOString().slice(0, 10);
+      const dayWorkouts = watchedWorkouts.filter((workout) => workout.createdAt?.startsWith(dateStr));
       weeklyActivity.push({
         date: dateStr,
-        workout: watchedWorkouts.some((w) => w.createdAt?.startsWith(dateStr)),
+        workout: dayWorkouts.length > 0,
         recipe: recipes.some((r) => r.createdAt?.startsWith(dateStr)),
-        caloriesBurned: Math.floor(Math.random() * 500) + 100,
+        caloriesBurned: dayWorkouts.reduce((sum, workout) => sum + Number(workout.calories || 200), 0),
       });
     }
 

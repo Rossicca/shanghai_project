@@ -55,6 +55,15 @@ router.post('/upload', parseImageUpload, async (req, res) => {
     // 真实 AI 识别
     const ingredients = await recognizeFood(imageBase64);
 
+    if (!Array.isArray(ingredients) || ingredients.length === 0) {
+      return res.status(422).json({
+        error: {
+          code: 'NO_INGREDIENTS_FOUND',
+          message: '\u672a\u8bc6\u522b\u5230\u6709\u6548\u98df\u6750\uff0c\u53ef\u4ee5\u91cd\u62cd\u6216\u624b\u52a8\u6dfb\u52a0',
+        },
+      });
+    }
+
     const result = ingredients.map((i) => ({
       id: db.generateId(),
       name: i.name,
@@ -102,8 +111,8 @@ router.post('/upload', parseImageUpload, async (req, res) => {
     });
   } catch (e) {
     console.error('[recognition] upload error:', e);
-    res.status(500).json({
-      error: { code: 'RECOGNITION_FAILED', message: '图片识别失败，请重试' },
+    res.status(502).json({
+      error: { code: 'AI_RECOGNITION_FAILED', message: '图片识别失败，请重试' },
     });
   }
 });

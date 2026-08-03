@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { recognizeFood } from '@/services/recognition';
+import { recognizeFoodForFlow } from '@/services/recognition';
 import { addIngredientHistory, loadIngredientHistory } from '@/services/ingredientHistory';
 import type { Ingredient } from '@/types/recipe';
 
@@ -27,6 +27,7 @@ export default function Scan() {
   const [previewUri, setPreviewUri] = useState<string | null>(null);
   const [base64, setBase64] = useState<string | null>(null);
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
+  const [imageId, setImageId] = useState<string | null>(null);
   const [history, setHistory] = useState<string[]>([]);
   const [error, setError] = useState('');
 
@@ -39,6 +40,7 @@ export default function Scan() {
     setPreviewUri(null);
     setBase64(null);
     setIngredients([]);
+    setImageId(null);
     setError('');
     loadHistory();
   }
@@ -84,11 +86,19 @@ export default function Scan() {
     setMode('recognizing');
     setError('');
     try {
-      const list = await recognizeFood(base64);
-      setIngredients(list);
-      await addIngredientHistory(list.map((i) => i.name));
+      const result = await recognizeFoodForFlow(base64);
+      setImageId(result.imageId);
+      setIngredients(result.ingredients);
+      await addIngredientHistory(result.ingredients.map((i) => i.name));
       setMode('result');
-    } catch (e) {
+    } catch (e: any) {
+      if (e?.response?.data?.error?.code === 'NO_INGREDIENTS_FOUND') {
+        setIngredients([]);
+        setImageId(null);
+        setError('没有识别到食材。你可以重拍，或直接手动添加食材。');
+        setMode('result');
+        return;
+      }
       setError((e as Error).message || '识别失败，请重试');
       setMode('preview');
     }
@@ -169,7 +179,13 @@ export default function Scan() {
     return (
       <ThemedView style={styles.container}>
         <SafeAreaView style={styles.safeArea} edges={['top']}>
-          <IngredientResult ingredients={ingredients} onChange={setIngredients} onRetake={enterIdle} />
+          <IngredientResult
+            ingredients={ingredients}
+            imageId={imageId}
+            notice={error}
+            onChange={setIngredients}
+            onRetake={enterIdle}
+          />
         </SafeAreaView>
       </ThemedView>
     );
