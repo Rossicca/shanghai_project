@@ -48,10 +48,12 @@ export interface BodyData {
 
 /** 健身目标 */
 export interface FitnessGoal {
-  type: '减脂' | '增肌' | '塑形' | '保持健康';
+  types?: string[];              // 多选：['减脂', '增肌']
+  type?: string;                 // 兼容旧版
   targetWeight?: number;
   deadline?: string;
   weeklyFrequency?: number;
+  trainingStyle?: 'gentle' | 'moderate' | 'intense';  // 训练偏好
 }
 
 /** 运动推荐请求 */

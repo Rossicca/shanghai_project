@@ -42,7 +42,17 @@ export default function HomeScreen() {
   const streak = bodyHistory.length;
   const today = new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' });
 
+  // 今日训练计划
+  const todayPlan = (() => {
+    if (!plan) return null;
+    const dow = new Date().getDay();
+    const dayIdx = dow === 0 ? 6 : dow - 1;
+    const match = plan.weeklySchedule.find((d: any) => d.day - 1 === dayIdx);
+    return match ? { rest: false, day: match } : { rest: true, day: null };
+  })();
+
   function openRecipe(r: Recipe) { selectRecipe(r); router.push({ pathname: '/recipe/[id]', params: { id: r.id } }); }
+  function openVideoLink(kw: string) { const { Linking } = require('react-native'); Linking.openURL(`https://search.bilibili.com/all?keyword=${encodeURIComponent(kw)}`); }
 
   const timeGreeting = new Date().getHours() < 12 ? '早上好' : new Date().getHours() < 18 ? '下午好' : '晚上好';
 
@@ -68,33 +78,43 @@ export default function HomeScreen() {
             </Pressable>
           </View>
 
-          {/* ====== 训练计划 Hero ====== */}
-          {plan ? (
+          {/* ====== 今日训练计划 ====== */}
+          {todayPlan ? (
             <View style={[S.heroCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.two, marginBottom: Spacing.two }}>
-                <View style={[S.heroIcon, { backgroundColor: colors.primarySoft }]}>
-                  <Ionicons name="calendar" size={18} color={colors.primary} />
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.two, marginBottom: todayPlan.rest ? 0 : Spacing.two }}>
+                <View style={[S.heroIcon, { backgroundColor: todayPlan.rest ? colors.yellowSoft : colors.primarySoft }]}>
+                  <Ionicons name={todayPlan.rest ? 'cafe' : 'flame'} size={18} color={todayPlan.rest ? '#B07A26' : colors.primary} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[S.heroTitle, { color: colors.text }]}>我的训练计划</Text>
-                  <Text style={[S.heroSub, { color: colors.textSecondary }]}>{plan.summary}</Text>
+                  <Text style={[S.heroTitle, { color: colors.text }]}>
+                    {todayPlan.rest ? '今日休息' : `今日训练 · ${todayPlan.day!.title}`}
+                  </Text>
+                  <Text style={[S.heroSub, { color: colors.textSecondary }]}>
+                    {todayPlan.rest ? '肌肉在恢复中生长' : `${todayPlan.day!.durationMinutes}分钟 · ${todayPlan.day!.exercises?.length || 0}个动作`}
+                  </Text>
                 </View>
                 <Pressable onPress={() => router.push('/workout/plan-result')} style={[S.heroBtn, { backgroundColor: colors.primary }]}>
                   <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>查看</Text>
                 </Pressable>
               </View>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {plan.weeklySchedule.map((day: any, i: number) => (
-                  <View key={day.day} style={[S.dayMini, { backgroundColor: colors.backgroundElement }]}>
-                    <Text style={[S.dayMiniLbl, { color: colors.textSecondary }]}>周{WEEKDAY[i % 7]}</Text>
-                    <Text style={[S.dayMiniTitle, { color: colors.text }]} numberOfLines={1}>{day.title}</Text>
-                    <Text style={[S.dayMiniDur, { color: colors.primary }]}>{day.durationMinutes}min</Text>
-                    <Text style={[S.dayMiniEx, { color: colors.textSecondary }]} numberOfLines={1}>
-                      {day.exercises?.slice(0,2).map((e:any) => e.name).join(' / ')}
-                    </Text>
-                  </View>
-                ))}
-              </ScrollView>
+              {!todayPlan.rest && todayPlan.day!.exercises && (
+                <View style={{ gap: 6 }}>
+                  {todayPlan.day!.exercises.slice(0, 3).map((ex: any, j: number) => (
+                    <View key={j} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Text style={{ color: colors.text, fontWeight: '600', fontSize: 13, flex: 1 }} numberOfLines={1}>{ex.name}</Text>
+                      <Text style={{ color: colors.textSecondary, fontSize: 11 }}>{ex.sets}组×{ex.reps}</Text>
+                      {ex.searchKeyword ? (
+                        <Pressable onPress={() => openVideoLink(ex.searchKeyword)} style={{ padding: 4 }}>
+                          <Ionicons name="play-circle" size={20} color="#FB7299" />
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  ))}
+                  {todayPlan.day!.exercises.length > 3 && (
+                    <Text style={{ color: colors.textSecondary, fontSize: 11 }}>+{todayPlan.day!.exercises.length - 3} 个动作（查看完整计划）</Text>
+                  )}
+                </View>
+              )}
             </View>
           ) : (
             <Pressable onPress={() => router.push('/workout/plan')} style={[S.heroCard, { backgroundColor: colors.card, borderColor: colors.primary, borderWidth: 1.5 }]}>
