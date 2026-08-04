@@ -21,12 +21,25 @@ import { estimateTargetCalories } from '@/utils/nutrition';
 export default function RecipeDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useTheme();
-  const { currentRecipe, selectRecipe, savedRecipes, saveRecipe, unsaveRecipe, loadLocal } =
+  const {
+    currentRecipe,
+    selectRecipe,
+    savedRecipes,
+    saveRecipe,
+    unsaveRecipe,
+    loadLocal,
+    generateRecipe,
+    recipeQueue,
+    recipeQueueParams,
+    recipeQueueRecipeId,
+    advanceRecipeQueue,
+  } =
     useRecipeStore();
   const bodyData = useUserStore((s) => s.bodyData);
   const goal = useUserStore((s) => s.goal);
 
   const [switching, setSwitching] = useState(false);
+  const [generatingNext, setGeneratingNext] = useState(false);
   const [switchError, setSwitchError] = useState('');
   const [detailRecipe, setDetailRecipe] = useState(currentRecipe?.id === id ? currentRecipe : null);
   const [detailLoading, setDetailLoading] = useState(Boolean(id && currentRecipe?.id !== id && getToken()));
@@ -35,6 +48,7 @@ export default function RecipeDetail() {
   const recipe = currentRecipe?.id === id ? currentRecipe : detailRecipe?.id === id ? detailRecipe : null;
   const saved = recipe ? savedRecipes.some((r) => r.id === recipe.id) : false;
   const targetCalories = recipe?.nutritionTarget?.targetCalories ?? estimateTargetCalories(bodyData, goal);
+  const nextCandidate = recipeQueueRecipeId === recipe?.id ? recipeQueue[0] : null;
 
   useEffect(() => {
     loadLocal();
@@ -81,6 +95,29 @@ export default function RecipeDetail() {
       setSwitchError((error as Error).message || '换做法失败，请重试');
     } finally {
       setSwitching(false);
+    }
+  }
+
+  async function makeNextRecipe() {
+    if (!nextCandidate || !recipeQueueParams || generatingNext) return;
+    setGeneratingNext(true);
+    setSwitchError('');
+    try {
+      const next = await generateRecipe({
+        ...recipeQueueParams,
+        selectedDish: {
+          name: nextCandidate.name,
+          missingIngredients: nextCandidate.missingIngredients,
+          pantryLevel: nextCandidate.pantryLevel,
+          sourceVideo: nextCandidate.sourceVideo,
+        },
+      });
+      advanceRecipeQueue(next.id);
+      router.replace({ pathname: '/recipe/[id]', params: { id: next.id } });
+    } catch (error) {
+      setSwitchError((error as Error).message || '下一道菜生成失败，请重试');
+    } finally {
+      setGeneratingNext(false);
     }
   }
 
@@ -189,6 +226,22 @@ export default function RecipeDetail() {
           <Button title="换一种做法" icon="refresh" variant="secondary" onPress={switchRecipe} loading={switching} style={{ flex: 1 }} />
         </View>
 
+        {nextCandidate ? (
+          <View style={[styles.nextCard, { backgroundColor: colors.primarySoft }]}>
+            <View style={styles.nextCopy}>
+              <ThemedText type="small" themeColor="textSecondary">多选清单 · 还剩 {recipeQueue.length} 道</ThemedText>
+              <ThemedText type="subtitle" numberOfLines={1}>下一道：{nextCandidate.name}</ThemedText>
+            </View>
+            <Button
+              title="做下一道菜"
+              icon="arrow-forward"
+              onPress={makeNextRecipe}
+              loading={generatingNext}
+              disabled={switching}
+            />
+          </View>
+        ) : null}
+
         {switchError || saveError ? <ThemedText type="small" themeColor="danger">{switchError || saveError}</ThemedText> : null}
 
         <ThemedText type="small" themeColor="textSecondary" style={styles.tip}>
@@ -215,5 +268,7 @@ const styles = StyleSheet.create({
   stepNum: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   tipRow: { flexDirection: 'row', gap: Spacing.two, marginVertical: Spacing.one, alignItems: 'center' },
   actions: { flexDirection: 'row' },
+  nextCard: { borderRadius: 16, padding: Spacing.three, gap: Spacing.two },
+  nextCopy: { gap: Spacing.one },
   tip: { textAlign: 'center' },
 });

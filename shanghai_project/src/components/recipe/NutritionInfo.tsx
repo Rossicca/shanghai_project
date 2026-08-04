@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 
 import { ThemedText } from '@/components/themed-text';
@@ -59,28 +59,29 @@ export function NutritionInfo({ calories, protein, carbs, fat, targetCalories }:
 
       <View style={styles.body}>
         <View style={styles.donutWrap}>
-          <Svg width={SIZE} height={SIZE}>
-            <Circle cx={SIZE / 2} cy={SIZE / 2} r={RADIUS} stroke={colors.backgroundElement} strokeWidth={STROKE} fill="none" />
-            {arcs.filter((a) => a.dash > 0).map((a) => (
-              <Circle
-                key={a.key}
-                cx={SIZE / 2}
-                cy={SIZE / 2}
-                r={RADIUS}
-                stroke={a.color}
-                strokeWidth={STROKE}
-                fill="none"
-                strokeDasharray={[
-                  Math.max(a.dash, 0.001),
-                  Math.max(CIRCUMFERENCE - a.dash, 0.001),
-                ]}
-                strokeDashoffset={Number.isFinite(a.startOffset) ? a.startOffset : 0}
-                strokeLinecap="butt"
-                rotation={-90}
-                origin={`${SIZE / 2}, ${SIZE / 2}`}
-              />
-            ))}
-          </Svg>
+          {Platform.OS === 'web' ? (
+            <View style={[styles.webDonut, { borderColor: colors.primary }]} />
+          ) : (
+            <Svg width={SIZE} height={SIZE}>
+              <Circle cx={SIZE / 2} cy={SIZE / 2} r={RADIUS} stroke={colors.backgroundElement} strokeWidth={STROKE} fill="none" />
+              {arcs.filter((a) => a.dash > 0).map((a) => (
+                <Circle
+                  key={a.key}
+                  cx={SIZE / 2}
+                  cy={SIZE / 2}
+                  r={RADIUS}
+                  stroke={a.color}
+                  strokeWidth={STROKE}
+                  fill="none"
+                  strokeDasharray={`${a.dash},${Math.max(CIRCUMFERENCE - a.dash, 0.001)}`}
+                  strokeDashoffset={Number.isFinite(a.startOffset) ? a.startOffset : 0}
+                  strokeLinecap="butt"
+                  rotation={-90}
+                  origin={`${SIZE / 2}, ${SIZE / 2}`}
+                />
+              ))}
+            </Svg>
+          )}
           <View style={styles.donutCenter}>
             <Text style={{ fontSize: 24, fontWeight: '800', color: colors.text }}>{safeCalories}</Text>
             <Text style={{ fontSize: 11, color: colors.textSecondary }}>千卡</Text>
@@ -123,6 +124,7 @@ const styles = StyleSheet.create({
   card: { gap: Spacing.three },
   body: { flexDirection: 'row', alignItems: 'center', gap: Spacing.four },
   donutWrap: { alignItems: 'center', justifyContent: 'center' },
+  webDonut: { width: SIZE - 22, height: SIZE - 22, borderRadius: (SIZE - 22) / 2, borderWidth: STROKE },
   donutCenter: { position: 'absolute', alignItems: 'center' },
   info: { flex: 1, gap: Spacing.two },
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },

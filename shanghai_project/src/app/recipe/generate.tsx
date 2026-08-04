@@ -32,7 +32,7 @@ const PANTRY_LABELS = {
 
 export default function GenerateRecipe() {
   const colors = useTheme();
-  const { currentIngredients, generateRecipe, selectRecipe } = useRecipeStore();
+  const { currentIngredients, generateRecipe, selectRecipe, setRecipeQueue } = useRecipeStore();
   const bodyData = useUserStore((s) => s.bodyData);
   const goal = useUserStore((s) => s.goal);
 
@@ -111,12 +111,18 @@ export default function GenerateRecipe() {
     setGeneratingId(candidate.id);
     setError('');
     try {
-      const recipe = await generateRecipe(buildParams({
+      const queueParams = buildParams();
+      const recipe = await generateRecipe({ ...queueParams, selectedDish: {
         name: candidate.name,
         missingIngredients: candidate.missingIngredients,
         pantryLevel: candidate.pantryLevel,
         sourceVideo: candidate.sourceVideo,
-      }));
+      } });
+      setRecipeQueue(
+        selectedCandidates.filter((item) => item.id !== candidate.id),
+        queueParams,
+        recipe.id,
+      );
       selectRecipe(recipe);
       router.push({ pathname: '/recipe/[id]', params: { id: recipe.id } });
     } catch (e: any) {
@@ -135,7 +141,9 @@ export default function GenerateRecipe() {
       : [...current, candidateId]);
   }
 
-  const selectedCandidates = recommendations.filter((item) => selectedIds.includes(item.id));
+  const selectedCandidates = selectedIds
+    .map((candidateId) => recommendations.find((item) => item.id === candidateId))
+    .filter((item): item is RecipeCandidate => Boolean(item));
 
   /** 估算每餐目标热量，与后端的 Mifflin-St Jeor 口径保持一致。 */
   function estimateTargetCalories(): number | undefined {
@@ -388,11 +396,11 @@ export default function GenerateRecipe() {
                     <ThemedText type="smallBold" themeColor="primary">清空</ThemedText>
                   </Pressable>
                 </View>
-                {selectedCandidates.map((candidate) => {
-                  const isGenerating = generatingId === candidate.id;
-                  return (
+                {selectedCandidates.map((candidate, index) => (
                     <View key={candidate.id} style={[styles.selectedRow, { borderTopColor: colors.border }]}>
-                      <Text style={styles.selectedEmoji}>{candidate.coverEmoji}</Text>
+                      <View style={[styles.queueNumber, { backgroundColor: colors.primary }]}>
+                        <Text style={styles.queueNumberText}>{index + 1}</Text>
+                      </View>
                       <View style={{ flex: 1, minWidth: 0 }}>
                         <ThemedText type="smallBold" numberOfLines={1}>{candidate.name}</ThemedText>
                         <ThemedText type="small" themeColor="textSecondary">
@@ -401,30 +409,18 @@ export default function GenerateRecipe() {
                             : '现有食材即可'}
                         </ThemedText>
                       </View>
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={`生成${candidate.name}的完整菜谱`}
-                        disabled={Boolean(generatingId) || retryAfter > 0}
-                        onPress={() => runGenerate(candidate)}
-                        style={({ pressed }) => [
-                          styles.startButton,
-                          {
-                            backgroundColor: colors.primary,
-                            opacity: generatingId && !isGenerating ? 0.45 : pressed ? 0.75 : 1,
-                          },
-                        ]}>
-                        {isGenerating ? (
-                          <ActivityIndicator size="small" color="#FFFFFF" />
-                        ) : (
-                          <>
-                            <Ionicons name="restaurant" size={15} color="#FFFFFF" />
-                            <Text style={styles.startButtonText}>开始做</Text>
-                          </>
-                        )}
-                      </Pressable>
                     </View>
-                  );
-                })}
+                ))}
+                <Button
+                  title={generatingId
+                    ? `正在准备第 1 道：${selectedCandidates[0].name}`
+                    : `开始制作 ${selectedCandidates.length} 道菜`}
+                  icon="restaurant"
+                  size="large"
+                  loading={Boolean(generatingId)}
+                  disabled={retryAfter > 0}
+                  onPress={() => runGenerate(selectedCandidates[0])}
+                />
               </View>
             ) : (
               <View style={[styles.selectionHint, { backgroundColor: colors.backgroundElement }]}>
@@ -479,9 +475,8 @@ const styles = StyleSheet.create({
   selectedPanel: { borderRadius: Radius.card, padding: Spacing.three, gap: Spacing.two },
   selectedHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.two },
   selectedRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, borderTopWidth: 1, paddingTop: Spacing.two },
-  selectedEmoji: { fontSize: 24 },
-  startButton: { minHeight: 40, minWidth: 88, borderRadius: Radius.button, paddingHorizontal: Spacing.two, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.one },
-  startButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
+  queueNumber: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  queueNumberText: { color: '#FFFFFF', fontSize: 12, fontWeight: '800' },
   selectionHint: { minHeight: 48, borderRadius: Radius.button, padding: Spacing.three, flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   tip: { textAlign: 'center' },
 });
