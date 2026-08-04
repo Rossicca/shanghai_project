@@ -22,6 +22,8 @@ export interface WorkoutVideo {
   calories: number;
   /** 封面主题色（本地无真实视频时用于生成示范封面） */
   coverColor: string;
+  /** B站真实封面图 URL */
+  coverUrl?: string | null;
   /** 真实视频地址，可空（空则用示范动画代替） */
   source?: string;
   /** 外部跳转链接（B站/YouTube 搜索页或视频页） */

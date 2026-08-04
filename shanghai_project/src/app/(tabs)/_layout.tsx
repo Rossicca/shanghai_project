@@ -52,6 +52,7 @@ export default function TabLayout() {
         name="workout"
         options={{
           title: '视频',
+          headerShown: false,
           tabBarIcon: ({ color, size }) => <Ionicons name="play-circle" size={size} color={color} />,
         }}
       />

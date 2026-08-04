@@ -46,26 +46,33 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
   fetchFeed: async (params) => {
     set({ isLoading: true, error: '', page: 1 });
     try {
-      if (getToken()) {
-        const slug = CATEGORY_SLUGS[get().currentCategory] || 'recommended';
-        const result = slug === 'recommended'
-          ? await workoutService.fetchFeed({ category: slug, page: 1, pageSize: 6 })
-          : await workoutService.fetchWorkoutsByCategory(slug, { page: 1, pageSize: 6 });
-        set({ feed: result.items, hasMore: result.hasMore, page: 1 });
-      } else if (get().currentCategory === '\u4e3a\u4f60\u63a8\u8350') {
-        const videos = await workoutService.recommendWorkout({
-          bodyData: params?.bodyData ?? undefined,
-          goal: params?.goal,
-          preference: params?.preference,
-          limit: params?.limit ?? 8,
-        });
-        set({ feed: videos, hasMore: false });
+      if (get().currentCategory === '\u4e3a\u4f60\u63a8\u8350') {
+        // \u4e3a\u4f60\u63a8\u8350\uff1aAI \u4e2a\u6027\u5316\u63a8\u8350
+        if (getToken()) {
+          const result = await workoutService.fetchFeed({ category: 'recommended', page: 1, pageSize: 6 });
+          set({ feed: result.items, hasMore: result.hasMore, page: 1 });
+        } else {
+          const videos = await workoutService.recommendWorkout({
+            bodyData: params?.bodyData ?? undefined,
+            goal: params?.goal,
+            preference: params?.preference,
+            limit: params?.limit ?? 8,
+          });
+          set({ feed: videos, hasMore: false });
+        }
       } else {
-        const videos = await workoutService.fetchWorkoutByCategory(get().currentCategory);
+        // \u5176\u4ed6\u5206\u7c7b\uff1a\u4eceB\u7ad9\u641c\u7d22\u771f\u5b9e\u89c6\u9891\uff08\u5e26\u5c01\u9762\u56fe\uff09
+        const videos = await workoutService.fetchBilibiliFeed(get().currentCategory, 12);
         set({ feed: videos, hasMore: false });
       }
     } catch (error) {
-      set({ error: (error as Error).message || '\u52a0\u8f7d\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5' });
+      // B\u7ad9\u641c\u7d22\u5931\u8d25\u65f6\u964d\u7ea7\u5230\u672c\u5730\u6570\u636e
+      try {
+        const fallback = await workoutService.fetchWorkoutByCategory(get().currentCategory);
+        set({ feed: fallback, hasMore: false });
+      } catch {
+        set({ error: (error as Error).message || '\u52a0\u8f7d\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5' });
+      }
     } finally {
       set({ isLoading: false });
     }

@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { VideoView, useVideoPlayer } from 'expo-video';
@@ -71,6 +72,15 @@ export function VideoPlayer({ video, playing = true, onEnd, showControls }: Prop
   // 封面卡片
   return (
     <View style={[styles.cover, { backgroundColor: video.coverColor }]}>
+      {/* B站真实封面图 */}
+      {video.coverUrl ? (
+        <Image
+          source={{ uri: video.coverUrl }}
+          style={styles.coverImage}
+          contentFit="cover"
+          transition={300}
+        />
+      ) : null}
       {/* 光影叠加层 — 模拟渐变 */}
       <View style={[styles.overlay, { backgroundColor: 'rgba(0,0,0,0.12)' }]} />
       <View style={[styles.overlayTop, { backgroundColor: 'rgba(255,255,255,0.08)' }]} />
@@ -138,6 +148,7 @@ function RealVideo({ source, playing }: { source: string; playing: boolean }) {
 
 const styles = StyleSheet.create({
   cover: { flex: 1, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  coverImage: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%' } as any,
   overlay: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
   },

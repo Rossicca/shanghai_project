@@ -18,6 +18,7 @@ function mapWorkoutVideo(item: any): WorkoutVideo {
     category: item.category || item.categoryName || '\u5168\u8eab\u71c3\u8102',
     calories: Number(item.calories || 0),
     coverColor: item.coverColor || '#2FA886',
+    coverUrl: item.coverUrl || null,
     source: typeof item.source === 'string' && /^https?:\/\//.test(item.source) ? item.source : undefined,
     sourceUrl: item.sourceUrl || item.videoUrl || undefined,
     platform: item.platform || 'bilibili',
@@ -36,6 +37,12 @@ export async function recommendWorkout(params: WorkoutRecommendParams): Promise<
 export async function fetchWorkoutByCategory(category: string): Promise<WorkoutVideo[]> {
   const res = await api.post<{ videos: WorkoutVideo[] }>('/api/workout/list', { category });
   return res.data.videos;
+}
+
+/** 从B站搜索真实训练视频（带封面图） */
+export async function fetchBilibiliFeed(category: string, limit = 8): Promise<WorkoutVideo[]> {
+  const res = await api.post<{ videos: any[] }>('/api/workout/bilibili-feed', { category, limit });
+  return (res.data.videos || []).map(mapWorkoutVideo);
 }
 
 /** 获取推荐视频流（新 API） */

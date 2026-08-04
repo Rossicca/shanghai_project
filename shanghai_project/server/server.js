@@ -26,6 +26,7 @@ const { recognizeFood, generateRecipe, recommendWorkout } = require('./ai');
 const { DEMO_INGREDIENTS, WORKOUT_LIBRARY, pickMockRecipe, mockRecommendWorkout } = require('./demo-data');
 const { discoverRecipeRecommendations, sanitizeSelectedDish } = require('./recipe-discovery');
 const { recommendRecipeVideos } = require('./recipe-videos');
+const { searchBilibiliVideos } = require('./bilibili-search');
 
 const app = express();
 const PORT = config.port || 8787;
@@ -240,6 +241,50 @@ app.post('/api/workout/list', (req, res) => {
     ? videos.filter((w) => w.category === category)
     : videos;
   res.json({ videos: filtered.slice(0, 20) });
+});
+
+// POST /api/workout/bilibili-feed — 从B站搜索真实训练视频（带封面图）
+app.post('/api/workout/bilibili-feed', async (req, res) => {
+  try {
+    const category = String(req.body.category || '健身训练');
+    const limit = Math.min(20, Math.max(1, Number(req.body.limit) || 8));
+    // 根据分类拼搜索词
+    const keywordMap = {
+      '为你推荐': '健身跟练教程',
+      '全身燃脂': '全身燃脂训练',
+      '臀腿': '臀腿训练',
+      '肩背': '肩背训练',
+      '手臂': '手臂训练',
+      '核心': '核心训练腹肌',
+      '有氧': '有氧运动燃脂',
+      '拉伸': '拉伸放松',
+    };
+    const query = keywordMap[category] || `${category} 健身训练`;
+    const results = await searchBilibiliVideos(query, limit);
+    const videos = results.map((item) => ({
+      id: item.id,
+      title: item.title,
+      coach: item.author,
+      duration: item.duration,
+      difficulty: '进阶',
+      category: category === '为你推荐' ? '全身燃脂' : category,
+      calories: Math.round(item.duration / 10) || 200,
+      coverColor: '#2FA886',
+      coverUrl: item.coverUrl
+        ? `/api/media/bilibili-cover?url=${encodeURIComponent(item.coverUrl)}`
+        : null,
+      sourceUrl: item.sourceUrl,
+      platform: 'bilibili',
+      reason: `B站 ${item.author} · 播放 ${(item.playCount || 0) >= 10000 ? `${((item.playCount || 0) / 10000).toFixed(1)}万` : item.playCount || 0}`,
+      playCount: item.playCount || 0,
+    }));
+    res.json({ videos });
+  } catch (error) {
+    console.error('[bilibili-feed] search error:', error.message);
+    res.status(502).json({
+      error: { code: 'BILIBILI_SEARCH_FAILED', message: 'B站视频搜索失败，请稍后重试' },
+    });
+  }
 });
 
 // GET /api/workout/categories — 分类列表

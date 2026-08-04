@@ -1,14 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Dimensions,
   FlatList,
   Pressable,
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
   type ViewToken,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,17 +16,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CategoryChip } from '@/components/workout/CategoryChip';
 import { WorkoutFeedItem } from '@/components/workout/WorkoutFeedItem';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
 import { CATEGORIES } from '@/constants/fitness';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useUserStore } from '@/store/userStore';
 import { useWorkoutStore } from '@/store/workoutStore';
 
-const WINDOW_HEIGHT = Dimensions.get('window').height;
-
 export default function WorkoutTab() {
   const colors = useTheme();
+  const { width, height: windowHeight } = useWindowDimensions();
   const {
     feed,
     currentCategory,
@@ -46,7 +44,7 @@ export default function WorkoutTab() {
   const goal = useUserStore((s) => s.goal);
 
   const [activeIndex, setActiveIndex] = useState(0);
-  const [listHeight, setListHeight] = useState(WINDOW_HEIGHT - 100);
+  const [feedHeight, setFeedHeight] = useState(0);
   const savedIds = new Set(savedVideos.map((v) => v.id));
 
   const [onViewableItemsChanged] = useState(
@@ -71,11 +69,11 @@ export default function WorkoutTab() {
     router.push({ pathname: '/workout/[id]', params: { id: video.id } });
   }
 
-  // 首屏视频高度 = 窗口高度 - 状态栏 - 分类栏（约 50）- 底部安全区
-  const itemHeight = listHeight > 0 ? listHeight : WINDOW_HEIGHT - 100;
+  // 用实际测量高度；未测量时用窗口高度估算
+  const itemHeight = feedHeight > 0 ? feedHeight : windowHeight - 120;
 
   return (
-    <ThemedView style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         {/* 分类标签栏 */}
         <FlatList
@@ -89,36 +87,36 @@ export default function WorkoutTab() {
           )}
         />
 
-        {/* 视频流 —— 占满剩余空间 */}
-        {isLoading && feed.length === 0 ? (
-          <View style={styles.loading}>
-            <ActivityIndicator size="large" color={colors.primary} />
-            <ThemedText>AI 正在为你挑选视频...</ThemedText>
-          </View>
-        ) : error && feed.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Ionicons name="cloud-offline-outline" size={32} color={colors.textSecondary} />
-            <ThemedText type="subtitle">视频暂时加载失败</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'center' }}>
-              {error}
-            </ThemedText>
-            <Pressable onPress={() => fetchFeed({ bodyData: bodyData ?? undefined, goal: goal ?? undefined })}>
-              <ThemedText type="smallBold" themeColor="primary">重新加载</ThemedText>
-            </Pressable>
-          </View>
-        ) : feed.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Ionicons name="play-circle-outline" size={32} color={colors.textSecondary} />
-            <ThemedText type="subtitle">暂无推荐视频</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">可以切换其他分类，或稍后再来。</ThemedText>
-          </View>
-        ) : (
-          <View
-            style={styles.feedWrap}
-            onLayout={(e) => {
-              const h = e.nativeEvent.layout.height;
-              if (h > 0) setListHeight(h);
-            }}>
+        {/* 视频流 */}
+        <View
+          style={styles.feedWrap}
+          onLayout={(e) => {
+            const h = e.nativeEvent.layout.height;
+            if (h > 0 && h !== feedHeight) setFeedHeight(h);
+          }}>
+          {isLoading && feed.length === 0 ? (
+            <View style={styles.center}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <ThemedText>AI 正在为你挑选视频...</ThemedText>
+            </View>
+          ) : error && feed.length === 0 ? (
+            <View style={styles.center}>
+              <Ionicons name="cloud-offline-outline" size={32} color={colors.textSecondary} />
+              <ThemedText type="subtitle">视频暂时加载失败</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'center' }}>
+                {error}
+              </ThemedText>
+              <Pressable onPress={() => fetchFeed({ bodyData: bodyData ?? undefined, goal: goal ?? undefined })}>
+                <ThemedText type="smallBold" themeColor="primary">重新加载</ThemedText>
+              </Pressable>
+            </View>
+          ) : feed.length === 0 ? (
+            <View style={styles.center}>
+              <Ionicons name="play-circle-outline" size={32} color={colors.textSecondary} />
+              <ThemedText type="subtitle">暂无推荐视频</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">切换分类试试</ThemedText>
+            </View>
+          ) : (
             <FlatList
               data={feed}
               keyExtractor={(v) => v.id}
@@ -130,6 +128,12 @@ export default function WorkoutTab() {
               onEndReachedThreshold={0.6}
               snapToInterval={itemHeight}
               decelerationRate="fast"
+              disableIntervalMomentum
+              getItemLayout={(_, index) => ({
+                length: itemHeight,
+                offset: itemHeight * index,
+                index,
+              })}
               ListFooterComponent={
                 isLoadingMore ? (
                   <ActivityIndicator color={colors.primary} style={{ padding: Spacing.three }} />
@@ -142,19 +146,11 @@ export default function WorkoutTab() {
                       </Text>
                       <View style={[styles.footerLine, { backgroundColor: colors.border }]} />
                     </View>
-                    <ThemedText type="small" themeColor="textSecondary" style={styles.footerSub}>
-                      个性化推荐，越练越精准
-                    </ThemedText>
                   </View>
                 )
               }
-              getItemLayout={(_, index) => ({
-                length: itemHeight,
-                offset: itemHeight * index,
-                index,
-              })}
               renderItem={({ item, index }) => (
-                <View style={{ height: itemHeight }}>
+                <View style={{ width, height: itemHeight }}>
                   <WorkoutFeedItem
                     video={item}
                     active={index === activeIndex}
@@ -165,10 +161,10 @@ export default function WorkoutTab() {
                 </View>
               )}
             />
-          </View>
-        )}
+          )}
+        </View>
       </SafeAreaView>
-    </ThemedView>
+    </View>
   );
 }
 
@@ -176,12 +172,10 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   safeArea: { flex: 1 },
   categoryBar: { gap: Spacing.two, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two },
-  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.three },
-  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.two, padding: Spacing.four },
   feedWrap: { flex: 1 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.three, padding: Spacing.four },
   footer: { padding: Spacing.three, gap: Spacing.two, paddingBottom: Spacing.five },
   footerDivider: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   footerLine: { flex: 1, height: StyleSheet.hairlineWidth },
   footerText: { fontSize: 12, fontWeight: '600' },
-  footerSub: { textAlign: 'center' },
 });
