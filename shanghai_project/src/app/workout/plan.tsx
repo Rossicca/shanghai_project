@@ -23,11 +23,23 @@ import {
 const WEEKDAY = ['一', '二', '三', '四', '五', '六', '日'];
 const EQUIPMENT_OPTIONS = [
   { key: 'none', label: '无器械', icon: 'body' },
-  { key: 'dumbbell', label: '哑铃', icon: 'barbell' },
-  { key: 'band', label: '弹力带', icon: 'pulse' },
-  { key: 'barbell', label: '杠铃', icon: 'barbell' },
   { key: 'mat', label: '瑜伽垫', icon: 'leaf' },
-  { key: 'kettlebell', label: '壶铃', icon: 'fitness' },
+  { key: 'dumbbell', label: '哑铃', icon: 'barbell' },
+  { key: 'barbell', label: '杠铃', icon: 'fitness' },
+  { key: 'band', label: '弹力带', icon: 'pulse' },
+  { key: 'kettlebell', label: '壶铃', icon: 'flame' },
+  { key: 'bench', label: '卧推凳', icon: 'grid' },
+  { key: 'rack', label: '深蹲架', icon: 'hardware-chip' },
+  { key: 'cable', label: '龙门架/绳索', icon: 'git-network' },
+  { key: 'pullup', label: '引体向上杆', icon: 'arrow-up' },
+  { key: 'trx', label: 'TRX/悬挂绳', icon: 'infinite' },
+  { key: 'treadmill', label: '跑步机', icon: 'walk' },
+  { key: 'bike', label: '动感单车', icon: 'bicycle' },
+  { key: 'rower', label: '划船机', icon: 'boat' },
+  { key: 'rope', label: '跳绳', icon: 'sync' },
+  { key: 'roller', label: '泡沫轴', icon: 'disc' },
+  { key: 'ball', label: '健身球', icon: 'planet' },
+  { key: 'other', label: '其他器械', icon: 'ellipsis-horizontal' },
 ];
 const STYLE_OPTIONS = [
   { key: 'gentle', label: '温和', desc: '低强度，不追求极限' },
@@ -244,9 +256,10 @@ export default function WorkoutPlanPage() {
           {/* ====== 步骤3：目标与条件 ====== */}
           <StepBadge num={3} label="健身目标与条件" colors={colors} />
 
-          {/* 3a. 目标类型 */}
+          {/* 3a. 健身目标 */}
           <Card style={styles.card}>
-            <ThemedText type="smallBold">想要达成的目标</ThemedText>
+            <ThemedText type="smallBold">健身目标</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">选择主要方向，AI 会针对性设计</ThemedText>
             <View style={styles.chipRow}>
               {GOAL_TYPES.map((g) => (
                 <Pressable key={g} onPress={() => setGoalType(g)} style={[styles.chip, {
@@ -257,27 +270,26 @@ export default function WorkoutPlanPage() {
                 </Pressable>
               ))}
             </View>
+          </Card>
 
-            {/* 目标体重 */}
-            <ThemedText type="smallBold" style={{ marginTop: Spacing.two }}>目标体重</ThemedText>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.two }}>
+          {/* 3b. 目标体重 */}
+          <Card style={styles.card}>
+            <ThemedText type="smallBold">目标体重</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              {ideal ? `根据身高 ${hNum}cm，健康体重范围 ${ideal.min}–${ideal.max} kg` : '设定一个合理的目标体重'}
+            </ThemedText>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.two, marginTop: Spacing.two }}>
               <TextInput
                 value={targetWeight} onChangeText={(t) => setTargetWeight(t.replace(/[^\d.]/g, ''))}
-                placeholder="留空则不设限" placeholderTextColor={colors.textSecondary}
+                placeholder="留空则由 AI 自动判断"
+                placeholderTextColor={colors.textSecondary}
                 keyboardType="numeric"
                 style={[styles.input, { flex: 1, color: colors.text, backgroundColor: colors.backgroundElement }]}
               />
-              <Text style={{ color: colors.textSecondary, fontSize: 13 }}>kg</Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 14, fontWeight: '600' }}>kg</Text>
             </View>
-            {ideal && (
-              <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 4 }}>
-                你的理想体重范围：{ideal.min}–{ideal.max} kg
-              </Text>
-            )}
-
-            {/* 热量与宏量素 */}
             {calTarget && macros && (
-              <View style={[styles.macroCard, { backgroundColor: colors.backgroundElement }]}>
+              <View style={[styles.macroCard, { backgroundColor: colors.backgroundElement, marginTop: Spacing.two }]}>
                 <View style={styles.macroItem}>
                   <Text style={[styles.macroVal, { color: colors.primary }]}>{calTarget}</Text>
                   <Text style={[styles.macroUnit, { color: colors.textSecondary }]}>kcal/天</Text>
@@ -376,12 +388,15 @@ export default function WorkoutPlanPage() {
             </View>
           </Card>
 
-          {/* 3e. 身体限制 */}
+          {/* 身体情况说明 */}
           <Card style={styles.card}>
-            <ThemedText type="smallBold">身体限制或伤病（可选）</ThemedText>
+            <ThemedText type="smallBold">有什么需要避开的吗？</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              填写后 AI 会自动避开不适合你的动作，让训练更安全
+            </ThemedText>
             <TextInput
               value={limitations} onChangeText={setLimitations}
-              placeholder="例如：膝关节避免跳跃、腰椎间盘突出避免负重"
+              placeholder="例如：右膝偶尔不适，避免跳跃类动作；腰部容易酸痛，不要大重量硬拉；左手腕旧伤注意…"
               placeholderTextColor={colors.textSecondary}
               multiline maxLength={300}
               style={[styles.textArea, { color: colors.text, backgroundColor: colors.backgroundElement }]}

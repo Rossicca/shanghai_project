@@ -1,5 +1,5 @@
 import type { WorkoutPlan, WorkoutPlanInput, WorkoutRecommendParams, WorkoutVideo } from '@/types/workout';
-import { AI_TIMEOUT, API_BASE_URL } from '@/constants/config';
+import { AI_TIMEOUT } from '@/constants/config';
 
 import { api } from './api';
 
@@ -18,9 +18,7 @@ function mapWorkoutVideo(item: any): WorkoutVideo {
     category: item.category || item.categoryName || '\u5168\u8eab\u71c3\u8102',
     calories: Number(item.calories || 0),
     coverColor: item.coverColor || '#2FA886',
-    coverUrl: item.coverUrl
-      ? (item.coverUrl.startsWith('/') ? `${API_BASE_URL}${item.coverUrl}` : item.coverUrl)
-      : null,
+    coverUrl: item.coverUrl || null,
     source: typeof item.source === 'string' && /^https?:\/\//.test(item.source) ? item.source : undefined,
     sourceUrl: item.sourceUrl || item.videoUrl || undefined,
     platform: item.platform || 'bilibili',
@@ -41,9 +39,9 @@ export async function fetchWorkoutByCategory(category: string): Promise<WorkoutV
   return res.data.videos;
 }
 
-/** 从B站搜索真实训练视频（带封面图） */
-export async function fetchBilibiliFeed(category: string, limit = 8): Promise<WorkoutVideo[]> {
-  const res = await api.post<{ videos: any[] }>('/api/workout/bilibili-feed', { category, limit });
+/** 搜索真实训练视频（B站+抖音，带封面图，过滤低播放量） */
+export async function fetchVideoFeed(category: string, limit = 12, platform: 'bilibili' | 'douyin' = 'bilibili'): Promise<WorkoutVideo[]> {
+  const res = await api.post<{ videos: any[] }>('/api/workout/video-feed', { category, limit, platform });
   return (res.data.videos || []).map(mapWorkoutVideo);
 }
 

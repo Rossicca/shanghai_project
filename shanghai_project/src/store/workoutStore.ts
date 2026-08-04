@@ -52,7 +52,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
         const goalType = params?.goal?.type || '';
         const query = goalType === '\u51cf\u8102' ? '\u71c3\u8102\u8bad\u7ec3\u8ddf\u7ec3' : goalType === '\u589e\u808c' ? '\u589e\u808c\u529b\u91cf\u8bad\u7ec3' : '\u5065\u8eab\u8bad\u7ec3\u8ddf\u7ec3';
         try {
-          const videos = await workoutService.fetchBilibiliFeed(query, 10);
+          const videos = await workoutService.fetchVideoFeed(query, 12);
           if (videos.length > 0) { set({ feed: videos, hasMore: false }); return; }
         } catch { /* fall through */ }
         // B\u7ad9\u5931\u8d25\u964d\u7ea7\u5230 AI \u63a8\u8350
@@ -64,7 +64,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
         });
         set({ feed: fallback, hasMore: false });
       } else {
-        const videos = await workoutService.fetchBilibiliFeed(get().currentCategory, 12);
+        const videos = await workoutService.fetchVideoFeed(get().currentCategory, 12);
         set({ feed: videos, hasMore: false });
       }
     } catch (error) {

@@ -51,7 +51,7 @@ export function VideoPlayer({ video, playing = true, onEnd, showControls }: Prop
     <Pressable onPress={openExternal} style={[styles.fill, { backgroundColor: video.coverColor || '#1a1a2e' }]}>
       {/* B站封面图 —— contain 完整显示，不裁切 */}
       {video.coverUrl ? (
-        <Image source={{ uri: video.coverUrl }} style={styles.img} contentFit="contain" transition={300} />
+        <Image source={{ uri: video.coverUrl }} style={styles.img} contentFit="cover" transition={200} />
       ) : null}
 
       {/* 播放按钮 */}

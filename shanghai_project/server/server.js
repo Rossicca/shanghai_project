@@ -243,25 +243,38 @@ app.post('/api/workout/list', (req, res) => {
   res.json({ videos: filtered.slice(0, 20) });
 });
 
-// POST /api/workout/bilibili-feed — 从B站搜索真实训练视频（带封面图）
-app.post('/api/workout/bilibili-feed', async (req, res) => {
+// POST /api/workout/video-feed — 搜索真实训练视频（B站+抖音，带封面图，过滤低播放量）
+app.post('/api/workout/video-feed', async (req, res) => {
   try {
     const category = String(req.body.category || '健身训练');
-    const limit = Math.min(20, Math.max(1, Number(req.body.limit) || 8));
-    // 根据分类拼搜索词
+    const limit = Math.min(20, Math.max(1, Number(req.body.limit) || 12));
+    const platform = String(req.body.platform || 'bilibili');
+
+    // 搜索词映射 — 加"热门""教程"提高命中质量
     const keywordMap = {
-      '为你推荐': '健身跟练教程',
-      '全身燃脂': '全身燃脂训练',
-      '臀腿': '臀腿训练',
-      '肩背': '肩背训练',
-      '手臂': '手臂训练',
-      '核心': '核心训练腹肌',
-      '有氧': '有氧运动燃脂',
-      '拉伸': '拉伸放松',
+      '为你推荐': '热门健身跟练教程',
+      '全身燃脂': '全身燃脂HIIT热门',
+      '臀腿': '臀部腿部训练热门教程',
+      '肩背': '肩背塑形训练热门',
+      '手臂': '手臂线条训练教程',
+      '核心': '核心训练腹肌热门',
+      '有氧': '有氧燃脂运动热门',
+      '拉伸': '全身拉伸放松教程',
     };
-    const query = keywordMap[category] || `${category} 健身训练`;
-    const results = await searchBilibiliVideos(query, limit);
-    const videos = results.map((item) => ({
+    const query = keywordMap[category] || `${category} 热门健身教程`;
+
+    let results = [];
+    if (platform === 'douyin') {
+      // 抖音：返回搜索链接让用户自行浏览
+      results = [];
+    } else {
+      // B站搜索，拉2倍数量再过滤
+      results = await searchBilibiliVideos(query, limit * 2);
+      // 过滤播放量 < 5000 的低质量视频
+      results = results.filter((item) => (item.playCount || 0) >= 5000);
+    }
+
+    const videos = results.slice(0, limit).map((item) => ({
       id: item.id,
       title: item.title,
       coach: item.author,
@@ -269,20 +282,19 @@ app.post('/api/workout/bilibili-feed', async (req, res) => {
       difficulty: '进阶',
       category: category === '为你推荐' ? '全身燃脂' : category,
       calories: Math.round(item.duration / 10) || 200,
-      coverColor: '#2FA886',
-      coverUrl: item.coverUrl
-        ? `/api/media/bilibili-cover?url=${encodeURIComponent(item.coverUrl)}`
-        : null,
+      coverColor: '#1a1a2e',
+      // 直接使用B站CDN原图URL，不经过代理（加载更快）
+      coverUrl: item.coverUrl || null,
       sourceUrl: item.sourceUrl,
       platform: 'bilibili',
-      reason: `B站 ${item.author} · 播放 ${(item.playCount || 0) >= 10000 ? `${((item.playCount || 0) / 10000).toFixed(1)}万` : item.playCount || 0}`,
+      reason: `${item.author} · ${(item.playCount || 0) >= 10000 ? `${((item.playCount || 0) / 10000).toFixed(1)}万播放` : `${item.playCount || 0}播放`}`,
       playCount: item.playCount || 0,
     }));
-    res.json({ videos });
+    res.json({ videos, platform: platform === 'bilibili' ? 'bilibili' : 'douyin' });
   } catch (error) {
-    console.error('[bilibili-feed] search error:', error.message);
+    console.error('[video-feed] search error:', error.message);
     res.status(502).json({
-      error: { code: 'BILIBILI_SEARCH_FAILED', message: 'B站视频搜索失败，请稍后重试' },
+      error: { code: 'VIDEO_SEARCH_FAILED', message: '视频搜索失败，请稍后重试' },
     });
   }
 });
