@@ -32,7 +32,10 @@ export default function RecipeDetail() {
     recipeQueue,
     recipeQueueParams,
     recipeQueueRecipeId,
+    recipeQueueTotal,
     advanceRecipeQueue,
+    moveRecipeQueue,
+    clearRecipeQueue,
   } =
     useRecipeStore();
   const bodyData = useUserStore((s) => s.bodyData);
@@ -48,7 +51,8 @@ export default function RecipeDetail() {
   const recipe = currentRecipe?.id === id ? currentRecipe : detailRecipe?.id === id ? detailRecipe : null;
   const saved = recipe ? savedRecipes.some((r) => r.id === recipe.id) : false;
   const targetCalories = recipe?.nutritionTarget?.targetCalories ?? estimateTargetCalories(bodyData, goal);
-  const nextCandidate = recipeQueueRecipeId === recipe?.id ? recipeQueue[0] : null;
+  const queueActive = recipeQueueRecipeId === recipe?.id;
+  const nextCandidate = queueActive ? recipeQueue[0] : null;
 
   useEffect(() => {
     loadLocal();
@@ -90,6 +94,7 @@ export default function RecipeDetail() {
     try {
       const next = await reimagineRecipe(recipe.id, 'stir_fry');
       selectRecipe(next);
+      if (queueActive) moveRecipeQueue(next.id);
       router.replace({ pathname: '/recipe/[id]', params: { id: next.id } });
     } catch (error) {
       setSwitchError((error as Error).message || '换做法失败，请重试');
@@ -119,6 +124,11 @@ export default function RecipeDetail() {
     } finally {
       setGeneratingNext(false);
     }
+  }
+
+  function finishCookingQueue() {
+    clearRecipeQueue();
+    router.replace('/recipe');
   }
 
   return (
@@ -238,6 +248,19 @@ export default function RecipeDetail() {
               onPress={makeNextRecipe}
               loading={generatingNext}
               disabled={switching}
+            />
+          </View>
+        ) : queueActive ? (
+          <View style={[styles.nextCard, { backgroundColor: colors.primarySoft }]}>
+            <View style={styles.nextCopy}>
+              <ThemedText type="small" themeColor="textSecondary">本次共制作 {recipeQueueTotal} 道菜</ThemedText>
+              <ThemedText type="subtitle">全部做好了</ThemedText>
+            </View>
+            <Button
+              title="完成本次制作"
+              icon="checkmark-circle"
+              onPress={finishCookingQueue}
+              disabled={switching || generatingNext}
             />
           </View>
         ) : null}

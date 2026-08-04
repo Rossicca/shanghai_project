@@ -84,7 +84,7 @@ function sanitizeSelectedDish(value) {
     name,
     pantryLevel: ['existing', 'topup', 'explore'].includes(value?.pantryLevel) ? value.pantryLevel : 'topup',
     missingIngredients: (Array.isArray(value?.missingIngredients) ? value.missingIngredients : [])
-      .map(String).map((item) => item.trim()).filter(Boolean).slice(0, 6),
+      .map(String).map((item) => item.trim()).filter(Boolean).slice(0, 10),
     sourceVideo: validateBilibiliVideo(value?.sourceVideo),
   };
 }

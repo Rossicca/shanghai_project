@@ -17,6 +17,7 @@ interface RecipeState {
   recipeQueue: RecipeCandidate[];
   recipeQueueParams: RecipeGenerateParams | null;
   recipeQueueRecipeId: string | null;
+  recipeQueueTotal: number;
   isLoading: boolean;
   error: string;
   setIngredients: (ingredients: Ingredient[]) => void;
@@ -24,6 +25,8 @@ interface RecipeState {
   selectRecipe: (recipe: Recipe) => void;
   setRecipeQueue: (candidates: RecipeCandidate[], params: RecipeGenerateParams, recipeId: string) => void;
   advanceRecipeQueue: (recipeId: string) => void;
+  moveRecipeQueue: (recipeId: string) => void;
+  clearRecipeQueue: () => void;
   generateRecipe: (params: RecipeGenerateParams) => Promise<Recipe>;
   saveRecipe: (recipe: Recipe) => Promise<void>;
   unsaveRecipe: (recipeId: string) => Promise<void>;
@@ -42,6 +45,7 @@ export const useRecipeStore = create<RecipeState>((set, get) => ({
   recipeQueue: [],
   recipeQueueParams: null,
   recipeQueueRecipeId: null,
+  recipeQueueTotal: 0,
     isLoading: false,
     error: '',
 
@@ -54,12 +58,22 @@ export const useRecipeStore = create<RecipeState>((set, get) => ({
     recipeQueue,
     recipeQueueParams,
     recipeQueueRecipeId,
+    recipeQueueTotal: recipeQueue.length + 1,
   }),
 
   advanceRecipeQueue: (recipeQueueRecipeId) => set((state) => ({
     recipeQueue: state.recipeQueue.slice(1),
     recipeQueueRecipeId,
   })),
+
+  moveRecipeQueue: (recipeQueueRecipeId) => set({ recipeQueueRecipeId }),
+
+  clearRecipeQueue: () => set({
+    recipeQueue: [],
+    recipeQueueParams: null,
+    recipeQueueRecipeId: null,
+    recipeQueueTotal: 0,
+  }),
 
   generateRecipe: async (params) => {
     set({ isLoading: true });
@@ -156,6 +170,6 @@ export const useRecipeStore = create<RecipeState>((set, get) => ({
   clearLocalData: () => set({
     currentIngredients: [], recognitionSessionId: null, currentRecipe: null,
     savedRecipes: [], recipeHistory: [], recipeQueue: [], recipeQueueParams: null,
-    recipeQueueRecipeId: null, isLoading: false, error: '',
+    recipeQueueRecipeId: null, recipeQueueTotal: 0, isLoading: false, error: '',
   }),
 }));

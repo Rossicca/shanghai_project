@@ -28,4 +28,10 @@ assert.equal(selected.sourceVideo.sourceUrl, 'https://www.bilibili.com/video/BV1
 assert.equal(selected.sourceVideo.coverUrl, null);
 assert.equal(selected.pantryLevel, 'explore');
 
+const expandedIngredients = sanitizeSelectedDish({
+  name: '丰富配料测试',
+  missingIngredients: Array.from({ length: 12 }, (_, index) => `食材${index + 1}`),
+});
+assert.equal(expandedIngredients.missingIngredients.length, 10);
+
 console.log('PASS: 视频证据驱动的菜谱发现测试通过');

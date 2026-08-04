@@ -134,13 +134,13 @@ async function recognizeFood(imageBase64) {
   try {
     const content = await chat({
       model: config.ai.visionModel,
-      maxTokens: 900,
+      maxTokens: 1400,
       temperature: 0.2,
       messages: [
         {
           role: 'system',
           content:
-            '你是专业营养师，识别图片中的食物。严格只输出 JSON：{"ingredients":[{"name":"食材名","amount":"估重(g)","confidence":0-1}]}，最多 6 项。',
+            '你是专业营养师，识别图片中的食物。严格只输出 JSON：{"ingredients":[{"name":"食材名","amount":"估重(g)","confidence":0-1}]}，最多 12 项。',
         },
         {
           role: 'user',
@@ -175,9 +175,9 @@ function normalizeRecipeRecommendations(value, params) {
         description: String(item?.description || '').trim().slice(0, 120),
         reason: String(item?.reason || '').trim().slice(0, 120),
         availableIngredients: (Array.isArray(item?.availableIngredients) ? item.availableIngredients : [])
-          .map(String).map((name) => name.trim()).filter(Boolean).slice(0, 8),
+          .map(String).map((name) => name.trim()).filter(Boolean).slice(0, 12),
         missingIngredients: (Array.isArray(item?.missingIngredients) ? item.missingIngredients : [])
-          .map(String).map((name) => name.trim()).filter(Boolean).slice(0, 6),
+          .map(String).map((name) => name.trim()).filter(Boolean).slice(0, 10),
         cookTime: Math.max(5, Math.min(120, Number(item?.cookTime) || params.cookTime || 20)),
         difficulty: ['简单', '中等', '困难'].includes(item?.difficulty) ? item.difficulty : '简单',
         estimatedCalories: Math.max(100, Math.min(1200, Number(item?.estimatedCalories) || 400)),
@@ -218,7 +218,7 @@ async function recommendRecipes(params) {
 规则：
 1. 必须返回 8 道，每道绑定不同 sourceVideoId；菜名必须能从对应视频标题或简介直接判断，不准创造生僻新菜名；
 2. 至少覆盖 5 种不同制作形式或食物类别，任何同一 category 最多出现 2 道；优先包含炒、煎/烤、蒸/炖、汤羹、主食组合、早餐/轻食等明显不同方向，不能只是同一道菜更换调味；
-3. 其中约 3 道 pantryLevel=existing（补 0~2 样），3 道 topup（补 2~4 样），2 道 explore（现有食材可只做配料并补 3~6 样），让用户能真正换一种吃法；
+3. 其中约 3 道 pantryLevel=existing（补 0~2 样），3 道 topup（补 2~5 样），2 道 explore（现有食材可只做配料并补 3~8 样），让用户能真正换一种吃法；
 4. 若有牛奶、水果、坚果等合适食材，应自然加入有真实视频支持的甜品、早餐、饮品或加餐候选；
 5. availableIngredients 只能来自用户现有食材，missingIngredients 不能与现有食材重复；盐、油、水等基础调料无需列为缺料；
 6. 结合用户目标、身体数据、目标热量、人数和限时，推荐理由要具体；
@@ -279,7 +279,7 @@ async function generateRecipe(params) {
   "difficulty": "简单/中等/困难",
   "tips": ["提示1","提示2"]
 }
-数值要合理，确保总热量在目标热量 ±10% 范围内。食材不超过 10 项，步骤为 4~6 条，每条不超过 60 字，小贴士不超过 3 条。`,
+数值要合理，确保总热量在目标热量 ±10% 范围内。食材不超过 16 项，步骤为 4~8 条，每条不超过 60 字，小贴士不超过 3 条。`,
         },
         {
           role: 'user',
