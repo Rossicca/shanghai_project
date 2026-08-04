@@ -308,11 +308,31 @@ async function run() {
       body: { image: 'dGVzdA==' },
     });
     assert.ok(legacyRecognition.data.ingredients.length > 0);
+    const recommendations = await request('/api/recipe/recommendations', {
+      method: 'POST',
+      body: {
+        ingredients: [{ name: '牛奶', amount: '500ml' }, { name: '核桃', amount: '50g' }],
+        people: 1,
+        cookTime: 30,
+        user: { goal: '保持健康', caloriesTarget: 450 },
+      },
+    });
+    assert.ok(recommendations.data.data.recommendations.length >= 5);
+    assert.ok(recommendations.data.data.recommendations.some((item) => ['甜品', '早餐', '饮品'].includes(item.category)));
+    assert.ok(recommendations.data.data.recommendations.every((item) =>
+      Array.isArray(item.availableIngredients) && Array.isArray(item.missingIngredients)
+    ));
+    const selectedDish = recommendations.data.data.recommendations[0];
     const legacyRecipe = await request('/api/recipe/generate', {
       method: 'POST',
-      body: { ingredients: legacyRecognition.data.ingredients, people: 1, cookTime: 20 },
+      body: {
+        ingredients: legacyRecognition.data.ingredients,
+        people: 1,
+        cookTime: 20,
+        selectedDish: { name: selectedDish.name, missingIngredients: selectedDish.missingIngredients },
+      },
     });
-    assert.ok(legacyRecipe.data.recipe.name);
+    assert.equal(legacyRecipe.data.recipe.name, selectedDish.name);
     const legacyWorkout = await request('/api/workout/recommend', {
       method: 'POST',
       body: {

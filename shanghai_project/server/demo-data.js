@@ -108,6 +108,53 @@ function pickMockRecipe(ingredients) {
   return structuredClone(RECIPE_TEMPLATES[0].recipe);
 }
 
+function mockRecipeRecommendations(params) {
+  const availableNames = (params.ingredients || []).map((item) => String(item.name || '').trim()).filter(Boolean);
+  const main = availableNames[0] || '时令蔬菜';
+  const has = (pattern) => availableNames.some((name) => pattern.test(name));
+  let templates;
+  if (has(/牛奶|酸奶|奶油|奶酪/) || has(/坚果|核桃|杏仁|腰果|花生/)) {
+    const dairy = availableNames.find((name) => /牛奶|酸奶|奶油|奶酪/.test(name)) || '牛奶';
+    const nut = availableNames.find((name) => /坚果|核桃|杏仁|腰果|花生/.test(name)) || '坚果';
+    templates = [
+      { name: `${dairy}${nut}燕麦杯`, emoji: '🥣', category: '早餐', required: [dairy, nut, '燕麦', '香蕉'], minutes: 8, calories: 380 },
+      { name: `${dairy}水果奶昔`, emoji: '🥛', category: '饮品', required: [dairy, '香蕉', '蓝莓'], minutes: 5, calories: 260 },
+      { name: `${dairy}鸡蛋布丁`, emoji: '🍮', category: '甜品', required: [dairy, '鸡蛋', '白砂糖'], minutes: 30, calories: 280 },
+      { name: `${nut}燕麦能量球`, emoji: '🍪', category: '加餐', required: [nut, '燕麦', '蜂蜜'], minutes: 15, calories: 320 },
+      { name: `奶香${nut}吐司`, emoji: '🍞', category: '烘焙', required: [dairy, nut, '吐司', '鸡蛋'], minutes: 18, calories: 410 },
+      { name: `${dairy}南瓜浓汤`, emoji: '🥣', category: '汤羹', required: [dairy, '南瓜', '洋葱'], minutes: 25, calories: 300 },
+    ];
+  } else {
+    templates = [
+      { name: `香煎${main}时蔬盘`, emoji: '🍳', category: '快手主菜', required: [main, '西兰花', '黑胡椒'], minutes: 20, calories: 420 },
+      { name: `番茄${main}暖汤`, emoji: '🥣', category: '汤羹', required: [main, '番茄', '洋葱'], minutes: 25, calories: 310 },
+      { name: `${main}鸡蛋炒饭`, emoji: '🍚', category: '主食组合', required: [main, '鸡蛋', '米饭', '小葱'], minutes: 15, calories: 520 },
+      { name: `${main}菌菇豆腐煲`, emoji: '🍲', category: '炖菜', required: [main, '豆腐', '香菇'], minutes: 30, calories: 390 },
+      { name: `${main}荞麦拌面`, emoji: '🍜', category: '轻食主食', required: [main, '荞麦面', '黄瓜', '芝麻酱'], minutes: 18, calories: 450 },
+      { name: `${main}彩蔬烘蛋`, emoji: '🥚', category: '高蛋白轻食', required: [main, '鸡蛋', '彩椒', '牛奶'], minutes: 22, calories: 360 },
+    ];
+  }
+  return templates.map((item, index) => {
+    const availableIngredients = item.required.filter((required) =>
+      availableNames.some((owned) => owned.includes(required) || required.includes(owned))
+    );
+    const missingIngredients = item.required.filter((required) => !availableIngredients.includes(required));
+    return {
+      id: `candidate-${index + 1}`,
+      name: item.name,
+      coverEmoji: item.emoji,
+      category: item.category,
+      description: `以${main}为主食材的${item.category}方案，允许补充少量常见食材获得更完整的口味。`,
+      reason: `结合现有${availableNames.slice(0, 3).join('、') || main}与${params.user?.goal || '日常均衡'}目标推荐。`,
+      availableIngredients,
+      missingIngredients,
+      cookTime: item.minutes,
+      difficulty: '简单',
+      estimatedCalories: item.calories,
+    };
+  });
+}
+
 /** 运动视频库 */
 const WORKOUT_LIBRARY = [
   // 全身燃脂
@@ -185,5 +232,6 @@ module.exports = {
   DEMO_INGREDIENTS,
   WORKOUT_LIBRARY,
   pickMockRecipe,
+  mockRecipeRecommendations,
   mockRecommendWorkout,
 };

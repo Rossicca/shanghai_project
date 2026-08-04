@@ -1,4 +1,4 @@
-import type { Recipe, RecipeGenerateParams, RecipeVideoRecommendation } from '@/types/recipe';
+import type { Recipe, RecipeCandidate, RecipeGenerateParams, RecipeVideoRecommendation } from '@/types/recipe';
 import { AI_TIMEOUT } from '@/constants/config';
 
 import { api } from './api';
@@ -38,6 +38,7 @@ export async function generateRecipeV2(params: {
   maxCookTime?: number;
   difficulty?: string;
   mealType?: string;
+  selectedDish?: RecipeGenerateParams['selectedDish'];
 }) {
   const res = await api.post('/api/v1/recipes/generate', params, { timeout: AI_TIMEOUT });
   return res.data.data;
@@ -54,6 +55,7 @@ export async function generateRecipeFromSession(
     maxCookTime: params.cookTime,
     difficulty: params.difficulty,
     mealType: 'lunch',
+    selectedDish: params.selectedDish,
   });
   return {
     id: data.recipeId,
@@ -108,6 +110,12 @@ export async function fetchSavedRecipes() {
 export async function fetchRecipeHistory() {
   const res = await api.get('/api/v1/recipes/history/list');
   return (res.data.data || []).map(mapRecipe);
+}
+
+/** 先根据食材和用户数据生成 5–8 个候选，再由用户选择最终菜谱。 */
+export async function recommendRecipes(params: RecipeGenerateParams): Promise<RecipeCandidate[]> {
+  const res = await api.post('/api/recipe/recommendations', params, { timeout: AI_TIMEOUT });
+  return res.data.data.recommendations;
 }
 
 /** 实时检索与当前菜谱匹配的公开视频。 */

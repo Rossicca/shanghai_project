@@ -60,15 +60,37 @@ export interface RecipeVideoRecommendation {
   warning?: string | null;
 }
 
+/** AI 在生成完整步骤前给出的可选菜品/甜品/饮品方案。 */
+export interface RecipeCandidate {
+  id: string;
+  name: string;
+  coverEmoji: string;
+  category: string;
+  description: string;
+  reason: string;
+  availableIngredients: string[];
+  missingIngredients: string[];
+  cookTime: number;
+  difficulty: '简单' | '中等' | '困难';
+  estimatedCalories: number;
+}
+
 /** 生成菜谱的请求参数 */
 export interface RecipeGenerateParams {
   ingredients: { name: string; amount: string }[];
   people: number;
   cookTime: number;
   difficulty: '简单' | '中等' | '困难';
+  selectedDish?: Pick<RecipeCandidate, 'name' | 'missingIngredients'>;
   /** 用户身体数据/目标（用于热量对比），可空 */
   user?: {
     caloriesTarget?: number;
     goal?: string;
+    bodyData?: {
+      height: number;
+      weight: number;
+      age: number;
+      gender: string;
+    };
   };
 }

@@ -33,7 +33,7 @@ function checkRateLimit(userId) {
  */
 router.post('/generate', async (req, res) => {
   try {
-    const { sessionId, ingredients, mealType, servings, maxCookTime, difficulty, includeNutritionTarget } = req.body;
+    const { sessionId, ingredients, mealType, servings, maxCookTime, difficulty, includeNutritionTarget, selectedDish } = req.body;
     const userId = req.user?.userId || 'anonymous';
 
     let sourceIngredients = Array.isArray(ingredients) ? ingredients : [];
@@ -101,6 +101,7 @@ router.post('/generate', async (req, res) => {
       people: servings || 1,
       cookTime: maxCookTime || 20,
       difficulty: difficulty || '简单',
+      selectedDish,
       user: {
         caloriesTarget: targetCalories,
         goal: goal?.goalType || '保持健康',

@@ -22,7 +22,7 @@ const workoutPlanRoutes = require('./routes/workout-plans');
 const statsRoutes = require('./routes/stats');
 
 // 旧版兼容路由（保持前端现有调用可用）
-const { recognizeFood, generateRecipe, recommendWorkout } = require('./ai');
+const { recognizeFood, recommendRecipes, generateRecipe, recommendWorkout } = require('./ai');
 const { DEMO_INGREDIENTS, WORKOUT_LIBRARY, pickMockRecipe, mockRecommendWorkout } = require('./demo-data');
 const { recommendRecipeVideos } = require('./recipe-videos');
 
@@ -106,7 +106,32 @@ app.post('/api/recognize', async (req, res) => {
   }
 });
 
-// POST /api/recipe/generate — 生成菜谱
+// POST /api/recipe/recommendations — 根据现有食材和用户数据生成候选菜
+app.post('/api/recipe/recommendations', async (req, res) => {
+  const ingredients = Array.isArray(req.body.ingredients) ? req.body.ingredients : [];
+  if (!ingredients.some((item) => String(item?.name || '').trim())) {
+    return res.status(400).json({
+      error: { code: 'INVALID_PARAMS', message: '请至少提供一种食材' },
+    });
+  }
+  try {
+    const recommendations = await recommendRecipes({
+      ingredients: ingredients.slice(0, 15),
+      people: req.body.people ?? 1,
+      cookTime: req.body.cookTime ?? 30,
+      difficulty: req.body.difficulty ?? '简单',
+      user: req.body.user,
+    });
+    res.json({ data: { recommendations } });
+  } catch (error) {
+    console.error('[compat] recipe recommendations error:', error);
+    res.status(502).json({
+      error: { code: 'AI_RECOMMENDATIONS_FAILED', message: '菜谱推荐失败，请稍后重试' },
+    });
+  }
+});
+
+// POST /api/recipe/generate — 生成用户选定菜品的完整菜谱
 app.post('/api/recipe/generate', async (req, res) => {
   try {
     const recipe = await generateRecipe({
@@ -114,6 +139,7 @@ app.post('/api/recipe/generate', async (req, res) => {
       people: req.body.people ?? 1,
       cookTime: req.body.cookTime ?? 20,
       difficulty: req.body.difficulty ?? '简单',
+      selectedDish: req.body.selectedDish,
       user: req.body.user,
     });
     res.json({ recipe: { ...recipe, id: 'r' + Date.now() } });
