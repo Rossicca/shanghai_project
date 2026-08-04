@@ -2,6 +2,7 @@ import { create } from 'zustand';
 
 import * as userService from '@/services/user';
 import { loadToken } from '@/services/user';
+import { getToken } from '@/services/api';
 import type { BodySnapshot } from '@/services/user';
 import type { BodyData, FitnessGoal } from '@/types/workout';
 import type { User } from '@/types/user';
@@ -61,7 +62,7 @@ export const useUserStore = create<UserState>((set) => ({
 
   setUser: async (user) => {
     if (user) await userService.saveUser(user);
-    set({ user, isLoggedIn: !!user });
+    set({ user, isLoggedIn: Boolean(user && getToken()) });
   },
 
   setBodyData: async (bodyData) => {

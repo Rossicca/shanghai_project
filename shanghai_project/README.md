@@ -27,7 +27,9 @@ npx expo start
 Copy-Item server/config.toml.example server/config.toml
 ```
 
-然后编辑 `server/config.toml`，在 `[ai]` 下填写 **API Key** 和模型 ID（[火山引擎方舟控制台](https://console.volcengine.com/ark) → 开通模型 → 创建 API Key）。当前后端接入的是**火山方舟「豆包 Doubao-Seed-2.1-Pro」**（模型 ID `doubao-seed-2-1-pro-260628`，256K 上下文，支持文本+图片）：拍照识别、菜谱生成、运动推荐全部走豆包，一个 Key 搞定；配置不完整时后端使用内置演示数据，配置完整后若真实 AI 调用失败则明确返回错误，不会用 Mock 伪装成功。
+然后编辑 `server/config.toml`，在 `[ai]` 下填写 **API Key** 和模型 ID（[火山引擎方舟控制台](https://console.volcengine.com/ark) → 开通模型 → 创建 API Key）。当前后端接入的是**火山方舟「豆包 Doubao-Seed-2.1-Pro」**（模型 ID `doubao-seed-2-1-pro-260628`，256K 上下文，支持文本+图片）：拍照识别、菜谱生成和训练计划生成走豆包；视频信息流当前从本地视频库按用户目标筛选。配置不完整时后端使用内置演示数据，配置完整后若真实 AI 调用失败则明确返回错误，不会用 Mock 伪装成功。
+
+> 真实 AI 模式会将所选图片的 Base64 数据经本地后端发送至火山方舟完成识别；服务端不保存原始图片。
 
 > 不要把 API Key、真实测试账号密码或 JWT Secret 写进 `config.json`，也不要提交 `config.toml`。
 

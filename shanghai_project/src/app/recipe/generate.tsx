@@ -73,15 +73,18 @@ export default function GenerateRecipe() {
     }
   }
 
-  /** 估算目标热量（Mifflin-St Jeor 基础代谢 × 活动系数 1.4） */
+  /** 估算每餐目标热量，与后端的 Mifflin-St Jeor 口径保持一致。 */
   function estimateTargetCalories(): number | undefined {
     if (!bodyData) return undefined;
     const s = bodyData.gender === '男' ? 5 : -161;
     const bmr = 10 * bodyData.weight + 6.25 * bodyData.height - 5 * bodyData.age + s;
-    const base = bmr * 1.4;
-    if (goal?.type === '减脂') return Math.round(base * 0.85);
-    if (goal?.type === '增肌') return Math.round(base * 1.1);
-    return Math.round(base);
+    const tdee = bmr * 1.55;
+    const dailyTarget = goal?.type === '减脂'
+      ? tdee - 500
+      : goal?.type === '增肌'
+        ? tdee + 300
+        : tdee;
+    return Math.min(900, Math.max(300, Math.round(dailyTarget / 3)));
   }
 
   return (
