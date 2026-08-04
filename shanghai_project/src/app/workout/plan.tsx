@@ -13,61 +13,86 @@ import { useTheme } from '@/hooks/use-theme';
 import { useUserStore } from '@/store/userStore';
 import { usePlanStore } from '@/store/planStore';
 import { fetchLatestWorkoutPlan, generateWorkoutPlan } from '@/services/workout';
-import type { WorkoutPlan, WorkoutPlanInput } from '@/types/workout';
+import type { BodyData, WorkoutPlan, WorkoutPlanInput } from '@/types/workout';
 import {
   calcBMR, calcTDEE, calcBMI, bmiLabel, idealWeightRange,
-  targetCalories, macroSplit, trainingSplitAdvice,
+  targetCalories, macroSplit, trainingSplitAdvice, estimateBodyFat,
 } from '@/utils/nutrition';
 
-const DURATIONS = [20, 30, 45, 60];
-const LOCATIONS: { value: WorkoutPlanInput['workoutLocation']; label: string; icon: string }[] = [
-  { value: 'home', label: '居家', icon: 'home' },
-  { value: 'gym', label: '健身房', icon: 'fitness' },
-  { value: 'outdoor', label: '户外', icon: 'sunny' },
-];
-const LEVELS: { value: WorkoutPlanInput['fitnessLevel']; label: string }[] = [
-  { value: 'beginner', label: '入门（< 3个月）' },
-  { value: 'intermediate', label: '进阶（3-12个月）' },
-  { value: 'advanced', label: '有经验（> 1年）' },
-];
+// ---- 常量 ----
 const WEEKDAY = ['一', '二', '三', '四', '五', '六', '日'];
+const EQUIPMENT_OPTIONS = [
+  { key: 'none', label: '无器械', icon: 'body' },
+  { key: 'dumbbell', label: '哑铃', icon: 'barbell' },
+  { key: 'band', label: '弹力带', icon: 'pulse' },
+  { key: 'barbell', label: '杠铃', icon: 'barbell' },
+  { key: 'mat', label: '瑜伽垫', icon: 'leaf' },
+  { key: 'kettlebell', label: '壶铃', icon: 'fitness' },
+];
+const STYLE_OPTIONS = [
+  { key: 'gentle', label: '温和', desc: '低强度，不追求极限' },
+  { key: 'moderate', label: '标准', desc: '中等强度，循序渐进' },
+  { key: 'intense', label: '高强度', desc: '全力以赴，冲击极限' },
+];
+const GOAL_TYPES = ['减脂', '增肌', '塑形', '保持健康'] as const;
 
-function goalCode(gType?: string): WorkoutPlanInput['goalType'] {
-  return ({ '减脂': 'lose_fat', '增肌': 'gain_muscle', '塑形': 'shape' } as const)[gType || ''] || 'maintain';
-}
+// ---- 组件 ----
 
 export default function WorkoutPlanPage() {
   const colors = useTheme();
-  const { bodyData, goal } = useUserStore();
+  const { bodyData: savedBody, goal: savedGoal, setBodyData, setGoal } = useUserStore();
   const savePlan = usePlanStore((s) => s.setPlan);
 
-  // 自动推导的智能默认值
-  const bmi = calcBMI(bodyData);
-  const bmr = calcBMR(bodyData);
-  const ideal = bodyData ? idealWeightRange(bodyData.height) : null;
-  const autoFreq = goal?.weeklyFrequency || (goal?.type === '增肌' ? 4 : goal?.type === '减脂' ? 5 : 3);
+  // ===== 第1步：基础信息 =====
+  const [gender, setGender] = useState<'男' | '女'>(savedBody?.gender ?? '男');
+  const [age, setAge] = useState(savedBody?.age ? String(savedBody.age) : '25');
+  const [height, setHeight] = useState(savedBody?.height ? String(savedBody.height) : '170');
+  const [weight, setWeight] = useState(savedBody?.weight ? String(savedBody.weight) : '65');
+  const [bodyFat, setBodyFat] = useState(savedBody?.bodyFat ? String(savedBody.bodyFat) : '');
 
-  const [weeklyFrequency, setWeeklyFrequency] = useState(autoFreq);
-  const [duration, setDuration] = useState(goal?.type === '减脂' ? 45 : 30);
-  const [location, setLocation] = useState<WorkoutPlanInput['workoutLocation']>('home');
-  const [hasEquipment, setHasEquipment] = useState(false);
-  const [level, setLevel] = useState<WorkoutPlanInput['fitnessLevel']>('beginner');
+  // ===== 第2步：身材维度（可选）=====
+  const [waist, setWaist] = useState(savedBody?.waist ? String(savedBody.waist) : '');
+  const [hip, setHip] = useState(savedBody?.hip ? String(savedBody.hip) : '');
+
+  // ===== 第3步：目标与条件 =====
+  const [goalType, setGoalType] = useState<string>(savedGoal?.type ?? '减脂');
+  const [targetWeight, setTargetWeight] = useState(savedGoal?.targetWeight ? String(savedGoal.targetWeight) : '');
+  const [equipment, setEquipment] = useState<string[]>(() => {
+    if (!savedGoal) return ['mat'];
+    return ['mat']; // 默认至少有瑜伽垫
+  });
+  const [style, setStyle] = useState('moderate');
+  const [weeklyFrequency, setWeeklyFrequency] = useState(savedGoal?.weeklyFrequency ?? 3);
+  const [sessionDuration, setSessionDuration] = useState(goalType === '减脂' ? 45 : 30);
   const [limitations, setLimitations] = useState('');
+
+  // ---- 计划状态 ----
   const [plan, setPlan] = useState<WorkoutPlan | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const tdee = calcTDEE(bodyData, weeklyFrequency);
-  const calTarget = targetCalories(bodyData, goal, weeklyFrequency);
-  const macros = calTarget ? macroSplit(calTarget, goal?.type || '保持健康') : null;
-  const splitAdvice = trainingSplitAdvice(weeklyFrequency, goal?.type || '保持健康');
+  // ---- 自动推导 ----
+  const hNum = parseFloat(height) || 170;
+  const wNum = parseFloat(weight) || 65;
+  const bmi = calcBMI({ height: hNum, weight: wNum, age: parseInt(age) || 25, gender } as BodyData);
+  const bmr = calcBMR({ height: hNum, weight: wNum, age: parseInt(age) || 25, gender } as BodyData);
+  const bodyForTdee: BodyData = { height: hNum, weight: wNum, age: parseInt(age) || 25, gender };
+  const tdee = calcTDEE(bodyForTdee, weeklyFrequency);
+  const calTarget = targetCalories(bodyForTdee, { type: goalType } as any, weeklyFrequency);
+  const macros = calTarget ? macroSplit(calTarget, goalType) : null;
+  const ideal = idealWeightRange(hNum);
+  const splitAdvice = trainingSplitAdvice(weeklyFrequency, goalType);
 
-  // 今天是训练日还是休息日
+  // 体脂率：优先用户填的，否则估算
+  const bodyFatNum = parseFloat(bodyFat) || undefined;
+  const estimatedBF = bodyFatNum ?? (savedBody ? estimateBodyFat({ ...savedBody, height: hNum, weight: wNum, waist: parseFloat(waist) || undefined, hip: parseFloat(hip) || undefined, age: parseInt(age) || 25, gender }) : null);
+  const bfDisplay = bodyFatNum ? `${bodyFatNum}%` : estimatedBF ? `${estimatedBF.toFixed(1)}%` : null;
+
+  // 今日状态
   const todayInfo = useMemo(() => {
     if (!plan) return null;
-    const dow = new Date().getDay(); // 0=Sun
-    const dayIndex = dow === 0 ? 6 : dow - 1; // Mon=0
-    const scheduleDays = plan.weeklySchedule.map((d) => d.day - 1);
+    const dow = new Date().getDay();
+    const dayIndex = dow === 0 ? 6 : dow - 1;
     const today = plan.weeklySchedule.find((d) => d.day - 1 === dayIndex);
     if (today) return { isTrainingDay: true as const, day: today };
     return { isTrainingDay: false as const };
@@ -79,179 +104,329 @@ export default function WorkoutPlanPage() {
     }).catch(() => {});
   }, [savePlan]);
 
+  function toggleEquip(key: string) {
+    setEquipment((prev) =>
+      key === 'none' ? ['none'] : prev.filter((k) => k !== 'none').includes(key)
+        ? prev.filter((k) => k !== key)
+        : [...prev.filter((k) => k !== 'none'), key]
+    );
+  }
+
   async function runGenerate() {
-    setLoading(true);
-    setError('');
+    setLoading(true); setError('');
     try {
-      const result = await generateWorkoutPlan({
-        goalType: goalCode(goal?.type),
+      // 先保存身体数据
+      const body: BodyData = {
+        gender, age: parseInt(age) || 25, height: hNum, weight: wNum,
+        bodyFat: bodyFatNum, waist: parseFloat(waist) || undefined,
+        hip: parseFloat(hip) || undefined,
+      };
+      await setBodyData(body);
+      await setGoal({ type: goalType as any, targetWeight: parseFloat(targetWeight) || undefined, weeklyFrequency });
+
+      const input: WorkoutPlanInput = {
+        goalType: ({ '减脂': 'lose_fat', '增肌': 'gain_muscle', '塑形': 'shape' } as const)[goalType] || 'maintain',
         weeklyFrequency,
-        sessionDurationMinutes: duration,
-        workoutLocation: location,
-        hasEquipment,
-        fitnessLevel: level,
+        sessionDurationMinutes: sessionDuration,
+        workoutLocation: 'home',
+        hasEquipment: !equipment.includes('none') && equipment.length > 0,
+        fitnessLevel: 'beginner',
         limitations: limitations.split(/[，,；;\n]/).map((s) => s.trim()).filter(Boolean),
-        bodyData: bodyData ? {
-          height: bodyData.height, weight: bodyData.weight,
-          age: bodyData.age, gender: bodyData.gender,
+        bodyData: {
+          height: hNum, weight: wNum, age: parseInt(age) || 25, gender,
           bmi: bmi ?? undefined, bmr: bmr ?? undefined,
-          tdee: tdee ?? undefined,
-          targetCalories: calTarget,
-          bodyFat: bodyData.bodyFat,
-        } : undefined,
-        goal: goal ? { type: goal.type, targetWeight: goal.targetWeight } : undefined,
-      });
+          tdee: tdee ?? undefined, targetCalories: calTarget,
+          bodyFat: estimatedBF ?? undefined,
+        },
+        goal: { type: goalType, targetWeight: parseFloat(targetWeight) || undefined },
+        // 额外传给 AI 的上下文
+        equipmentList: equipment.filter((k) => k !== 'none'),
+        trainingStyle: style,
+        bodyFatEstimate: estimatedBF,
+      } as any;
+
+      const result = await generateWorkoutPlan(input);
       setPlan(result);
       savePlan(result);
     } catch (e) {
-      setError((e as Error).message || '训练计划生成失败，请重试');
-    } finally {
-      setLoading(false);
-    }
+      setError((e as Error).message || '训练计划生成失败');
+    } finally { setLoading(false); }
   }
 
-  function openBilibiliSearch(keyword: string) {
-    const url = `https://search.bilibili.com/all?keyword=${encodeURIComponent(keyword)}`;
-    Linking.openURL(url).catch(() => setError('无法打开B站'));
+  function openBilibili(keyword: string) {
+    Linking.openURL(`https://search.bilibili.com/all?keyword=${encodeURIComponent(keyword)}`).catch(() => {});
   }
 
+  // ===== 渲染 =====
   return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
+    <ThemedView style={styles.outer}>
+      <SafeAreaView style={styles.safe} edges={['top']}>
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} hitSlop={10}>
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </Pressable>
           <View style={{ flex: 1 }}>
-            <ThemedText type="title">每周训练计划</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              {bodyData
-                ? `基于你的身体数据（${bodyData.height}cm/${bodyData.weight}kg/${bodyData.age}岁）定制`
-                : '填写身体数据后推荐更精准'}
-            </ThemedText>
+            <ThemedText type="title">训练计划</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">填写数据 → AI 生成个性化方案</ThemedText>
           </View>
         </View>
 
-        <ScrollView contentContainerStyle={styles.content}>
-          {/* 身体数据总览卡片 */}
-          {bodyData && (
-            <Card style={styles.bodyCard}>
-              <View style={styles.bodyGrid}>
-                <BodyStat label="BMI" value={bmi?.toFixed(1) ?? '--'} sub={bmiLabel(bmi)} color={colors.primary} />
-                <BodyStat label="基础代谢" value={bmr ? `${bmr}` : '--'} sub="千卡/天" color={colors.warning} />
-                <BodyStat label="每日消耗" value={tdee ? `${tdee}` : '--'} sub="TDEE 千卡" color="#E74C3C" />
-                <BodyStat
-                  label="目标热量"
-                  value={calTarget ? `${calTarget}` : '--'}
-                  sub={goal?.type === '减脂' ? '减脂缺口' : goal?.type === '增肌' ? '增肌盈余' : '维持'}
-                  color={colors.success}
-                />
-              </View>
-              {ideal && (
-                <View style={styles.idealRow}>
-                  <Ionicons name="information-circle-outline" size={15} color={colors.textSecondary} />
-                  <ThemedText type="small" themeColor="textSecondary">
-                    理想体重范围 {ideal.min}–{ideal.max} kg
-                    {goal?.targetWeight ? ` · 你的目标 ${goal.targetWeight}kg` : ''}
-                  </ThemedText>
-                </View>
-              )}
-              {macros && (
-                <View style={styles.macroRow}>
-                  <MacroChip label="蛋白质" value={`${macros.protein}g`} color="#E74C3C" />
-                  <MacroChip label="碳水" value={`${macros.carbs}g`} color={colors.warning} />
-                  <MacroChip label="脂肪" value={`${macros.fat}g`} color={colors.primary} />
-                </View>
-              )}
-            </Card>
-          )}
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
 
-          {/* 今日状态 */}
-          {plan && todayInfo && (
-            <Card style={[styles.todayCard, {
-              backgroundColor: todayInfo.isTrainingDay ? colors.primarySoft : colors.yellowSoft,
-            }]}>
-              <View style={styles.todayRow}>
-                <Ionicons
-                  name={todayInfo.isTrainingDay ? 'flame' : 'cafe'}
-                  size={24}
-                  color={todayInfo.isTrainingDay ? colors.primary : '#B07A26'}
-                />
-                <View style={{ flex: 1 }}>
-                  <ThemedText type="subtitle">
-                    {todayInfo.isTrainingDay
-                      ? `今天是训练日 · ${todayInfo.day!.title}`
-                      : '今天是休息日'}
-                  </ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    {todayInfo.isTrainingDay
-                      ? `约${todayInfo.day!.durationMinutes}分钟 · ${todayInfo.day!.exercises.length}个动作`
-                      : '好好恢复，肌肉在休息时生长'}
-                  </ThemedText>
-                </View>
-              </View>
-            </Card>
-          )}
-
-          {/* 训练条件表单 */}
-          <Card style={styles.form}>
-            <ThemedText type="subtitle">训练条件</ThemedText>
-
-            {/* 训练分化建议 */}
-            <View style={[styles.splitHint, { backgroundColor: colors.backgroundElement }]}>
-              <Ionicons name="bulb" size={16} color={colors.primary} />
-              <View style={{ flex: 1 }}>
-                <ThemedText type="smallBold">{splitAdvice.split}</ThemedText>
-                <ThemedText type="small" themeColor="textSecondary">{splitAdvice.description}</ThemedText>
-              </View>
+          {/* ====== 步骤1：基础信息 ====== */}
+          <StepBadge num={1} label="基础信息" colors={colors} />
+          <Card style={styles.card}>
+            {/* 性别 */}
+            <ThemedText type="smallBold">性别</ThemedText>
+            <View style={styles.chipRow}>
+              {(['男', '女'] as const).map((g) => (
+                <Pressable key={g} onPress={() => setGender(g)} style={[styles.chip, {
+                  backgroundColor: gender === g ? colors.primary : colors.backgroundElement,
+                  borderColor: gender === g ? colors.primary : colors.border,
+                }]}>
+                  <Text style={{ color: gender === g ? '#fff' : colors.text, fontWeight: '700' }}>{g}</Text>
+                </Pressable>
+              ))}
             </View>
 
-            <ThemedText type="smallBold">每周训练天数</ThemedText>
+            {/* 年龄 + 身高 + 体重 */}
+            <View style={styles.row3}>
+              <Field label="年龄" value={age} onChange={setAge} suffix="岁" numeric colors={colors} />
+              <Field label="身高" value={height} onChange={setHeight} suffix="cm" numeric colors={colors} />
+              <Field label="体重" value={weight} onChange={setWeight} suffix="kg" numeric colors={colors} />
+            </View>
+
+            {/* 自动计算结果 */}
+            {bmi && (
+              <View style={[styles.resultBar, { backgroundColor: colors.primarySoft }]}>
+                <Ionicons name="analytics" size={14} color={colors.primary} />
+                <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 13 }}>
+                  BMI {bmi.toFixed(1)} · {bmiLabel(bmi)}
+                  {bmr ? ` · BMR ${bmr} kcal` : ''}
+                  {tdee ? ` · TDEE ${tdee} kcal` : ''}
+                </Text>
+              </View>
+            )}
+
+            {/* 体脂率 */}
+            <ThemedText type="smallBold">体脂率</ThemedText>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.two }}>
+              <TextInput
+                value={bodyFat}
+                onChangeText={(t) => setBodyFat(t.replace(/[^\d.]/g, ''))}
+                placeholder={estimatedBF ? `估算 ${estimatedBF.toFixed(1)}%` : '自填或留空'}
+                placeholderTextColor={colors.textSecondary}
+                keyboardType="numeric"
+                style={[styles.input, { flex: 1, color: colors.text, backgroundColor: colors.backgroundElement }]}
+              />
+              <Text style={{ color: colors.textSecondary, fontSize: 13 }}>%</Text>
+            </View>
+            {!bodyFat && estimatedBF && (
+              <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 2 }}>
+                未填写时使用围度估算值（{estimatedBF.toFixed(1)}%）
+              </Text>
+            )}
+          </Card>
+
+          {/* ====== 步骤2：身材维度（可选）====== */}
+          <StepBadge num={2} label="身材维度" sub="可选" colors={colors} />
+          <Card style={styles.card}>
+            <ThemedText type="small" themeColor="textSecondary" style={{ marginBottom: Spacing.two }}>
+              填写后体脂率和计划更精准
+            </ThemedText>
+            <View style={styles.row3}>
+              <Field label="腰围" value={waist} onChange={setWaist} suffix="cm" numeric optional colors={colors} />
+              <Field label="臀围" value={hip} onChange={setHip} suffix="cm" numeric optional colors={colors} />
+              <View style={{ flex: 1 }} />
+            </View>
+          </Card>
+
+          {/* ====== 步骤3：目标与条件 ====== */}
+          <StepBadge num={3} label="健身目标与条件" colors={colors} />
+
+          {/* 3a. 目标类型 */}
+          <Card style={styles.card}>
+            <ThemedText type="smallBold">想要达成的目标</ThemedText>
+            <View style={styles.chipRow}>
+              {GOAL_TYPES.map((g) => (
+                <Pressable key={g} onPress={() => setGoalType(g)} style={[styles.chip, {
+                  backgroundColor: goalType === g ? colors.primary : colors.backgroundElement,
+                  borderColor: goalType === g ? colors.primary : colors.border,
+                }]}>
+                  <Text style={{ color: goalType === g ? '#fff' : colors.text, fontWeight: '700' }}>{g}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {/* 目标体重 */}
+            <ThemedText type="smallBold" style={{ marginTop: Spacing.two }}>目标体重</ThemedText>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.two }}>
+              <TextInput
+                value={targetWeight} onChangeText={(t) => setTargetWeight(t.replace(/[^\d.]/g, ''))}
+                placeholder="留空则不设限" placeholderTextColor={colors.textSecondary}
+                keyboardType="numeric"
+                style={[styles.input, { flex: 1, color: colors.text, backgroundColor: colors.backgroundElement }]}
+              />
+              <Text style={{ color: colors.textSecondary, fontSize: 13 }}>kg</Text>
+            </View>
+            {ideal && (
+              <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 4 }}>
+                你的理想体重范围：{ideal.min}–{ideal.max} kg
+              </Text>
+            )}
+
+            {/* 热量与宏量素 */}
+            {calTarget && macros && (
+              <View style={[styles.macroCard, { backgroundColor: colors.backgroundElement }]}>
+                <View style={styles.macroItem}>
+                  <Text style={[styles.macroVal, { color: colors.primary }]}>{calTarget}</Text>
+                  <Text style={[styles.macroUnit, { color: colors.textSecondary }]}>kcal/天</Text>
+                </View>
+                <View style={styles.macroItem}>
+                  <Text style={[styles.macroVal, { color: '#E74C3C' }]}>{macros.protein}g</Text>
+                  <Text style={[styles.macroUnit, { color: colors.textSecondary }]}>蛋白质</Text>
+                </View>
+                <View style={styles.macroItem}>
+                  <Text style={[styles.macroVal, { color: '#F5B14C' }]}>{macros.carbs}g</Text>
+                  <Text style={[styles.macroUnit, { color: colors.textSecondary }]}>碳水</Text>
+                </View>
+                <View style={styles.macroItem}>
+                  <Text style={[styles.macroVal, { color: '#3E6FA8' }]}>{macros.fat}g</Text>
+                  <Text style={[styles.macroUnit, { color: colors.textSecondary }]}>脂肪</Text>
+                </View>
+              </View>
+            )}
+          </Card>
+
+          {/* 3b. 器械 */}
+          <Card style={styles.card}>
+            <ThemedText type="smallBold">可用器械（多选）</ThemedText>
+            <View style={styles.chipRow}>
+              {EQUIPMENT_OPTIONS.map((eq) => {
+                const sel = equipment.includes(eq.key);
+                return (
+                  <Pressable key={eq.key} onPress={() => toggleEquip(eq.key)} style={[styles.chip, {
+                    backgroundColor: sel ? colors.primary : colors.backgroundElement,
+                    borderColor: sel ? colors.primary : colors.border,
+                  }]}>
+                    <Ionicons name={eq.icon as any} size={13} color={sel ? '#fff' : colors.text} />
+                    <Text style={{ color: sel ? '#fff' : colors.text, fontWeight: '600', fontSize: 12 }}>{eq.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </Card>
+
+          {/* 3c. 训练风格 */}
+          <Card style={styles.card}>
+            <ThemedText type="smallBold">训练偏好</ThemedText>
+            <View style={{ gap: Spacing.two, marginTop: Spacing.two }}>
+              {STYLE_OPTIONS.map((s) => {
+                const sel = style === s.key;
+                return (
+                  <Pressable key={s.key} onPress={() => setStyle(s.key)} style={[styles.styleRow, {
+                    backgroundColor: sel ? colors.primarySoft : colors.backgroundElement,
+                    borderColor: sel ? colors.primary : colors.border,
+                  }]}>
+                    <View style={[styles.radio, { borderColor: sel ? colors.primary : colors.textSecondary }]}>
+                      {sel && <View style={[styles.radioInner, { backgroundColor: colors.primary }]} />}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: colors.text, fontWeight: '700' }}>{s.label}</Text>
+                      <Text style={{ color: colors.textSecondary, fontSize: 12 }}>{s.desc}</Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </Card>
+
+          {/* 3d. 频率 + 时长 */}
+          <Card style={styles.card}>
+            <ThemedText type="smallBold">每周训练 {weeklyFrequency} 天 · 每次 {sessionDuration} 分钟</ThemedText>
+            <View style={[styles.splitHint, { backgroundColor: colors.backgroundElement, marginTop: Spacing.two }]}>
+              <Ionicons name="bulb" size={15} color={colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.text, fontWeight: '700', fontSize: 13 }}>{splitAdvice.split}</Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 12 }}>{splitAdvice.description}</Text>
+              </View>
+            </View>
+            {/* 频率滑块 */}
             <View style={styles.stepper}>
-              <Pressable style={[styles.stepBtn, { backgroundColor: colors.backgroundElement }]} onPress={() => setWeeklyFrequency((v) => Math.max(1, v - 1))}>
+              <Pressable onPress={() => setWeeklyFrequency((v) => Math.max(1, v - 1))}
+                style={[styles.stepBtn, { backgroundColor: colors.backgroundElement }]}>
                 <Ionicons name="remove" size={18} color={colors.text} />
               </Pressable>
               <ThemedText type="subtitle">{weeklyFrequency} 天</ThemedText>
-              <Pressable style={[styles.stepBtn, { backgroundColor: colors.backgroundElement }]} onPress={() => setWeeklyFrequency((v) => Math.min(7, v + 1))}>
+              <Pressable onPress={() => setWeeklyFrequency((v) => Math.min(7, v + 1))}
+                style={[styles.stepBtn, { backgroundColor: colors.backgroundElement }]}>
                 <Ionicons name="add" size={18} color={colors.text} />
               </Pressable>
             </View>
-
-            <OptionRow label="单次时长" options={DURATIONS.map((v) => ({ value: v, label: `${v}分钟` }))} value={duration} onChange={setDuration} />
-            <OptionRow label="训练地点" options={LOCATIONS} value={location} onChange={setLocation} />
-            <OptionRow label="训练基础" options={LEVELS} value={level} onChange={setLevel} />
-            <OptionRow label="器械条件" options={[{ value: false, label: '无器械' }, { value: true, label: '有器械' }]} value={hasEquipment} onChange={setHasEquipment} />
-
-            <ThemedText type="smallBold">身体限制（可选）</ThemedText>
-            <TextInput
-              value={limitations}
-              onChangeText={setLimitations}
-              placeholder="例如：膝关节避免跳跃、腰部不适"
-              placeholderTextColor={colors.textSecondary}
-              multiline maxLength={240}
-              style={[styles.input, { color: colors.text, backgroundColor: colors.backgroundElement }]}
-            />
-            <Button title={plan ? '重新生成计划' : '生成训练计划'} icon="calendar-outline" loading={loading} onPress={runGenerate} size="large" />
-            {error ? (
-              <View style={styles.errorRow}>
-                <Ionicons name="alert-circle-outline" size={18} color={colors.danger} />
-                <ThemedText type="small" themeColor="danger" style={{ flex: 1 }}>{error}</ThemedText>
-              </View>
-            ) : null}
+            {/* 时长选择 */}
+            <View style={styles.chipRow}>
+              {[20, 30, 45, 60].map((d) => (
+                <Pressable key={d} onPress={() => setSessionDuration(d)} style={[styles.chip, {
+                  backgroundColor: sessionDuration === d ? colors.primary : colors.backgroundElement,
+                  borderColor: sessionDuration === d ? colors.primary : colors.border,
+                }]}>
+                  <Text style={{ color: sessionDuration === d ? '#fff' : colors.text, fontWeight: '600' }}>{d}分钟</Text>
+                </Pressable>
+              ))}
+            </View>
           </Card>
 
-          {/* 生成的计划详情 */}
+          {/* 3e. 身体限制 */}
+          <Card style={styles.card}>
+            <ThemedText type="smallBold">身体限制或伤病（可选）</ThemedText>
+            <TextInput
+              value={limitations} onChangeText={setLimitations}
+              placeholder="例如：膝关节避免跳跃、腰椎间盘突出避免负重"
+              placeholderTextColor={colors.textSecondary}
+              multiline maxLength={300}
+              style={[styles.textArea, { color: colors.text, backgroundColor: colors.backgroundElement }]}
+            />
+          </Card>
+
+          {/* ====== 生成按钮 ====== */}
+          <Button title={plan ? '重新生成计划' : '✨ AI 生成训练计划'} icon="calendar-outline"
+            loading={loading} onPress={runGenerate} size="large" />
+          {error ? (
+            <View style={styles.errorRow}>
+              <Ionicons name="alert-circle-outline" size={18} color={colors.danger} />
+              <ThemedText type="small" themeColor="danger" style={{ flex: 1 }}>{error}</ThemedText>
+            </View>
+          ) : null}
+
+          {/* ====== 已有计划 ====== */}
           {plan ? (
-            <View style={styles.result}>
-              <View style={styles.summaryRow}>
-                <View style={[styles.summaryIcon, { backgroundColor: colors.primarySoft }]}>
-                  <Ionicons name="checkmark" size={22} color={colors.primary} />
+            <View style={styles.planResult}>
+              {/* 今日状态 */}
+              {todayInfo && (
+                <View style={[styles.todayCard, {
+                  backgroundColor: todayInfo.isTrainingDay ? colors.primarySoft : colors.yellowSoft,
+                }]}>
+                  <Ionicons name={todayInfo.isTrainingDay ? 'flame' : 'cafe'} size={22}
+                    color={todayInfo.isTrainingDay ? colors.primary : '#B07A26'} />
+                  <View style={{ flex: 1 }}>
+                    <ThemedText type="subtitle">
+                      {todayInfo.isTrainingDay
+                        ? `今天训练日 · ${todayInfo.day!.title}`
+                        : '今天是休息日 · 肌肉在恢复中生长'}
+                    </ThemedText>
+                    {todayInfo.isTrainingDay && (
+                      <ThemedText type="small" themeColor="textSecondary">
+                        约{todayInfo.day!.durationMinutes}分钟 · {todayInfo.day!.exercises.length}个动作
+                      </ThemedText>
+                    )}
+                  </View>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <ThemedText type="subtitle">计划已生成</ThemedText>
-                  <ThemedText themeColor="textSecondary">{plan.summary}</ThemedText>
-                </View>
-              </View>
+              )}
+
+              <ThemedText type="subtitle" style={{ marginBottom: Spacing.two }}>📋 每周计划</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary" style={{ marginBottom: Spacing.two }}>
+                {plan.summary}
+              </ThemedText>
 
               {plan.weeklySchedule.map((day) => (
                 <Card key={day.day} style={styles.dayCard}>
@@ -263,188 +438,164 @@ export default function WorkoutPlanPage() {
                         <ThemedText type="small" themeColor="textSecondary">{day.focusDescription}</ThemedText>
                       ) : null}
                     </View>
-                    <View style={[styles.dayDurBadge, { backgroundColor: colors.primarySoft }]}>
-                      <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 13 }}>
-                        {day.durationMinutes}分钟
-                      </Text>
+                    <View style={[styles.dayBadge, { backgroundColor: colors.primarySoft }]}>
+                      <Text style={{ color: colors.primary, fontWeight: '700' }}>{day.durationMinutes}min</Text>
                     </View>
                   </View>
 
-                  {/* 热身 */}
-                  {day.warmup && day.warmup.length > 0 && (
-                    <View style={styles.phaseBlock}>
-                      <View style={[styles.phaseHead, { backgroundColor: colors.yellowSoft }]}>
-                        <Ionicons name="sunny" size={15} color="#B07A26" />
-                        <Text style={{ color: '#B07A26', fontWeight: '700', fontSize: 13 }}>热身 · {day.warmup.reduce((s, w) => s + (parseInt(w.duration || '0') || 0), 0)}分钟</Text>
-                      </View>
-                      {day.warmup.map((w, i) => (
-                        <View key={i} style={styles.sectionItem}>
-                          <Text style={{ color: colors.text, fontWeight: '600', fontSize: 14 }}>{w.name}</Text>
-                          <Text style={{ color: colors.textSecondary, fontSize: 12 }}>{w.duration} · {w.notes}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  )}
+                  {day.warmup?.length ? (
+                    <PhaseBlock color="#B07A26" bg={colors.yellowSoft} icon="sunny" title={`热身 · ${day.warmup.reduce((s,w) => s + (parseInt(w.duration||'0')||0), 0)}min`} items={day.warmup} colors={colors} />
+                  ) : null}
 
-                  {/* 正式训练 */}
-                  <View style={styles.phaseBlock}>
-                    <View style={[styles.phaseHead, { backgroundColor: colors.primarySoft }]}>
-                      <Ionicons name="barbell" size={15} color={colors.primary} />
-                      <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 13 }}>正式训练 · {day.exercises.length}个动作</Text>
-                    </View>
-                    {day.exercises.map((ex, j) => (
-                      <View key={`${ex.name}-${j}`} style={[styles.exercise, j > 0 && { borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
-                        <View style={{ flex: 1, minWidth: 0 }}>
-                          <ThemedText type="smallBold">{ex.name}</ThemedText>
-                          <ThemedText type="small" themeColor="textSecondary">
-                            {ex.sets}组 × {ex.reps} · 休息{ex.restSeconds}秒
-                            {ex.category ? ` · ${ex.category}` : ''}
-                          </ThemedText>
-                          <ThemedText type="small">{ex.notes}</ThemedText>
-                        </View>
-                        {ex.searchKeyword ? (
-                          <Pressable
-                            style={[styles.searchBtn, { backgroundColor: '#FB7299' }]}
-                            onPress={() => openBilibiliSearch(ex.searchKeyword!)}>
-                            <Ionicons name="play-circle" size={18} color="#fff" />
-                            <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>找跟练</Text>
-                          </Pressable>
-                        ) : null}
-                      </View>
-                    ))}
-                  </View>
+                  <PhaseBlock color={colors.primary} bg={colors.primarySoft} icon="barbell" title={`训练 · ${day.exercises.length}个动作`} items={day.exercises} colors={colors}
+                    renderRight={(ex: any) => ex.searchKeyword ? (
+                      <Pressable style={[styles.searchBtn, { backgroundColor: '#FB7299' }]} onPress={() => openBilibili(ex.searchKeyword!)}>
+                        <Ionicons name="play-circle" size={16} color="#fff" />
+                        <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>找跟练</Text>
+                      </Pressable>
+                    ) : null}
+                  />
 
-                  {/* 拉伸 */}
-                  {day.stretching && day.stretching.length > 0 && (
-                    <View style={styles.phaseBlock}>
-                      <View style={[styles.phaseHead, { backgroundColor: '#E7F0FA' }]}>
-                        <Ionicons name="leaf" size={15} color="#3E6FA8" />
-                        <Text style={{ color: '#3E6FA8', fontWeight: '700', fontSize: 13 }}>拉伸放松</Text>
-                      </View>
-                      {day.stretching.map((s, i) => (
-                        <View key={i} style={styles.sectionItem}>
-                          <Text style={{ color: colors.text, fontWeight: '600', fontSize: 14 }}>{s.name}</Text>
-                          <Text style={{ color: colors.textSecondary, fontSize: 12 }}>{s.duration} · {s.notes}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  )}
+                  {day.stretching?.length ? (
+                    <PhaseBlock color="#3E6FA8" bg="#E7F0FA" icon="leaf" title="拉伸放松" items={day.stretching} colors={colors} />
+                  ) : null}
                 </Card>
               ))}
 
-              {/* 训练提醒 */}
               <View style={[styles.reminders, { backgroundColor: colors.backgroundElement }]}>
                 <ThemedText type="smallBold">训练提醒</ThemedText>
                 {plan.reminders.map((item, i) => (
                   <View key={`r-${i}`} style={styles.reminderRow}>
-                    <Ionicons name="checkmark-circle-outline" size={17} color={colors.primary} />
+                    <Ionicons name="checkmark-circle-outline" size={16} color={colors.primary} />
                     <ThemedText type="small" style={{ flex: 1 }}>{item}</ThemedText>
                   </View>
                 ))}
-                {plan.disclaimer ? (
-                  <ThemedText type="small" themeColor="textSecondary">{plan.disclaimer}</ThemedText>
-                ) : null}
               </View>
             </View>
-          ) : null}
+          ) : (
+            <Card style={[styles.planResult, { alignItems: 'center', padding: Spacing.five }]}>
+              <Ionicons name="fitness-outline" size={48} color={colors.backgroundSelected} />
+              <ThemedText type="subtitle" style={{ marginTop: Spacing.two }}>填写上方信息</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'center' }}>
+                越详细的身体数据，AI 生成的训练计划越精准
+              </ThemedText>
+            </Card>
+          )}
         </ScrollView>
       </SafeAreaView>
     </ThemedView>
   );
 }
 
-// ---- 小 UI 组件 ----
+// ---- 小部件 ----
 
-function BodyStat({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) {
+function StepBadge({ num, label, sub, colors }: { num: number; label: string; sub?: string; colors: any }) {
   return (
-    <View style={{ flex: 1, alignItems: 'center', gap: 2 }}>
-      <Text style={{ fontSize: 11, color: '#5A7A6F' }}>{label}</Text>
-      <Text style={{ fontSize: 18, fontWeight: '800', color }}>{value}</Text>
-      <Text style={{ fontSize: 10, color: '#8AA89C' }}>{sub}</Text>
-    </View>
-  );
-}
-
-function MacroChip({ label, value, color }: { label: string; value: string; color: string }) {
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: `${color}15`, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
-      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }} />
-      <Text style={{ fontSize: 11, fontWeight: '600', color }}>{label}</Text>
-      <Text style={{ fontSize: 12, fontWeight: '800', color }}>{value}</Text>
-    </View>
-  );
-}
-
-function OptionRow<T extends string | number | boolean>({ label, options, value, onChange }: {
-  label: string; options: { value: T; label: string; icon?: string }[]; value: T; onChange: (v: T) => void;
-}) {
-  const colors = useTheme();
-  return (
-    <View style={styles.optGroup}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.two, marginTop: Spacing.two, marginBottom: -Spacing.two, paddingHorizontal: Spacing.two }}>
+      <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>{num}</Text>
+      </View>
       <ThemedText type="smallBold">{label}</ThemedText>
-      <View style={styles.opts}>
-        {options.map((opt) => {
-          const selected = opt.value === value;
-          return (
-            <Pressable
-              key={String(opt.value)}
-              onPress={() => onChange(opt.value)}
-              style={[styles.opt, { backgroundColor: selected ? colors.primary : colors.backgroundElement }]}>
-              {opt.icon ? <Ionicons name={opt.icon as any} size={14} color={selected ? '#fff' : colors.text} /> : null}
-              <Text style={{ color: selected ? '#fff' : colors.text, fontWeight: '600', fontSize: 13 }}>{opt.label}</Text>
-            </Pressable>
-          );
-        })}
+      {sub ? <ThemedText type="small" themeColor="textSecondary">{sub}</ThemedText> : null}
+    </View>
+  );
+}
+
+function Field({ label, value, onChange, suffix, numeric, optional, colors }: {
+  label: string; value: string; onChange: (v: string) => void; suffix: string; numeric?: boolean; optional?: boolean; colors: any;
+}) {
+  return (
+    <View style={{ flex: 1 }}>
+      <Text style={{ color: colors.textSecondary, fontSize: 11, marginBottom: 4 }}>{label}{optional ? ' (选)' : ''}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colors.backgroundElement, borderRadius: Radius.button, paddingHorizontal: 10 }}>
+        <TextInput
+          value={value}
+          onChangeText={(t) => onChange(numeric ? t.replace(/[^\d.]/g, '') : t)}
+          keyboardType={numeric ? 'numeric' : 'default'}
+          placeholder={optional ? '--' : ''}
+          placeholderTextColor={colors.textSecondary}
+          style={{ flex: 1, color: colors.text, fontSize: 15, paddingVertical: 10 }}
+        />
+        <Text style={{ color: colors.textSecondary, fontSize: 12 }}>{suffix}</Text>
       </View>
     </View>
   );
 }
 
+function PhaseBlock({ color, bg, icon, title, items, colors, renderRight }: {
+  color: string; bg: string; icon: string; title: string;
+  items: any[]; colors: any; renderRight?: (item: any) => React.ReactNode;
+}) {
+  return (
+    <View style={{ gap: Spacing.two }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: bg, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, alignSelf: 'flex-start' }}>
+        <Ionicons name={icon as any} size={13} color={color} />
+        <Text style={{ color, fontWeight: '700', fontSize: 12 }}>{title}</Text>
+      </View>
+      {items.map((item: any, i: number) => (
+        <View key={i} style={[item.sets ? {} : {}, i > 0 && item.sets ? { borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: Spacing.two } : {}]}>
+          {item.sets ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.two }}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ color: colors.text, fontWeight: '600', fontSize: 14 }}>{item.name}</Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
+                  {item.sets}组 × {item.reps} · 休息{item.restSeconds}s
+                  {item.category ? ` · ${item.category}` : ''}
+                </Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 12 }}>{item.notes}</Text>
+              </View>
+              {renderRight?.(item)}
+            </View>
+          ) : (
+            <View>
+              <Text style={{ color: colors.text, fontWeight: '600', fontSize: 13 }}>{item.name}</Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 11 }}>{item.duration} · {item.notes}</Text>
+            </View>
+          )}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// ---- 样式 ----
 const styles = StyleSheet.create({
-  container: { flex: 1 }, safeArea: { flex: 1 },
+  outer: { flex: 1 },
+  safe: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two },
-  content: { padding: Spacing.three, paddingBottom: Spacing.six, gap: Spacing.four },
+  scroll: { padding: Spacing.three, paddingBottom: Spacing.six, gap: Spacing.three },
 
-  // 身体数据卡片
-  bodyCard: { gap: Spacing.two },
-  bodyGrid: { flexDirection: 'row', gap: Spacing.two },
-  idealRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 4 },
-  macroRow: { flexDirection: 'row', gap: Spacing.two, justifyContent: 'center', paddingTop: 2 },
+  card: { gap: Spacing.two },
 
-  // 今日状态
-  todayCard: { padding: Spacing.three },
-  todayRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two, marginTop: Spacing.one },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, paddingVertical: 9, borderRadius: Radius.chip, borderWidth: 1 },
 
-  // 表单
-  form: { gap: Spacing.three },
-  splitHint: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.two, padding: Spacing.three, borderRadius: 14 },
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
-  stepBtn: { width: 38, height: 38, borderRadius: Radius.button, alignItems: 'center', justifyContent: 'center' },
-  optGroup: { gap: Spacing.two },
-  opts: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
-  opt: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Spacing.three, paddingVertical: 10, borderRadius: Radius.chip },
-  input: { minHeight: 76, borderRadius: Radius.button, padding: Spacing.three, fontSize: 16, textAlignVertical: 'top' },
+  row3: { flexDirection: 'row', gap: Spacing.two, marginTop: Spacing.two },
+  input: { borderRadius: Radius.button, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15 },
+
+  resultBar: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: Spacing.two, borderRadius: Radius.chip },
+  macroCard: { flexDirection: 'row', borderRadius: Radius.card, padding: Spacing.two, marginTop: Spacing.one },
+  macroItem: { flex: 1, alignItems: 'center' },
+  macroVal: { fontSize: 17, fontWeight: '800' },
+  macroUnit: { fontSize: 10 },
+
+  styleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, padding: Spacing.three, borderRadius: Radius.card, borderWidth: 1 },
+  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  radioInner: { width: 10, height: 10, borderRadius: 5 },
+
+  splitHint: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.two, padding: Spacing.two, borderRadius: 12 },
+  stepper: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, marginTop: Spacing.two },
+  stepBtn: { width: 40, height: 40, borderRadius: Radius.button, alignItems: 'center', justifyContent: 'center' },
+  textArea: { minHeight: 72, borderRadius: Radius.button, padding: Spacing.three, fontSize: 14, textAlignVertical: 'top', marginTop: Spacing.one },
+
   errorRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
 
-  // 计划结果
-  result: { gap: Spacing.three },
-  summaryRow: { flexDirection: 'row', gap: Spacing.three, alignItems: 'center' },
-  summaryIcon: { width: 46, height: 46, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-
-  dayCard: { gap: Spacing.three },
+  planResult: { gap: Spacing.three },
+  todayCard: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, padding: Spacing.three, borderRadius: Radius.card },
+  dayCard: { gap: Spacing.two },
   dayHead: { flexDirection: 'row', justifyContent: 'space-between', gap: Spacing.two },
-  dayDurBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-
-  // 训练阶段块
-  phaseBlock: { gap: Spacing.two },
-  phaseHead: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, alignSelf: 'flex-start' },
-  sectionItem: { gap: 2, paddingLeft: 4 },
-  exercise: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingVertical: Spacing.two },
-  searchBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16,
-  },
-
+  dayBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  searchBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16 },
   reminders: { gap: Spacing.two, padding: Spacing.three, borderRadius: 16 },
   reminderRow: { flexDirection: 'row', gap: Spacing.two, alignItems: 'flex-start' },
 });

@@ -477,6 +477,14 @@ function mockWorkoutPlan(params) {
 
 async function generateWorkoutPlan(params) {
   if (isMockMode() || !isTextLlmReady()) return mockWorkoutPlan(params);
+  const bodyCtx = params.bodyData || {};
+  const userPrompt = JSON.stringify({
+    ...params,
+    bodyDataSummary: bodyCtx.height
+      ? `身高${bodyCtx.height}cm 体重${bodyCtx.weight}kg 年龄${bodyCtx.age}岁 性别${bodyCtx.gender} BMI ${bodyCtx.bmi ?? '?'} BMR ${bodyCtx.bmr ?? '?'} TDEE ${bodyCtx.tdee ?? '?'} 体脂率${bodyCtx.bodyFat ?? '?'}% 目标热量${bodyCtx.targetCalories ?? '?'}kcal`
+      : '身体数据未完整填写',
+    instruction: '基于所有数据制定个性化周训练计划。每项身体指标都要在计划中有所体现。',
+  });
   const content = await chat({
     model: config.ai.textModel,
     maxTokens: 4096,
@@ -485,7 +493,17 @@ async function generateWorkoutPlan(params) {
     messages: [
       {
         role: 'system',
-        content: `\u4f60\u662f\u6301\u6709 NSCA/ACSM \u8ba4\u8bc1\u7684\u5065\u8eab\u6559\u7ec3\u3002\u6839\u636e\u7528\u6237\u7684\u5b8c\u6574\u8eab\u4f53\u6570\u636e\u5236\u5b9a\u79d1\u5b66\u8bad\u7ec3\u8ba1\u5212\u3002\u4e25\u683c\u53ea\u8f93\u51fa JSON\uff0c\u683c\u5f0f\uff1a
+        content: `\u4f60\u662f\u6301\u6709NSCA/ACSM/ACE\u4e09\u91cd\u8ba4\u8bc1\u7684\u8d44\u6df1\u5065\u8eab\u6559\u7ec3\u517c\u8fd0\u52a8\u8425\u517b\u987e\u95ee\u3002\u6839\u636e\u7528\u6237\u5b8c\u6574\u8eab\u4f53\u6570\u636e\u5236\u5b9a\u9ad8\u5ea6\u4e2a\u6027\u5316\u79d1\u5b66\u8bad\u7ec3\u8ba1\u5212\u3002
+
+\u4e25\u683c\u53ea\u8f93\u51faJSON\uff0c\u683c\u5f0f\u76f8\u540c\u3002\u589e\u5f3a\u89c4\u5219\uff1a
+1.\u6df1\u5ea6\u5229\u7528\u8eab\u4f53\u6570\u636e\uff1aBMI\u5224\u65ad\u4f53\u91cd\u72b6\u6001\u8c03\u6574\u5f3a\u5ea6\uff0cBMR/TDEE\u6307\u5bfc\u70ed\u91cf\u6d88\u8017\uff0c\u4f53\u8102\u7387\u51b3\u5b9a\u6709\u6c27vs\u529b\u91cf\u6bd4\u4f8b\uff1b
+2.\u76ee\u6807\u9a71\u52a8\uff1a\u51cf\u8102(\u591a\u5173\u8282+\u6709\u6c27+\u5faa\u73af,HIIT\u4f18\u5148)\u3001\u589e\u808c(\u5927\u91cd\u91cf8-12RM,\u6e10\u8fdb\u8d1f\u8377)\u3001\u5851\u5f62(15-20RM,\u6838\u5fc3\u81c0\u817f)\u3001\u7ef4\u6301(\u5747\u8861)\uff1b
+3.\u8bad\u7ec3\u98ce\u683c\u5339\u914d\uff1agentle(2-3\u7ec4,60-90s\u4f11\u606f,RPE5-7)\u3001moderate(3-4\u7ec4,45-60s,RPE7-8)\u3001intense(4-5\u7ec4,30s,\u529b\u7aed)\uff1b
+4.\u5668\u68b0\u5339\u914d\uff1a\u6839\u636eequipmentList\u7cbe\u786e\u5b89\u6392\u5bf9\u5e94\u52a8\u4f5c\uff1b
+5.\u808c\u7fa4\u8f6e\u6362\uff1a\u4e0a\u4e0b\u80a2\u4ea4\u66ff\u6216PPL\u5206\u5316\uff0c\u907f\u514d\u8fde\u7eed\u540c\u808c\u7fa4\uff1b
+6.\u6bcf\u5929warmup(3-4\u52a8\u4f5c,5-8min)\u2192exercises(4-6\u52a8\u4f5c)\u2192stretching(3-4\u52a8\u4f5c,5-8min)\uff1b
+7.searchKeyword\u4fbf\u4e8eB\u7ad9\u641c\u7d22\uff0c\u5982"\u54d1\u94c3\u5367\u63a8\u65b0\u624b\u6559\u5b66"\uff1b\u907f\u5f00limitations\uff1b\u4e0d\u5f97\u8f93\u51faURL\u3002
+8.\u89e3\u91ca\u6bcf\u4e2a\u8bad\u7ec3\u65e5\u7684\u5b89\u6392\u539f\u7406(focusDescription\u8981\u5177\u4f53)\u3002`,
 {
   "goalType": "lose_fat|gain_muscle|shape|maintain",
   "summary": "\u4e00\u53e5\u8bdd\u6982\u8ff0",
@@ -528,13 +546,7 @@ async function generateWorkoutPlan(params) {
 7. \u907f\u5f00\u7528\u6237 limitations \u4e2d\u7684\u52a8\u4f5c\u7c7b\u578b\uff1b
 8. \u4e0d\u5f97\u8f93\u51fa\u4efb\u4f55 URL\u3002`,
       },
-      {
-        role: 'user',
-        content: JSON.stringify({
-          ...params,
-          instruction: '\u8bf7\u57fa\u4e8e\u4ee5\u4e0a\u8eab\u4f53\u6570\u636e\u548c\u8bad\u7ec3\u6761\u4ef6\uff0c\u751f\u6210\u79d1\u5b66\u3001\u5b89\u5168\u3001\u53ef\u6267\u884c\u7684\u5468\u8bad\u7ec3\u8ba1\u5212\u3002',
-        }),
-      },
+      { role: 'user', content: userPrompt },
     ],
   });
   return parseJson(content);
