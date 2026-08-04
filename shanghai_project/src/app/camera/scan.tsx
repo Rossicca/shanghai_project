@@ -13,11 +13,27 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { recognizeFoodForFlow } from '@/services/recognition';
+import { normalizeImageBase64, recognizeFoodForFlow } from '@/services/recognition';
 import { addIngredientHistory, loadIngredientHistory } from '@/services/ingredientHistory';
 import type { Ingredient } from '@/types/recipe';
 
 type Mode = 'idle' | 'camera' | 'preview' | 'recognizing' | 'result';
+
+async function readImageBase64(uri: string, provided?: string | null): Promise<string> {
+  const direct = normalizeImageBase64(provided || '');
+  if (direct) return direct;
+  if (uri.startsWith('data:image/')) return normalizeImageBase64(uri);
+
+  const response = await fetch(uri);
+  if (!response.ok) throw new Error('照片读取失败');
+  const blob = await response.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('照片读取失败'));
+    reader.onload = () => resolve(normalizeImageBase64(String(reader.result || '')));
+    reader.readAsDataURL(blob);
+  });
+}
 
 export default function Scan() {
   const colors = useTheme();
@@ -31,6 +47,8 @@ export default function Scan() {
   const [imageId, setImageId] = useState<string | null>(null);
   const [history, setHistory] = useState<string[]>([]);
   const [error, setError] = useState('');
+  const [cameraReady, setCameraReady] = useState(false);
+  const [capturing, setCapturing] = useState(false);
 
   async function loadHistory() {
     setHistory(await loadIngredientHistory());
@@ -43,6 +61,8 @@ export default function Scan() {
     setIngredients([]);
     setImageId(null);
     setError('');
+    setCameraReady(false);
+    setCapturing(false);
     loadHistory();
   }
 
@@ -54,17 +74,27 @@ export default function Scan() {
       return;
     }
     setError('');
+    setCameraReady(false);
     setMode('camera');
     if (!history.length) loadHistory();
   }
 
   async function takePhoto() {
-    if (!cameraRef.current) return;
-    const photo = await cameraRef.current.takePictureAsync({ base64: true, quality: 0.7 });
-    if (photo) {
+    if (!cameraRef.current || !cameraReady || capturing) return;
+    setCapturing(true);
+    setError('');
+    try {
+      const photo = await cameraRef.current.takePictureAsync({ base64: true, quality: 0.45 });
+      if (!photo) throw new Error('相机没有返回照片');
+      const encoded = await readImageBase64(photo.uri, photo.base64);
+      if (!encoded) throw new Error('照片数据为空');
       setPreviewUri(photo.uri);
-      setBase64(photo.base64 ?? null);
+      setBase64(encoded);
       setMode('preview');
+    } catch (captureError) {
+      setError((captureError as Error).message || '拍照失败，请重试或改用相册');
+    } finally {
+      setCapturing(false);
     }
   }
 
@@ -76,14 +106,24 @@ export default function Scan() {
       quality: 0.7,
     });
     if (!result.canceled && result.assets[0]) {
-      setPreviewUri(result.assets[0].uri);
-      setBase64(result.assets[0].base64 ?? null);
-      setMode('preview');
+      try {
+        const asset = result.assets[0];
+        const encoded = await readImageBase64(asset.uri, asset.base64);
+        setPreviewUri(asset.uri);
+        setBase64(encoded);
+        setMode('preview');
+      } catch (pickError) {
+        setError((pickError as Error).message || '图片读取失败，请重新选择');
+      }
     }
   }
 
   async function runRecognition() {
-    if (!base64) return;
+    if (!base64) {
+      setError('照片数据没有读取成功，请重新拍照或改用相册');
+      setMode('preview');
+      return;
+    }
     setMode('recognizing');
     setError('');
     try {
@@ -120,7 +160,11 @@ export default function Scan() {
           ref={cameraRef}
           style={StyleSheet.absoluteFill}
           facing="back"
-          onMountError={() => setError('相机打开失败，请检查权限')}
+          onCameraReady={() => setCameraReady(true)}
+          onMountError={(event) => {
+            setCameraReady(false);
+            setError(event.message || '相机打开失败，请检查权限');
+          }}
         />
         <SafeAreaView style={styles.cameraOverlay} edges={['top']}>
           <View style={styles.cameraTopBar}>
@@ -136,8 +180,13 @@ export default function Scan() {
               <Ionicons name="images" size={26} color="#fff" />
               <Text style={styles.cameraHintText}>相册</Text>
             </Pressable>
-            <Pressable style={styles.shutter} onPress={takePhoto}>
-              <View style={styles.shutterInner} />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={cameraReady ? '拍照' : '相机准备中'}
+              disabled={!cameraReady || capturing}
+              style={[styles.shutter, (!cameraReady || capturing) && styles.shutterDisabled]}
+              onPress={takePhoto}>
+              {capturing ? <ActivityIndicator color="#FFFFFF" /> : <View style={styles.shutterInner} />}
             </Pressable>
             <View style={styles.galleryBtn} />
           </View>
@@ -248,7 +297,7 @@ export default function Scan() {
         ) : null}
 
         <ThemedText type="small" themeColor="textSecondary" style={styles.tip}>
-          * 演示模式下识别结果由内置数据生成
+          * 拍照和相册图片都会发送给 AI 视觉模型识别，请尽量保持光线充足、画面清晰
         </ThemedText>
       </SafeAreaView>
     </ThemedView>
@@ -277,6 +326,7 @@ const styles = StyleSheet.create({
   galleryBtn: { width: 60, alignItems: 'center', gap: Spacing.one },
   cameraHintText: { color: '#fff', fontSize: 12 },
   shutter: { width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
+  shutterDisabled: { opacity: 0.5 },
   shutterInner: { width: 58, height: 58, borderRadius: 29, backgroundColor: '#fff' },
 
   // preview

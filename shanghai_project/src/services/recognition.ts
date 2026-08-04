@@ -8,10 +8,19 @@ export interface RecognitionFlowResult {
   ingredients: Ingredient[];
 }
 
+export function normalizeImageBase64(value: string): string {
+  return String(value || '')
+    .trim()
+    .replace(/^data:image\/[a-z0-9.+-]+;base64,/i, '')
+    .replace(/\s+/g, '');
+}
+
 /** 游客兼容路径：不伪装 v1 已完成。 */
 export async function recognizeFood(base64: string): Promise<Ingredient[]> {
+  const image = normalizeImageBase64(base64);
+  if (!image) throw new Error('照片数据读取失败，请重新拍照');
   const res = await api.post<{ ingredients: Ingredient[] }>('/api/recognize',
-    { image: base64 },
+    { image },
     { timeout: AI_TIMEOUT }
   );
   return res.data.ingredients;
@@ -36,7 +45,9 @@ export async function recognizeFoodForFlow(base64: string): Promise<RecognitionF
 }
 
 export async function recognizeFoodDetail(base64: string) {
-  const res = await api.post('/api/v1/recognition/upload', { image: base64 }, { timeout: AI_TIMEOUT });
+  const image = normalizeImageBase64(base64);
+  if (!image) throw new Error('照片数据读取失败，请重新拍照');
+  const res = await api.post('/api/v1/recognition/upload', { image }, { timeout: AI_TIMEOUT });
   return res.data.data;
 }
 
