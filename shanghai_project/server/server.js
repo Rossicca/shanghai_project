@@ -9,6 +9,7 @@
 const express = require('express');
 const cors = require('cors');
 const { randomUUID } = require('crypto');
+const https = require('https');
 const { authMiddleware } = require('./auth');
 const { config, isMockMode } = require('./config');
 
@@ -255,6 +256,40 @@ app.get('/api/workout/categories', (req, res) => {
     { slug: 'stretch', name: '拉伸', icon: '🧘' },
   ];
   res.json({ data: cats });
+});
+
+// GET /api/cover — 代理 B站封面图，绕过 Referer 防盗链
+// 仅允许 B站图床 / picsum 兜底图，防 SSRF
+app.get('/api/cover', (req, res) => {
+  const url = String(req.query.url || '');
+  const allowed =
+    /^https:\/\/[a-z0-9-]+\.hdslb\.com\/bfs\//.test(url) ||
+    /^https:\/\/picsum\.photos\//.test(url);
+  if (!allowed) {
+    return res.status(400).json({ error: { code: 'INVALID_COVER_URL' } });
+  }
+
+  let hops = 0;
+  const fetch = (target) => {
+    https
+      .get(target, { headers: { 'User-Agent': 'Mozilla/5.0', Referer: 'https://www.bilibili.com/' } }, (upstream) => {
+        const loc = upstream.headers.location;
+        if (upstream.statusCode >= 300 && upstream.statusCode < 400 && loc && hops < 3) {
+          upstream.resume();
+          hops += 1;
+          return fetch(loc.startsWith('http') ? loc : new URL(loc, target).toString());
+        }
+        if (upstream.statusCode !== 200) {
+          upstream.resume();
+          return res.status(502).json({ error: { code: 'COVER_FETCH_FAILED', status: upstream.statusCode } });
+        }
+        res.setHeader('Content-Type', upstream.headers['content-type'] || 'image/jpeg');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        upstream.pipe(res);
+      })
+      .on('error', () => res.status(502).json({ error: { code: 'COVER_FETCH_ERROR' } }));
+  };
+  fetch(url);
 });
 
 // ---- 全局错误处理 ----

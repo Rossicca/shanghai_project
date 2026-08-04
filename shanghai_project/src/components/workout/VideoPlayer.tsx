@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Animated, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Animated, Image, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { VideoView, useVideoPlayer } from 'expo-video';
 
 import { CATEGORY_ICONS } from '@/constants/fitness';
+import { API_BASE_URL } from '@/constants/config';
 import type { WorkoutVideo } from '@/types/workout';
 
 type Props = {
@@ -24,6 +25,7 @@ export function VideoPlayer({ video, playing = true, onEnd, showControls }: Prop
   const [progress, setProgress] = useState(0);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const [pulse] = useState(() => new Animated.Value(1));
+  const [coverFailed, setCoverFailed] = useState(false);
 
   useEffect(() => {
     let loop: Animated.CompositeAnimation | null = null;
@@ -70,11 +72,26 @@ export function VideoPlayer({ video, playing = true, onEnd, showControls }: Prop
 
   // 有外部链接（B站/YouTube）的推荐视频
   if (video.sourceUrl) {
+    // 封面走后端代理：B站图床按 Referer 防盗链，直连浏览器加载会被 403 拒绝
+    const coverUri = video.coverUrl
+      ? `${API_BASE_URL}/api/cover?url=${encodeURIComponent(video.coverUrl)}`
+      : null;
+    const showCover = !!coverUri && !coverFailed;
     return (
       <View style={[styles.container, { backgroundColor: video.coverColor }]}>
-        <Animated.View style={[styles.emojiWrap, { transform: [{ scale: pulse }] }]}>
-          <Text style={styles.emoji}>{CATEGORY_ICONS[video.category] ?? '💪'}</Text>
-        </Animated.View>
+        {showCover ? (
+          <Image
+            source={{ uri: coverUri! }}
+            style={StyleSheet.absoluteFill}
+            resizeMode="cover"
+            onError={() => setCoverFailed(true)}
+          />
+        ) : (
+          <Animated.View style={[styles.emojiWrap, { transform: [{ scale: pulse }] }]}>
+            <Text style={styles.emoji}>{CATEGORY_ICONS[video.category] ?? '💪'}</Text>
+          </Animated.View>
+        )}
+        {showCover ? <View style={styles.coverShade} /> : null}
         <View style={styles.bottomInfo}>
           <Text style={styles.playingText}>
             {playing ? '🔥 跟练中' : '⏸ 已暂停'} · {video.category}
@@ -145,6 +162,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emojiWrap: { width: 120, height: 120, alignItems: 'center', justifyContent: 'center' },
   emoji: { fontSize: 72 },
+  coverShade: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.25)' },
   bottomInfo: { position: 'absolute', bottom: 44, alignItems: 'center', gap: 4 },
   playingText: { color: '#fff', fontWeight: '800', fontSize: 16, textShadowColor: 'rgba(0,0,0,0.4)', textShadowRadius: 4 },
   remainText: { color: 'rgba(255,255,255,0.9)', fontSize: 13, fontWeight: '700' },

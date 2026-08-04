@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
   Pressable,
+  ScrollView,
   StyleSheet,
   View,
   type ViewToken,
@@ -20,6 +21,7 @@ import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useUserStore } from '@/store/userStore';
 import { useWorkoutStore } from '@/store/workoutStore';
+import { useWebHorizontalDrag } from '@/utils/webScroll';
 
 export default function WorkoutTab() {
   const colors = useTheme();
@@ -51,6 +53,9 @@ export default function WorkoutTab() {
     }
   );
   const [viewabilityConfig] = useState(() => ({ itemVisiblePercentThreshold: 60 }));
+  // 分类栏滚动：支持鼠标滚轮横向滚动 + 拖拽平移（Web）
+  const catScrollRef = useRef<ScrollView>(null);
+  useWebHorizontalDrag(catScrollRef, { panOnWheel: true });
 
   useEffect(() => {
     fetchFeed({ bodyData: bodyData ?? undefined, goal: goal ?? undefined });
@@ -70,82 +75,42 @@ export default function WorkoutTab() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        {/* 分类标签栏 */}
-        <View>
-          <FlatList
-            horizontal
-            data={CATEGORIES}
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.categoryBar}
-            keyExtractor={(c) => c}
-            renderItem={({ item }) => (
-              <CategoryChip label={item} isSelected={currentCategory === item} onPress={() => handleSwitch(item)} />
-            )}
-          />
-        </View>
+        {/* 分类标签栏（顶部，可横向滚动，支持鼠标滚轮） */}
+        <ScrollView
+          ref={catScrollRef}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categoryBar}>
+          {CATEGORIES.map((c) => (
+            <CategoryChip key={c} label={c} isSelected={currentCategory === c} onPress={() => handleSwitch(c)} />
+          ))}
+        </ScrollView>
 
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.push('/workout/plan')}
-          style={[styles.planEntry, { backgroundColor: colors.primarySoft }]}>
-          <View style={[styles.planIcon, { backgroundColor: colors.primary }]}>
-            <Ionicons name="calendar-outline" size={20} color="#fff" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <ThemedText type="smallBold">生成每周训练计划</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              按目标、器械和身体限制安排动作与提醒
-            </ThemedText>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={colors.primary} />
-        </Pressable>
-
-        {/* 个性化提示 */}
-        <View style={styles.personalBar}>
-          <Ionicons
-            name={bodyData ? 'sparkles' : 'information-circle-outline'}
-            size={16}
-            color={bodyData ? colors.warning : colors.textSecondary}
-          />
-          <ThemedText type="small" themeColor="textSecondary" style={{ flex: 1 }}>
-            {bodyData
-              ? `已按你的数据（${bodyData.height}cm/${bodyData.weight}kg，目标${goal?.type ?? '健康'}）个性化推荐`
-              : '填写身体数据后，推荐会更精准'}
-          </ThemedText>
-          {!bodyData ? (
-            <Pressable onPress={() => router.push('/profile/body')}>
-              <ThemedText type="small" themeColor="primary">
-                去填写 ›
+        {/* 视频区：顶部位于页面上方 1/8 处，向下延伸到底部导航栏 */}
+        <View style={styles.feedWrap} onLayout={(e) => setListHeight(e.nativeEvent.layout.height)}>
+          {isLoading && feed.length === 0 ? (
+            <View style={styles.loading}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <ThemedText>AI 正在为你挑选视频...</ThemedText>
+            </View>
+          ) : error && feed.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="cloud-offline-outline" size={32} color={colors.textSecondary} />
+              <ThemedText type="subtitle">视频暂时加载失败</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'center' }}>
+                {error}。你的身体数据和收藏不会丢失。
               </ThemedText>
-            </Pressable>
-          ) : null}
-        </View>
-
-        {/* 视频信息流 */}
-        {isLoading && feed.length === 0 ? (
-          <View style={styles.loading}>
-            <ActivityIndicator size="large" color={colors.primary} />
-            <ThemedText>AI 正在为你挑选视频...</ThemedText>
-          </View>
-        ) : error && feed.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Ionicons name="cloud-offline-outline" size={32} color={colors.textSecondary} />
-            <ThemedText type="subtitle">视频暂时加载失败</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'center' }}>
-              {error}。你的身体数据和收藏不会丢失。
-            </ThemedText>
-            <Pressable onPress={() => fetchFeed({ bodyData: bodyData ?? undefined, goal: goal ?? undefined })}>
-              <ThemedText type="smallBold" themeColor="primary">重新加载</ThemedText>
-            </Pressable>
-          </View>
-        ) : feed.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Ionicons name="barbell-outline" size={32} color={colors.textSecondary} />
-            <ThemedText type="subtitle">这个分类还没有视频</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">可以切换其他分类，或稍后再来。</ThemedText>
-          </View>
-        ) : (
-          <View style={styles.feedWrap} onLayout={(e) => setListHeight(e.nativeEvent.layout.height)}>
+              <Pressable onPress={() => fetchFeed({ bodyData: bodyData ?? undefined, goal: goal ?? undefined })}>
+                <ThemedText type="smallBold" themeColor="primary">重新加载</ThemedText>
+              </Pressable>
+            </View>
+          ) : feed.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="barbell-outline" size={32} color={colors.textSecondary} />
+              <ThemedText type="subtitle">这个分类还没有视频</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">可以切换其他分类，或稍后再来。</ThemedText>
+            </View>
+          ) : (
             <FlatList
               data={feed}
               keyExtractor={(v) => v.id}
@@ -169,8 +134,8 @@ export default function WorkoutTab() {
                 </View>
               )}
             />
-          </View>
-        )}
+          )}
+        </View>
       </SafeAreaView>
     </ThemedView>
   );
@@ -180,20 +145,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   safeArea: { flex: 1 },
   categoryBar: { gap: Spacing.two, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two },
-  personalBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.one,
-  },
-  planEntry: {
-    flexDirection: 'row', alignItems: 'center', gap: Spacing.two,
-    marginHorizontal: Spacing.three, marginBottom: Spacing.two,
-    padding: Spacing.three, borderRadius: 16,
-  },
-  planIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.three },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.two, padding: Spacing.four },
-  feedWrap: { flex: 1 },
+  feedWrap: { position: 'absolute', top: '6.25%', left: 0, right: 0, bottom: 0 },
 });

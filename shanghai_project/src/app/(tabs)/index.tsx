@@ -1,34 +1,38 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { PostCard } from '@/components/community/PostCard';
 import { FastingTimer } from '@/components/home/FastingTimer';
-import { MoreSheet } from '@/components/home/MoreSheet';
-import { NotificationSheet } from '@/components/home/NotificationSheet';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useCommunityStore } from '@/store/communityStore';
 import { useRecipeStore } from '@/store/recipeStore';
 import { useUserStore } from '@/store/userStore';
 import { useWorkoutStore } from '@/store/workoutStore';
-import type { Recipe } from '@/types/recipe';
 import { calcBMI, estimateTargetCalories } from '@/utils/nutrition';
+import { useWebHorizontalDrag } from '@/utils/webScroll';
 
 export default function HomeScreen() {
   const colors = useTheme();
   const { bodyData, goal, bodyHistory } = useUserStore();
-  const { recipeHistory, loadLocal: loadRecipes, selectRecipe } = useRecipeStore();
+  const { recipeHistory, loadLocal: loadRecipes } = useRecipeStore();
   const { history: workoutHistory, loadLocal: loadWorkouts } = useWorkoutStore();
-  const [noticesOpen, setNoticesOpen] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
+  const { posts: communityPosts, load: loadCommunityPosts, toggleLike } = useCommunityStore();
+  const [fastingOpen, setFastingOpen] = useState(false);
+  // 今日推荐推文区：支持鼠标拖拽平移
+  const postScrollRef = useRef<ScrollView>(null);
+  useWebHorizontalDrag(postScrollRef);
 
   useEffect(() => {
     loadRecipes();
     loadWorkouts();
-  }, [loadRecipes, loadWorkouts]);
+    loadCommunityPosts();
+  }, [loadRecipes, loadWorkouts, loadCommunityPosts]);
 
   const todayKey = new Date().toDateString();
   const todayRecipes = recipeHistory.filter(
@@ -44,11 +48,6 @@ export default function HomeScreen() {
   const streak = bodyHistory.length;
   const today = new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' });
 
-  function openRecipe(r: Recipe) {
-    selectRecipe(r);
-    router.push({ pathname: '/recipe/[id]', params: { id: r.id } });
-  }
-
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -62,10 +61,10 @@ export default function HomeScreen() {
               <Text style={[styles.brandName, { color: colors.text }]}>芽芽健康</Text>
             </View>
             <View style={styles.topIcons}>
-              <Pressable hitSlop={8} onPress={() => setNoticesOpen(true)}>
+              <Pressable hitSlop={8} onPress={() => router.push('/notifications')}>
                 <Ionicons name="notifications-outline" size={21} color={colors.textSecondary} />
               </Pressable>
-              <Pressable hitSlop={8} onPress={() => setMoreOpen(true)}>
+              <Pressable hitSlop={8} onPress={() => router.push('/more')}>
                 <Ionicons name="ellipsis-horizontal" size={21} color={colors.textSecondary} />
               </Pressable>
             </View>
@@ -79,9 +78,23 @@ export default function HomeScreen() {
             </ThemedText>
           </View>
 
-          {/* 断食番茄钟 */}
+          {/* 训练计划（从练 tab 移入） */}
           <View style={styles.section}>
-            <FastingTimer />
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push('/workout/plan')}
+              style={[styles.planEntry, { backgroundColor: colors.primarySoft }]}>
+              <View style={[styles.planIcon, { backgroundColor: colors.primary }]}>
+                <Ionicons name="calendar-outline" size={20} color="#fff" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <ThemedText type="smallBold">生成每周训练计划</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  按目标、器械和身体限制安排动作与提醒
+                </ThemedText>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={colors.primary} />
+            </Pressable>
           </View>
 
           {/* 今日目标（线形进度） */}
@@ -156,6 +169,12 @@ export default function HomeScreen() {
                 </View>
                 <Text style={[styles.cellLabel, { color: colors.textSecondary }]}>身体数据</Text>
               </Pressable>
+              <Pressable style={styles.cell} onPress={() => setFastingOpen(true)}>
+                <View style={[styles.cellIcon, { backgroundColor: colors.primarySoft }]}>
+                  <Ionicons name="hourglass-outline" size={22} color={colors.primary} />
+                </View>
+                <Text style={[styles.cellLabel, { color: colors.textSecondary }]}>断食番茄钟</Text>
+              </Pressable>
             </View>
           </View>
 
@@ -181,44 +200,33 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          {/* 今日推荐 */}
+          {/* 今日推荐：别人发布的推文 */}
           <View style={styles.section}>
             <View style={styles.feedHead}>
               <ThemedText type="smallBold" style={styles.sectionTitle}>
                 今日推荐
               </ThemedText>
-              <Pressable onPress={() => router.push('/recipe')}>
+              <Pressable onPress={() => router.push('/community')}>
                 <Text style={[styles.more, { color: colors.success }]}>更多 ›</Text>
               </Pressable>
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.feedScroll}>
-              {todayRecipes.length > 0 ? (
-                todayRecipes.slice(0, 4).map((r) => (
-                  <Pressable key={r.id} style={[styles.feedCard, { backgroundColor: colors.card }]} onPress={() => openRecipe(r)}>
-                    <View style={[styles.feedCover, { backgroundColor: colors.primarySoft }]}>
-                      <Text style={styles.feedEmoji}>{r.coverEmoji}</Text>
-                    </View>
-                    <View style={styles.feedBody}>
-                      <Text style={[styles.feedTitle, { color: colors.text }]} numberOfLines={2}>
-                        {r.name}
-                      </Text>
-                      <View style={styles.feedMeta}>
-                        <Text style={{ color: colors.textSecondary, fontSize: 11 }}>{r.cookTime} 分钟</Text>
-                        <Text style={{ color: colors.danger, fontSize: 11, fontWeight: '700' }}>{r.calories} 千卡</Text>
-                      </View>
-                    </View>
-                  </Pressable>
+            <ScrollView ref={postScrollRef} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.feedScroll}>
+              {communityPosts.length > 0 ? (
+                communityPosts.slice(0, 6).map((post) => (
+                  <View key={post.id} style={styles.postCardWrap}>
+                    <PostCard post={post} onToggleLike={toggleLike} />
+                  </View>
                 ))
               ) : (
                 <Pressable
                   style={[styles.feedCard, styles.feedEmpty, { backgroundColor: colors.card }]}
-                  onPress={() => router.push('/camera/scan')}>
+                  onPress={() => router.push('/community')}>
                   <View style={[styles.feedCover, { backgroundColor: colors.successSoft }]}>
-                    <Ionicons name="camera" size={30} color={colors.success} />
+                    <Ionicons name="people" size={30} color={colors.success} />
                   </View>
                   <View style={styles.feedBody}>
-                    <Text style={[styles.feedTitle, { color: colors.text }]}>还没有今天的记录</Text>
-                    <Text style={{ color: colors.textSecondary, fontSize: 11 }}>拍个照，AI 帮你做菜 ›</Text>
+                    <Text style={[styles.feedTitle, { color: colors.text }]}>还没有社区动态</Text>
+                    <Text style={{ color: colors.textSecondary, fontSize: 11 }}>去社区看看大家的分享 ›</Text>
                   </View>
                 </Pressable>
               )}
@@ -231,8 +239,24 @@ export default function HomeScreen() {
         </ScrollView>
       </SafeAreaView>
 
-      <NotificationSheet visible={noticesOpen} onClose={() => setNoticesOpen(false)} />
-      <MoreSheet visible={moreOpen} onClose={() => setMoreOpen(false)} />
+      <Modal
+        visible={fastingOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setFastingOpen(false)}>
+        <View style={[styles.modalBackdrop, { backgroundColor: 'rgba(0,0,0,0.45)' }]}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setFastingOpen(false)} />
+          <View style={[styles.modalCard, { backgroundColor: colors.background }]}>
+            <View style={styles.modalClose}>
+              <Pressable hitSlop={8} onPress={() => setFastingOpen(false)}>
+                <Ionicons name="close" size={24} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+            <FastingTimer />
+          </View>
+        </View>
+      </Modal>
+
     </ThemedView>
   );
 }
@@ -290,6 +314,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   ctaText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  // 训练计划入口卡
+  planEntry: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.two,
+    padding: Spacing.three, borderRadius: 16,
+  },
+  planIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   // 金刚区
   section: { paddingHorizontal: Spacing.three + 4, gap: 10 },
   sectionTitle: { fontSize: 15 },
@@ -312,6 +342,7 @@ const styles = StyleSheet.create({
   feedHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   more: { fontSize: 12, fontWeight: '600' },
   feedScroll: { gap: 12, paddingBottom: 6 },
+  postCardWrap: { width: 270 },
   feedCard: { width: 158, borderRadius: 18, overflow: 'hidden' },
   feedCover: { height: 88, alignItems: 'center', justifyContent: 'center' },
   feedEmoji: { fontSize: 40 },
@@ -320,4 +351,8 @@ const styles = StyleSheet.create({
   feedMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   feedEmpty: {},
   tip: { textAlign: 'center', marginTop: Spacing.two, paddingHorizontal: Spacing.four },
+  // 断食番茄钟弹窗
+  modalBackdrop: { flex: 1, justifyContent: 'center', padding: Spacing.four },
+  modalCard: { borderRadius: Radius.card, padding: Spacing.three, gap: Spacing.one },
+  modalClose: { alignItems: 'flex-end' },
 });
