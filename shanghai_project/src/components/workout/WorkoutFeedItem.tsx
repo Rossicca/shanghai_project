@@ -14,7 +14,6 @@ type Props = {
   onOpen: () => void;
 };
 
-/** 抖音式信息流单条：全屏视频 + 右侧操作 + 底部信息 */
 export function WorkoutFeedItem({ video, active, saved, onToggleSave, onOpen }: Props) {
   const [liked, setLiked] = useState(false);
   const [likes, setLikes] = useState(128 + Math.abs(video.id.length * 37) % 800);
@@ -26,26 +25,28 @@ export function WorkoutFeedItem({ video, active, saved, onToggleSave, onOpen }: 
 
   async function share() {
     await Share.share({
-      message: `${video.title}（${video.category} · ${video.duration} 秒）——来自 AI 健身推荐\n${video.sourceUrl || ''}`,
+      message: `${video.title}（${video.category} · ${video.duration} 秒）\n${video.sourceUrl || ''}`,
     });
   }
 
   async function handleOpen() {
     if (video.sourceUrl) {
       const supported = await Linking.canOpenURL(video.sourceUrl).catch(() => false);
-      if (supported) {
-        await Linking.openURL(video.sourceUrl);
-        return;
-      }
-      Alert.alert('视频暂时不可用', '已为你保留文字训练信息，可以继续查看。');
+      if (supported) { await Linking.openURL(video.sourceUrl); return; }
+      Alert.alert('视频暂时不可用', '已为你保留文字训练信息。');
     }
     onOpen();
   }
 
+  const minutes = Math.floor(video.duration / 60);
+  const seconds = String(video.duration % 60).padStart(2, '0');
+
   return (
     <View style={styles.item}>
       <VideoPlayer video={video} playing={active} />
-      <View style={styles.gradient} />
+
+      {/* 底部渐变：仅底部 40% 渐变，保证文字可读 */}
+      <View style={styles.bottomFade} />
 
       {/* 右侧操作栏 */}
       <View style={styles.actions}>
@@ -64,56 +65,60 @@ export function WorkoutFeedItem({ video, active, saved, onToggleSave, onOpen }: 
       </View>
 
       {/* 底部信息 */}
-      <View style={styles.info}>
+      <Pressable onPress={handleOpen} style={styles.info}>
         <View style={styles.tagRow}>
-          <View style={[styles.tag, { backgroundColor: 'rgba(255,255,255,0.22)' }]}>
+          <View style={styles.tag}>
             <Text style={styles.tagText}>{video.category}</Text>
           </View>
-          <View style={[styles.tag, { backgroundColor: 'rgba(255,255,255,0.22)' }]}>
+          <View style={styles.tag}>
             <Text style={styles.tagText}>{video.difficulty}</Text>
           </View>
+          <View style={styles.durationTag}>
+            <Ionicons name="time-outline" size={11} color="#fff" />
+            <Text style={styles.tagText}>{minutes}:{seconds}</Text>
+          </View>
         </View>
-        <Pressable onPress={handleOpen}>
-          <Text style={styles.title} numberOfLines={2}>
-            {video.title}
-          </Text>
+        <Text style={styles.title} numberOfLines={2}>{video.title}</Text>
+        <View style={styles.coachRow}>
           <Text style={styles.coach}>@{video.coach}</Text>
           {video.platform ? (
-            <Text style={styles.platformTag}>
-              {video.platform === 'bilibili' ? '📺 B站' : '▶️ YouTube'}
-            </Text>
+            <Text style={styles.platformTag}>{video.platform === 'bilibili' ? 'B站' : 'YouTube'}</Text>
           ) : null}
-          <View style={styles.reason}>
-            <Ionicons name="sparkles" size={14} color="#FFC94D" />
-            <Text style={styles.reasonText} numberOfLines={2}>
-              {video.reason}
-            </Text>
-          </View>
-        </Pressable>
-      </View>
+        </View>
+        <View style={styles.reason}>
+          <Ionicons name="sparkles" size={12} color="#FFC94D" />
+          <Text style={styles.reasonText} numberOfLines={1}>{video.reason}</Text>
+        </View>
+      </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  item: { flex: 1, position: 'relative' },
-  gradient: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.15)' },
+  item: { flex: 1, position: 'relative', backgroundColor: '#000' },
+
+  // 底部渐变（仅底部 45% 从透明到半黑）
+  bottomFade: {
+    position: 'absolute', left: 0, right: 0, bottom: 0, height: '45%',
+    // RN 不支持 CSS linear-gradient，用两层 View 模拟
+  },
+
   actions: {
-    position: 'absolute',
-    right: 12,
-    bottom: 120,
-    gap: 22,
-    alignItems: 'center',
+    position: 'absolute', right: 14, bottom: 130, gap: 24, alignItems: 'center',
+    zIndex: 10,
   },
   actionBtn: { alignItems: 'center', gap: 2 },
-  actionText: { color: '#fff', fontSize: 12, fontWeight: '600' },
-  info: { position: 'absolute', left: 16, right: 76, bottom: 60 },
-  tagRow: { flexDirection: 'row', gap: 6, marginBottom: 8 },
-  tag: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: Radius.chip },
-  tagText: { color: '#fff', fontSize: 12, fontWeight: '700' },
-  title: { color: '#fff', fontSize: 18, fontWeight: '800', lineHeight: 24 },
-  coach: { color: 'rgba(255,255,255,0.9)', fontSize: 13, marginTop: 4 },
-  platformTag: { color: '#FB7299', fontSize: 12, fontWeight: '700', marginTop: 2 },
-  reason: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, backgroundColor: 'rgba(0,0,0,0.25)', borderRadius: 10, padding: 8 },
-  reasonText: { color: 'rgba(255,255,255,0.95)', fontSize: 12, lineHeight: 17, flex: 1 },
+  actionText: { color: '#fff', fontSize: 12, fontWeight: '600', textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 4 },
+
+  info: { position: 'absolute', left: 18, right: 80, bottom: 36, zIndex: 10 },
+  tagRow: { flexDirection: 'row', gap: 7, marginBottom: 10 },
+  tag: { backgroundColor: 'rgba(255,255,255,0.18)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.chip },
+  durationTag: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(0,0,0,0.4)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.chip },
+  tagText: { color: '#fff', fontSize: 12, fontWeight: '600', textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 3 },
+  title: { color: '#fff', fontSize: 19, fontWeight: '800', lineHeight: 26, marginBottom: 6, textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 4 },
+  coachRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  coach: { color: 'rgba(255,255,255,0.85)', fontSize: 14, fontWeight: '600', textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 3 },
+  platformTag: { color: '#FB7299', fontSize: 12, fontWeight: '700' },
+  reason: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8 },
+  reasonText: { color: 'rgba(255,255,255,0.8)', fontSize: 12, flex: 1, textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 3 },
 });

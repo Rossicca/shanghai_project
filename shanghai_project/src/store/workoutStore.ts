@@ -46,27 +46,28 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
   fetchFeed: async (params) => {
     set({ isLoading: true, error: '', page: 1 });
     try {
+      // \u6240\u6709\u5206\u7c7b\u7edf\u4e00\u8d70B\u7ad9\u641c\u7d22\uff0c\u83b7\u53d6\u771f\u5b9e\u89c6\u9891\u5c01\u9762
       if (get().currentCategory === '\u4e3a\u4f60\u63a8\u8350') {
-        // \u4e3a\u4f60\u63a8\u8350\uff1aAI \u4e2a\u6027\u5316\u63a8\u8350
-        if (getToken()) {
-          const result = await workoutService.fetchFeed({ category: 'recommended', page: 1, pageSize: 6 });
-          set({ feed: result.items, hasMore: result.hasMore, page: 1 });
-        } else {
-          const videos = await workoutService.recommendWorkout({
-            bodyData: params?.bodyData ?? undefined,
-            goal: params?.goal,
-            preference: params?.preference,
-            limit: params?.limit ?? 8,
-          });
-          set({ feed: videos, hasMore: false });
-        }
+        // \u6839\u636e\u76ee\u6807\u63a8\u5bfc\u641c\u7d22\u5173\u952e\u8bcd
+        const goalType = params?.goal?.type || '';
+        const query = goalType === '\u51cf\u8102' ? '\u71c3\u8102\u8bad\u7ec3\u8ddf\u7ec3' : goalType === '\u589e\u808c' ? '\u589e\u808c\u529b\u91cf\u8bad\u7ec3' : '\u5065\u8eab\u8bad\u7ec3\u8ddf\u7ec3';
+        try {
+          const videos = await workoutService.fetchBilibiliFeed(query, 10);
+          if (videos.length > 0) { set({ feed: videos, hasMore: false }); return; }
+        } catch { /* fall through */ }
+        // B\u7ad9\u5931\u8d25\u964d\u7ea7\u5230 AI \u63a8\u8350
+        const fallback = await workoutService.recommendWorkout({
+          bodyData: params?.bodyData ?? undefined,
+          goal: params?.goal,
+          preference: params?.preference,
+          limit: 8,
+        });
+        set({ feed: fallback, hasMore: false });
       } else {
-        // \u5176\u4ed6\u5206\u7c7b\uff1a\u4eceB\u7ad9\u641c\u7d22\u771f\u5b9e\u89c6\u9891\uff08\u5e26\u5c01\u9762\u56fe\uff09
         const videos = await workoutService.fetchBilibiliFeed(get().currentCategory, 12);
         set({ feed: videos, hasMore: false });
       }
     } catch (error) {
-      // B\u7ad9\u641c\u7d22\u5931\u8d25\u65f6\u964d\u7ea7\u5230\u672c\u5730\u6570\u636e
       try {
         const fallback = await workoutService.fetchWorkoutByCategory(get().currentCategory);
         set({ feed: fallback, hasMore: false });
