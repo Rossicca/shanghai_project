@@ -24,6 +24,8 @@ const statsRoutes = require('./routes/stats');
 // 旧版兼容路由（保持前端现有调用可用）
 const { recognizeFood, generateRecipe, recommendWorkout } = require('./ai');
 const { DEMO_INGREDIENTS, WORKOUT_LIBRARY, pickMockRecipe, mockRecommendWorkout } = require('./demo-data');
+const { discoverRecipeRecommendations, sanitizeSelectedDish } = require('./recipe-discovery');
+const { recommendRecipeVideos } = require('./recipe-videos');
 
 const app = express();
 const PORT = config.port || 8787;
@@ -69,6 +71,31 @@ app.get('/health', (req, res) => {
   res.json({ ok: true, mode: isMockMode() ? 'demo' : 'real', timestamp: new Date().toISOString() });
 });
 
+// B站封面禁止 localhost 热链；仅代理已验证的官方图片域名。
+app.get('/api/media/bilibili-cover', async (req, res) => {
+  try {
+    const target = new URL(String(req.query.url || ''));
+    if (target.protocol !== 'https:' || !/(^|\.)hdslb\.com$/i.test(target.hostname)) {
+      return res.status(400).json({ error: { code: 'INVALID_MEDIA_URL', message: '无效的封面地址' } });
+    }
+    const response = await fetch(target, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0',
+        Referer: 'https://www.bilibili.com/',
+      },
+    });
+    if (!response.ok) throw new Error(`cover HTTP ${response.status}`);
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+    if (!contentType.startsWith('image/')) throw new Error('cover content type invalid');
+    res.set('Content-Type', contentType);
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.send(Buffer.from(await response.arrayBuffer()));
+  } catch (error) {
+    console.warn('[media] B站封面代理失败:', error.message);
+    res.status(502).json({ error: { code: 'MEDIA_PROXY_FAILED', message: '封面加载失败' } });
+  }
+});
+
 // ---- API v1 路由 (带认证) ----
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', authMiddleware, userRoutes);
@@ -105,7 +132,33 @@ app.post('/api/recognize', async (req, res) => {
   }
 });
 
-// POST /api/recipe/generate — 生成菜谱
+// POST /api/recipe/recommendations — 根据现有食材和用户数据生成候选菜
+app.post('/api/recipe/recommendations', async (req, res) => {
+  const ingredients = Array.isArray(req.body.ingredients) ? req.body.ingredients : [];
+  if (!ingredients.some((item) => String(item?.name || '').trim())) {
+    return res.status(400).json({
+      error: { code: 'INVALID_PARAMS', message: '请至少提供一种食材' },
+    });
+  }
+  try {
+    const recommendations = await discoverRecipeRecommendations({
+      ingredients: ingredients.slice(0, 15),
+      people: req.body.people ?? 1,
+      cookTime: req.body.cookTime ?? 30,
+      difficulty: req.body.difficulty ?? '简单',
+      mealType: req.body.mealType ?? 'any',
+      user: req.body.user,
+    });
+    res.json({ data: { recommendations } });
+  } catch (error) {
+    console.error('[compat] recipe recommendations error:', error);
+    res.status(502).json({
+      error: { code: 'AI_RECOMMENDATIONS_FAILED', message: '菜谱推荐失败，请稍后重试' },
+    });
+  }
+});
+
+// POST /api/recipe/generate — 生成用户选定菜品的完整菜谱
 app.post('/api/recipe/generate', async (req, res) => {
   try {
     const recipe = await generateRecipe({
@@ -113,6 +166,8 @@ app.post('/api/recipe/generate', async (req, res) => {
       people: req.body.people ?? 1,
       cookTime: req.body.cookTime ?? 20,
       difficulty: req.body.difficulty ?? '简单',
+      mealType: req.body.mealType ?? 'any',
+      selectedDish: sanitizeSelectedDish(req.body.selectedDish),
       user: req.body.user,
     });
     res.json({ recipe: { ...recipe, id: 'r' + Date.now() } });
@@ -123,6 +178,25 @@ app.post('/api/recipe/generate', async (req, res) => {
         code: 'AI_RECIPE_FAILED',
         message: '\u83dc\u8c31\u751f\u6210\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5',
       },
+    });
+  }
+});
+
+// POST /api/recipe/videos — 实时检索并匹配菜谱制作视频
+app.post('/api/recipe/videos', async (req, res) => {
+  const recipe = req.body?.recipe || req.body;
+  if (!recipe || typeof recipe.name !== 'string' || !recipe.name.trim()) {
+    return res.status(400).json({
+      error: { code: 'INVALID_PARAMS', message: '缺少菜谱名称' },
+    });
+  }
+  try {
+    const data = await recommendRecipeVideos(recipe);
+    res.json({ data });
+  } catch (error) {
+    console.error('[recipe-videos] recommend error:', error);
+    res.status(502).json({
+      error: { code: 'RECIPE_VIDEO_SEARCH_FAILED', message: '制作视频搜索失败，请稍后重试' },
     });
   }
 });

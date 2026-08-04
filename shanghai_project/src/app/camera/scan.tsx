@@ -220,7 +220,7 @@ export default function Scan() {
           </View>
           <ThemedText type="title">拍一拍，识别食材</ThemedText>
           <ThemedText themeColor="textSecondary" style={styles.heroDesc}>
-            拍下手头的食物，AI 识别后为你生成一份健康菜谱
+            拍下手头的食物，AI 识别后推荐多种正餐、甜品或加餐做法
           </ThemedText>
         </View>
 

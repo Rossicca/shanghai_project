@@ -16,6 +16,7 @@ export interface Recipe {
   name: string;
   description: string;
   coverEmoji: string;
+  sourceVideo?: RecipeSourceVideo | null;
   calories: number; // 千卡
   protein: number; // 克
   carbs: number; // 克
@@ -34,15 +35,77 @@ export interface Recipe {
   } | null;
 }
 
+export interface RecipeSourceVideo {
+  id: string;
+  title: string;
+  author: string;
+  duration: number;
+  coverUrl?: string | null;
+  sourceUrl: string;
+  description?: string;
+  platform: 'bilibili';
+}
+
+export interface RecipeVideo {
+  id: string;
+  title: string;
+  author: string;
+  duration: number;
+  coverUrl?: string | null;
+  sourceUrl: string;
+  playCount?: number;
+  reason: string;
+  platform: 'bilibili';
+}
+
+export interface RecipeVideoRecommendation {
+  query: string;
+  searchUrl: string;
+  platformSearches: {
+    platform: 'bilibili' | 'douyin' | 'xiaohongshu' | 'youtube';
+    label: string;
+    url: string;
+    resultType: 'video' | 'search';
+  }[];
+  rankingMode: 'ai' | 'search' | 'fallback';
+  videos: RecipeVideo[];
+  warning?: string | null;
+}
+
+/** AI 在生成完整步骤前给出的可选菜品/甜品/饮品方案。 */
+export interface RecipeCandidate {
+  id: string;
+  name: string;
+  coverEmoji: string;
+  category: string;
+  pantryLevel: 'existing' | 'topup' | 'explore';
+  description: string;
+  reason: string;
+  availableIngredients: string[];
+  missingIngredients: string[];
+  cookTime: number;
+  difficulty: '简单' | '中等' | '困难';
+  estimatedCalories: number;
+  sourceVideo: RecipeSourceVideo | null;
+}
+
 /** 生成菜谱的请求参数 */
 export interface RecipeGenerateParams {
   ingredients: { name: string; amount: string }[];
   people: number;
   cookTime: number;
   difficulty: '简单' | '中等' | '困难';
+  mealType: 'any' | 'breakfast' | 'lunch' | 'dinner' | 'dessert';
+  selectedDish?: Pick<RecipeCandidate, 'name' | 'missingIngredients' | 'pantryLevel' | 'sourceVideo'>;
   /** 用户身体数据/目标（用于热量对比），可空 */
   user?: {
     caloriesTarget?: number;
     goal?: string;
+    bodyData?: {
+      height: number;
+      weight: number;
+      age: number;
+      gender: string;
+    };
   };
 }

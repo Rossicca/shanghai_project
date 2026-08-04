@@ -6,7 +6,7 @@
  * - 非敏感通用配置仍在 server/config.json
  */
 
-const { DEMO_INGREDIENTS, pickMockRecipe, mockRecommendWorkout } = require('./demo-data');
+const { DEMO_INGREDIENTS, pickMockRecipe, mockRecipeRecommendations, mockRecommendWorkout } = require('./demo-data');
 const { config, isMockMode, isTextLlmReady } = require('./config');
 
 function httpJson(url, options) {
@@ -134,13 +134,13 @@ async function recognizeFood(imageBase64) {
   try {
     const content = await chat({
       model: config.ai.visionModel,
-      maxTokens: 900,
+      maxTokens: 1400,
       temperature: 0.2,
       messages: [
         {
           role: 'system',
           content:
-            '你是专业营养师，识别图片中的食物。严格只输出 JSON：{"ingredients":[{"name":"食材名","amount":"估重(g)","confidence":0-1}]}，最多 6 项。',
+            '你是专业营养师，识别图片中的食物。严格只输出 JSON：{"ingredients":[{"name":"食材名","amount":"估重(g)","confidence":0-1}]}，最多 12 项。',
         },
         {
           role: 'user',
@@ -159,10 +159,98 @@ async function recognizeFood(imageBase64) {
   }
 }
 
-/** 2. 生成菜谱 */
+function normalizeRecipeRecommendations(value, params) {
+  const list = Array.isArray(value?.recommendations) ? value.recommendations : [];
+  const videoById = new Map((params.videoCandidates || []).map((video) => [video.id, video]));
+  const seen = new Set();
+  return list
+    .map((item, index) => {
+      const sourceVideo = videoById.get(String(item?.sourceVideoId || ''));
+      return {
+        id: `candidate-${index + 1}`,
+        name: String(item?.name || '').trim().slice(0, 40),
+        coverEmoji: String(item?.coverEmoji || '🍽️').slice(0, 4),
+        category: String(item?.category || '家常菜').trim().slice(0, 16),
+        pantryLevel: ['existing', 'topup', 'explore'].includes(item?.pantryLevel) ? item.pantryLevel : 'topup',
+        description: String(item?.description || '').trim().slice(0, 120),
+        reason: String(item?.reason || '').trim().slice(0, 120),
+        availableIngredients: (Array.isArray(item?.availableIngredients) ? item.availableIngredients : [])
+          .map(String).map((name) => name.trim()).filter(Boolean).slice(0, 12),
+        missingIngredients: (Array.isArray(item?.missingIngredients) ? item.missingIngredients : [])
+          .map(String).map((name) => name.trim()).filter(Boolean).slice(0, 10),
+        cookTime: Math.max(5, Math.min(120, Number(item?.cookTime) || params.cookTime || 20)),
+        difficulty: ['简单', '中等', '困难'].includes(item?.difficulty) ? item.difficulty : '简单',
+        estimatedCalories: Math.max(100, Math.min(1200, Number(item?.estimatedCalories) || 400)),
+        sourceVideo: sourceVideo ? {
+          id: sourceVideo.id,
+          title: sourceVideo.title,
+          author: sourceVideo.author,
+          duration: sourceVideo.duration,
+          coverUrl: sourceVideo.coverUrl,
+          sourceUrl: sourceVideo.sourceUrl,
+          description: sourceVideo.description,
+          platform: 'bilibili',
+        } : null,
+      };
+    })
+    .filter((item) => item.name && item.sourceVideo && !seen.has(item.name) && seen.add(item.name))
+    .slice(0, 8);
+}
+
+/** 2. 根据现有食材和用户数据推荐多道候选菜。 */
+async function recommendRecipes(params) {
+  if (isMockMode() || !isTextLlmReady()) return mockRecipeRecommendations(params);
+  const mealTypeLabels = { any: '不限', breakfast: '早餐', lunch: '中餐', dinner: '晚餐', dessert: '甜点' };
+  const recommendationContext = {
+    ...params,
+    mealTypeLabel: mealTypeLabels[params.mealType] || '不限',
+  };
+  const content = await chat({
+    model: config.ai.textModel,
+    maxTokens: 4096,
+    temperature: 0.65,
+    responseFormat: { type: 'json_object' },
+    messages: [
+      {
+        role: 'system',
+        content: `你是懂营养搭配的全品类食物推荐师。系统已经先从网上检索到真实制作视频。你只能从给定 videoCandidates 中提取视频明确支持的常见菜品，再结合用户数据推荐。严格只输出 JSON：
+{"recommendations":[{"name":"视频明确支持的常见菜名或食物名","sourceVideoId":"必须原样引用候选 BV id","coverEmoji":"emoji","category":"快手主菜/汤羹/主食组合/早餐/甜品/烘焙/饮品/加餐等","pantryLevel":"existing/topup/explore","description":"一句话介绍","reason":"结合用户数据的推荐理由","availableIngredients":["用户已有且这道食物会用到的食材"],"missingIngredients":["还需购买的常见食材"],"cookTime":20,"difficulty":"简单/中等/困难","estimatedCalories":420}]}
+规则：
+1. 必须返回 8 道，每道绑定不同 sourceVideoId；菜名必须能从对应视频标题或简介直接判断，不准创造生僻新菜名；
+2. 至少覆盖 5 种不同制作形式或食物类别，任何同一 category 最多出现 2 道；优先包含炒、煎/烤、蒸/炖、汤羹、主食组合、早餐/轻食等明显不同方向，不能只是同一道菜更换调味；
+3. 其中约 3 道 pantryLevel=existing（补 0~2 样），3 道 topup（补 2~5 样），2 道 explore（现有食材可只做配料并补 3~8 样），让用户能真正换一种吃法；
+4. 若有牛奶、水果、坚果等合适食材，应自然加入有真实视频支持的甜品、早餐、饮品或加餐候选；
+5. availableIngredients 只能来自用户现有食材，missingIngredients 不能与现有食材重复；盐、油、水等基础调料无需列为缺料；
+6. 结合用户目标、身体数据、目标热量、人数和限时，推荐理由要具体；
+7. 严禁使用过敏源；名称之间不得重复；不得为了凑数量把不相容的食材硬拼在一起。`,
+      },
+      {
+        role: 'user',
+        content: `用户选择的用餐场景是“${recommendationContext.mealTypeLabel}”。除“不限”外，8 个候选都必须适合该场景；仍需保持做法和菜品差异。\n${JSON.stringify(recommendationContext)}`,
+      },
+    ],
+  });
+  const normalized = normalizeRecipeRecommendations(parseJson(content), params);
+  if (normalized.length < 7) throw new Error(`候选菜数量不足: ${normalized.length}`);
+  return normalized;
+}
+
+/** 3. 生成用户选定菜品的完整菜谱。 */
 async function generateRecipe(params) {
   if (isMockMode() || !isTextLlmReady()) {
     const recipe = pickMockRecipe(params.ingredients);
+    if (params.selectedDish?.name) {
+      recipe.name = String(params.selectedDish.name).slice(0, 40);
+      recipe.description = `按你选定的“${recipe.name}”生成，现有食材为主，缺少食材可按清单补齐。`;
+      const existing = new Set((recipe.ingredients || []).map((item) => item.name));
+      recipe.ingredients = [
+        ...(recipe.ingredients || []),
+        ...(params.selectedDish.missingIngredients || [])
+          .filter((name) => !existing.has(name))
+          .map((name) => ({ name, amount: '适量' })),
+      ];
+      if (params.selectedDish.sourceVideo) recipe.sourceVideo = params.selectedDish.sourceVideo;
+    }
     return { ...recipe, id: 'r' + Date.now() };
   }
   try {
@@ -191,7 +279,7 @@ async function generateRecipe(params) {
   "difficulty": "简单/中等/困难",
   "tips": ["提示1","提示2"]
 }
-数值要合理，确保总热量在目标热量 ±10% 范围内。食材不超过 10 项，步骤为 4~6 条，每条不超过 60 字，小贴士不超过 3 条。`,
+数值要合理，确保总热量在目标热量 ±10% 范围内。食材不超过 16 项，步骤为 4~8 条，每条不超过 60 字，小贴士不超过 3 条。`,
         },
         {
           role: 'user',
@@ -199,7 +287,11 @@ async function generateRecipe(params) {
 人数：${params.people || 1}
 限时：${params.cookTime || 20}分钟
 难度：${params.difficulty || '简单'}
+用餐场景：${({ any: '不限', breakfast: '早餐', lunch: '中餐', dinner: '晚餐', dessert: '甜点' })[params.mealType] || '不限'}
 ${params.style ? `做法偏好：${params.style}` : ''}
+${params.selectedDish?.name ? `用户已经选定菜品：${params.selectedDish.name}。必须生成这道菜，不要改成其他菜名。` : ''}
+${params.selectedDish?.missingIngredients?.length ? `允许补充的缺少食材：${params.selectedDish.missingIngredients.join('、')}` : ''}
+${params.selectedDish?.sourceVideo ? `制作依据视频：${params.selectedDish.sourceVideo.title}；视频简介：${params.selectedDish.sourceVideo.description || '无'}。步骤必须与该视频所示菜品一致，不得换成只含相似食材的其他菜。` : ''}
 ${params.user?.caloriesTarget ? `目标热量：${params.user.caloriesTarget}kcal/餐` : ''}
 ${params.user?.goal ? `健身目标：${params.user.goal}` : ''}
 ${params.user?.allergies?.length ? `严禁使用过敏源：${params.user.allergies.join('、')}` : ''}
@@ -208,7 +300,12 @@ ${params.user?.dietType ? `饮食类型：${params.user.dietType}` : ''}`,
       ],
     });
     const parsed = parseJson(content);
-    return { ...parsed, id: 'r' + Date.now() };
+    return {
+      ...parsed,
+      ...(params.selectedDish?.name ? { name: String(params.selectedDish.name).slice(0, 40) } : {}),
+      ...(params.selectedDish?.sourceVideo ? { sourceVideo: params.selectedDish.sourceVideo } : {}),
+      id: 'r' + Date.now(),
+    };
   } catch (e) {
     console.error('[ai] 真实菜谱生成调用失败:', e.message);
     throw e;
@@ -251,6 +348,7 @@ async function recommendWorkout(params) {
     }
   ]
 }
+
 推荐 6 个视频，覆盖不同难度和类别。理由要结合用户的身高体重年龄目标给出个性化建议。`,
         },
         {
@@ -271,6 +369,39 @@ async function recommendWorkout(params) {
     console.error('[ai] 真实健身推荐调用失败:', e.message);
     throw e;
   }
+}
+
+/** 只在真实检索结果中排序菜谱视频，模型不得编造链接或视频。 */
+async function rankRecipeVideos({ recipe, candidates }) {
+  if (isMockMode() || !isTextLlmReady()) return [];
+  const content = await chat({
+    model: config.ai.textModel,
+    maxTokens: 1000,
+    temperature: 0.2,
+    responseFormat: { type: 'json_object' },
+    messages: [
+      {
+        role: 'system',
+        content: `你是菜谱视频匹配助手。只能从候选列表选择视频，不得新增、改写 ID 或编造链接。
+根据菜名、食材和步骤选出最多 3 个最匹配的制作教程。优先完整做法、标题与菜名一致、食材相近的视频。
+严格只输出 JSON：{"recommendations":[{"id":"候选视频ID","reason":"一句具体匹配理由"}]}`,
+      },
+      { role: 'user', content: JSON.stringify({ recipe, candidates }) },
+    ],
+  });
+  const parsed = parseJson(content);
+  const byId = new Map(candidates.map((video) => [video.id, video]));
+  return (Array.isArray(parsed.recommendations) ? parsed.recommendations : [])
+    .map((item) => {
+      const candidate = byId.get(String(item.id));
+      if (!candidate) return null;
+      return {
+        ...candidate,
+        reason: String(item.reason || '').trim().slice(0, 120),
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 3);
 }
 
 function mockWorkoutPlan(params) {
@@ -339,4 +470,4 @@ weeklySchedule \u5929\u6570\u5fc5\u987b\u7b49\u4e8e weeklyFrequency\uff1b\u5355\
   return parseJson(content);
 }
 
-module.exports = { recognizeFood, generateRecipe, recommendWorkout, generateWorkoutPlan };
+module.exports = { recognizeFood, recommendRecipes, generateRecipe, recommendWorkout, generateWorkoutPlan, rankRecipeVideos };

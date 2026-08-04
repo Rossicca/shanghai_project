@@ -6,6 +6,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { generateRecipe } = require('../ai');
+const { sanitizeSelectedDish } = require('../recipe-discovery');
 const { pickMockRecipe } = require('../demo-data');
 
 // 每个用户每分钟最多生成 3 次
@@ -33,7 +34,7 @@ function checkRateLimit(userId) {
  */
 router.post('/generate', async (req, res) => {
   try {
-    const { sessionId, ingredients, mealType, servings, maxCookTime, difficulty, includeNutritionTarget } = req.body;
+    const { sessionId, ingredients, mealType, servings, maxCookTime, difficulty, includeNutritionTarget, selectedDish } = req.body;
     const userId = req.user?.userId || 'anonymous';
 
     let sourceIngredients = Array.isArray(ingredients) ? ingredients : [];
@@ -101,6 +102,7 @@ router.post('/generate', async (req, res) => {
       people: servings || 1,
       cookTime: maxCookTime || 20,
       difficulty: difficulty || '简单',
+      selectedDish: sanitizeSelectedDish(selectedDish),
       user: {
         caloriesTarget: targetCalories,
         goal: goal?.goalType || '保持健康',
@@ -146,6 +148,7 @@ router.post('/generate', async (req, res) => {
         name: recipeRecord.name,
         description: recipeRecord.description,
         coverEmoji: recipeRecord.coverEmoji,
+        sourceVideo: recipe.sourceVideo || null,
         prepTime: recipeRecord.prepTime || 5,
         cookTime: recipeRecord.cookTime,
         difficulty: recipeRecord.difficulty,

@@ -1,4 +1,4 @@
-import type { Recipe, RecipeGenerateParams } from '@/types/recipe';
+import type { Recipe, RecipeCandidate, RecipeGenerateParams, RecipeVideoRecommendation } from '@/types/recipe';
 import { AI_TIMEOUT } from '@/constants/config';
 
 import { api } from './api';
@@ -9,6 +9,7 @@ function mapRecipe(data: any): Recipe {
     name: String(data.name || '未命名菜谱'),
     description: String(data.description || ''),
     coverEmoji: data.coverEmoji || '🍽️',
+    sourceVideo: data.sourceVideo || null,
     calories: Number(data.nutrition?.calories ?? data.calories ?? 0),
     protein: Number(data.nutrition?.protein ?? data.protein ?? 0),
     carbs: Number(data.nutrition?.carbs ?? data.carbs ?? 0),
@@ -38,6 +39,7 @@ export async function generateRecipeV2(params: {
   maxCookTime?: number;
   difficulty?: string;
   mealType?: string;
+  selectedDish?: RecipeGenerateParams['selectedDish'];
 }) {
   const res = await api.post('/api/v1/recipes/generate', params, { timeout: AI_TIMEOUT });
   return res.data.data;
@@ -53,13 +55,15 @@ export async function generateRecipeFromSession(
     servings: params.people,
     maxCookTime: params.cookTime,
     difficulty: params.difficulty,
-    mealType: 'lunch',
+    mealType: params.mealType === 'any' ? undefined : params.mealType,
+    selectedDish: params.selectedDish,
   });
   return {
     id: data.recipeId,
     name: data.name,
     description: data.description || '',
     coverEmoji: data.coverEmoji || '🍽️',
+    sourceVideo: data.sourceVideo || null,
     calories: Number(data.nutrition?.calories || 0),
     protein: Number(data.nutrition?.protein || 0),
     carbs: Number(data.nutrition?.carbs || 0),
@@ -108,4 +112,23 @@ export async function fetchSavedRecipes() {
 export async function fetchRecipeHistory() {
   const res = await api.get('/api/v1/recipes/history/list');
   return (res.data.data || []).map(mapRecipe);
+}
+
+/** 先根据食材和用户数据生成 5–8 个候选，再由用户选择最终菜谱。 */
+export async function recommendRecipes(params: RecipeGenerateParams): Promise<RecipeCandidate[]> {
+  const res = await api.post('/api/recipe/recommendations', params, { timeout: AI_TIMEOUT });
+  return res.data.data.recommendations;
+}
+
+/** 实时检索与当前菜谱匹配的公开视频。 */
+export async function fetchRecipeVideos(recipe: Recipe): Promise<RecipeVideoRecommendation> {
+  const res = await api.post('/api/recipe/videos', {
+    recipe: {
+      name: recipe.name,
+      ingredients: recipe.ingredients,
+      steps: recipe.steps,
+      sourceVideo: recipe.sourceVideo,
+    },
+  }, { timeout: AI_TIMEOUT });
+  return res.data.data;
 }

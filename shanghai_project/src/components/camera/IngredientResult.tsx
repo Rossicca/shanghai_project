@@ -182,7 +182,7 @@ export function IngredientResult({ ingredients, imageId, notice, onChange, onRet
         <Button title="重拍" variant="outline" icon="camera-reverse" onPress={onRetake} />
         <View style={{ width: Spacing.two }} />
         <Button
-          title={`用 ${ingredients.length} 种食材生成菜谱`}
+          title={`用 ${ingredients.length} 种食材获取推荐`}
           onPress={goGenerate}
           icon="sparkles"
           size="large"

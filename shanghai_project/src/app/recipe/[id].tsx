@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { NutritionInfo } from '@/components/recipe/NutritionInfo';
+import { RecipeVideoSection } from '@/components/recipe/RecipeVideoSection';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Button } from '@/components/ui/Button';
@@ -11,6 +12,7 @@ import { Card } from '@/components/ui/Card';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { getToken } from '@/services/api';
+import { recipeCoverUrl } from '@/services/media';
 import { fetchRecipe, reimagineRecipe } from '@/services/recipe';
 import { useRecipeStore } from '@/store/recipeStore';
 import { useUserStore } from '@/store/userStore';
@@ -19,19 +21,38 @@ import { estimateTargetCalories } from '@/utils/nutrition';
 export default function RecipeDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useTheme();
-  const { currentRecipe, selectRecipe, savedRecipes, saveRecipe, unsaveRecipe, loadLocal } =
+  const {
+    currentRecipe,
+    selectRecipe,
+    savedRecipes,
+    saveRecipe,
+    unsaveRecipe,
+    loadLocal,
+    generateRecipe,
+    recipeQueue,
+    recipeQueueParams,
+    recipeQueueRecipeId,
+    recipeQueueTotal,
+    advanceRecipeQueue,
+    moveRecipeQueue,
+    clearRecipeQueue,
+  } =
     useRecipeStore();
   const bodyData = useUserStore((s) => s.bodyData);
   const goal = useUserStore((s) => s.goal);
 
   const [switching, setSwitching] = useState(false);
+  const [generatingNext, setGeneratingNext] = useState(false);
   const [switchError, setSwitchError] = useState('');
   const [detailRecipe, setDetailRecipe] = useState(currentRecipe?.id === id ? currentRecipe : null);
   const [detailLoading, setDetailLoading] = useState(Boolean(id && currentRecipe?.id !== id && getToken()));
   const [saveError, setSaveError] = useState('');
+  const [failedCoverId, setFailedCoverId] = useState('');
   const recipe = currentRecipe?.id === id ? currentRecipe : detailRecipe?.id === id ? detailRecipe : null;
   const saved = recipe ? savedRecipes.some((r) => r.id === recipe.id) : false;
   const targetCalories = recipe?.nutritionTarget?.targetCalories ?? estimateTargetCalories(bodyData, goal);
+  const queueActive = recipeQueueRecipeId === recipe?.id;
+  const nextCandidate = queueActive ? recipeQueue[0] : null;
 
   useEffect(() => {
     loadLocal();
@@ -73,6 +94,8 @@ export default function RecipeDetail() {
     try {
       const next = await reimagineRecipe(recipe.id, 'stir_fry');
       selectRecipe(next);
+      if (queueActive) moveRecipeQueue(next.id);
+      router.replace({ pathname: '/recipe/[id]', params: { id: next.id } });
     } catch (error) {
       setSwitchError((error as Error).message || '换做法失败，请重试');
     } finally {
@@ -80,11 +103,54 @@ export default function RecipeDetail() {
     }
   }
 
+  async function makeNextRecipe() {
+    if (!nextCandidate || !recipeQueueParams || generatingNext) return;
+    setGeneratingNext(true);
+    setSwitchError('');
+    try {
+      const next = await generateRecipe({
+        ...recipeQueueParams,
+        selectedDish: {
+          name: nextCandidate.name,
+          missingIngredients: nextCandidate.missingIngredients,
+          pantryLevel: nextCandidate.pantryLevel,
+          sourceVideo: nextCandidate.sourceVideo,
+        },
+      });
+      advanceRecipeQueue(next.id);
+      router.replace({ pathname: '/recipe/[id]', params: { id: next.id } });
+    } catch (error) {
+      setSwitchError((error as Error).message || '下一道菜生成失败，请重试');
+    } finally {
+      setGeneratingNext(false);
+    }
+  }
+
+  function finishCookingQueue() {
+    clearRecipeQueue();
+    router.replace('/recipe');
+  }
+
   return (
     <ThemedView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={[styles.cover, { backgroundColor: colors.primarySoft }]}>
-          <Text style={styles.coverEmoji}>{recipe.coverEmoji}</Text>
+          {recipeCoverUrl(recipe.sourceVideo?.coverUrl) && failedCoverId !== recipe.id ? (
+            <>
+              <Image
+                source={{ uri: recipeCoverUrl(recipe.sourceVideo?.coverUrl) }}
+                style={styles.coverImage}
+                resizeMode="cover"
+                onError={() => setFailedCoverId(recipe.id)}
+              />
+              <View style={styles.coverSource}>
+                <Ionicons name="play-circle" size={14} color="#FFFFFF" />
+                <Text style={styles.coverSourceText}>教程视频封面</Text>
+              </View>
+            </>
+          ) : (
+            <Text style={styles.coverEmoji}>{recipe.coverEmoji}</Text>
+          )}
         </View>
 
         <ThemedText type="title">{recipe.name}</ThemedText>
@@ -135,6 +201,8 @@ export default function RecipeDetail() {
           ))}
         </Card>
 
+        <RecipeVideoSection key={recipe.id} recipe={recipe} />
+
         {recipe.tips?.length ? (
           <Card>
             <ThemedText type="subtitle">小贴士</ThemedText>
@@ -168,6 +236,35 @@ export default function RecipeDetail() {
           <Button title="换一种做法" icon="refresh" variant="secondary" onPress={switchRecipe} loading={switching} style={{ flex: 1 }} />
         </View>
 
+        {nextCandidate ? (
+          <View style={[styles.nextCard, { backgroundColor: colors.primarySoft }]}>
+            <View style={styles.nextCopy}>
+              <ThemedText type="small" themeColor="textSecondary">多选清单 · 还剩 {recipeQueue.length} 道</ThemedText>
+              <ThemedText type="subtitle" numberOfLines={1}>下一道：{nextCandidate.name}</ThemedText>
+            </View>
+            <Button
+              title="做下一道菜"
+              icon="arrow-forward"
+              onPress={makeNextRecipe}
+              loading={generatingNext}
+              disabled={switching}
+            />
+          </View>
+        ) : queueActive ? (
+          <View style={[styles.nextCard, { backgroundColor: colors.primarySoft }]}>
+            <View style={styles.nextCopy}>
+              <ThemedText type="small" themeColor="textSecondary">本次共制作 {recipeQueueTotal} 道菜</ThemedText>
+              <ThemedText type="subtitle">全部做好了</ThemedText>
+            </View>
+            <Button
+              title="完成本次制作"
+              icon="checkmark-circle"
+              onPress={finishCookingQueue}
+              disabled={switching || generatingNext}
+            />
+          </View>
+        ) : null}
+
         {switchError || saveError ? <ThemedText type="small" themeColor="danger">{switchError || saveError}</ThemedText> : null}
 
         <ThemedText type="small" themeColor="textSecondary" style={styles.tip}>
@@ -183,6 +280,9 @@ const styles = StyleSheet.create({
   content: { padding: Spacing.three, gap: Spacing.three },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.three },
   cover: { height: 160, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  coverImage: { width: '100%', height: '100%', borderRadius: 20 },
+  coverSource: { position: 'absolute', left: Spacing.two, bottom: Spacing.two, flexDirection: 'row', alignItems: 'center', gap: Spacing.one, backgroundColor: 'rgba(0,0,0,0.68)', borderRadius: 12, paddingHorizontal: Spacing.two, paddingVertical: Spacing.one },
+  coverSourceText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
   coverEmoji: { fontSize: 80 },
   metaRow: { flexDirection: 'row', gap: Spacing.two },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two, borderRadius: 12 },
@@ -191,5 +291,7 @@ const styles = StyleSheet.create({
   stepNum: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   tipRow: { flexDirection: 'row', gap: Spacing.two, marginVertical: Spacing.one, alignItems: 'center' },
   actions: { flexDirection: 'row' },
+  nextCard: { borderRadius: 16, padding: Spacing.three, gap: Spacing.two },
+  nextCopy: { gap: Spacing.one },
   tip: { textAlign: 'center' },
 });

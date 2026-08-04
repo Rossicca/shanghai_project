@@ -59,6 +59,7 @@ async function run() {
     assert.equal(health.data.ok, true);
     assert.equal(health.data.mode, 'demo', '没有本地 AI 密钥时必须明确标记为 demo');
     assert.ok(health.headers.get('x-request-id'), '响应必须包含 X-Request-ID');
+    await request('/api/media/bilibili-cover?url=https%3A%2F%2Fevil.example.com%2Fcover.jpg', { status: 400 });
 
     const unauthenticated = await request('/api/v1/recognition/history', { status: 401 });
     assert.ok(unauthenticated.data.error.requestId, '\u9519\u8bef\u54cd\u5e94\u5fc5\u987b\u5305\u542b requestId');
@@ -308,11 +309,37 @@ async function run() {
       body: { image: 'dGVzdA==' },
     });
     assert.ok(legacyRecognition.data.ingredients.length > 0);
+    const recommendations = await request('/api/recipe/recommendations', {
+      method: 'POST',
+      body: {
+        ingredients: [{ name: '牛奶', amount: '500ml' }, { name: '核桃', amount: '50g' }],
+        people: 1,
+        cookTime: 30,
+        user: { goal: '保持健康', caloriesTarget: 450 },
+      },
+    });
+    assert.equal(recommendations.data.data.recommendations.length, 8);
+    assert.ok(new Set(recommendations.data.data.recommendations.map((item) => item.category)).size >= 5);
+    const categoryCounts = recommendations.data.data.recommendations.reduce((counts, item) => ({
+      ...counts,
+      [item.category]: (counts[item.category] || 0) + 1,
+    }), {});
+    assert.ok(Math.max(...Object.values(categoryCounts)) <= 2);
+    assert.ok(recommendations.data.data.recommendations.some((item) => ['甜品', '早餐', '饮品'].includes(item.category)));
+    assert.ok(recommendations.data.data.recommendations.every((item) =>
+      Array.isArray(item.availableIngredients) && Array.isArray(item.missingIngredients)
+    ));
+    const selectedDish = recommendations.data.data.recommendations[0];
     const legacyRecipe = await request('/api/recipe/generate', {
       method: 'POST',
-      body: { ingredients: legacyRecognition.data.ingredients, people: 1, cookTime: 20 },
+      body: {
+        ingredients: legacyRecognition.data.ingredients,
+        people: 1,
+        cookTime: 20,
+        selectedDish: { name: selectedDish.name, missingIngredients: selectedDish.missingIngredients },
+      },
     });
-    assert.ok(legacyRecipe.data.recipe.name);
+    assert.equal(legacyRecipe.data.recipe.name, selectedDish.name);
     const legacyWorkout = await request('/api/workout/recommend', {
       method: 'POST',
       body: {
