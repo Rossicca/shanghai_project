@@ -11,11 +11,12 @@ const { config, isMockMode, isTextLlmReady } = require('./config');
 
 function httpJson(url, options) {
   const u = new URL(url);
+  const timeout = options.timeout || 60000;
   return new Promise((resolve, reject) => {
     const mod = require(u.protocol === 'http:' ? 'http' : 'https');
     const req = mod.request(
       u,
-      { method: options.method || 'POST', headers: options.headers, timeout: 60000 },
+      { method: options.method || 'POST', headers: options.headers, timeout },
       (res) => {
         let data = '';
         res.on('data', (c) => (data += c));
@@ -49,8 +50,9 @@ function parseJson(text) {
   throw new Error(`模型输出不是合法 JSON (length=${str.length})`);
 }
 
-async function chat({ model, messages, temperature = 0.7, maxTokens = 1500, responseFormat, reasoningEffort = config.ai.reasoningEffort }) {
+async function chat({ model, messages, temperature = 0.7, maxTokens = 1500, responseFormat, reasoningEffort = config.ai.reasoningEffort, timeout = 60000 }) {
   const res = await httpJson(`${config.ai.baseURL}/chat/completions`, {
+    timeout,
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${config.ai.apiKey}`,
@@ -487,8 +489,9 @@ async function generateWorkoutPlan(params) {
   });
   const content = await chat({
     model: config.ai.textModel,
-    maxTokens: 4096,
+    maxTokens: 8192,
     temperature: 0.35,
+    timeout: 120000,
     responseFormat: { type: 'json_object' },
     messages: [
       {

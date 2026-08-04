@@ -39,12 +39,12 @@ export default function RecipeTab() {
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <ScrollView contentContainerStyle={styles.content}>
 
-          {/* ====== 识别菜：拍照识别食材 ====== */}
+          {/* ====== 识别食材：拍照识别食材 ====== */}
           <View style={styles.sectionHeader}>
             <View style={[styles.sectionIcon, { backgroundColor: colors.successSoft }]}>
               <Ionicons name="camera" size={18} color={colors.success} />
             </View>
-            <ThemedText type="subtitle">识别菜</ThemedText>
+            <ThemedText type="subtitle">识别食材</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">拍食材 → AI 识别 → 生成菜谱</ThemedText>
           </View>
 
@@ -78,12 +78,12 @@ export default function RecipeTab() {
             </ScrollView>
           )}
 
-          {/* ====== 推荐菜：根据身体数据推荐饮食 ====== */}
+          {/* ====== 推荐菜谱：根据身体数据推荐饮食 ====== */}
           <View style={styles.sectionHeader}>
             <View style={[styles.sectionIcon, { backgroundColor: colors.primarySoft }]}>
               <Ionicons name="restaurant" size={18} color={colors.primary} />
             </View>
-            <ThemedText type="subtitle">推荐菜</ThemedText>
+            <ThemedText type="subtitle">推荐菜谱</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
               {bodyData
                 ? `基于 BMI ${bmi?.toFixed(1) ?? '--'} · ${bmiLabel(bmi)} · ${goal?.type ?? '健康'} · 目标 ${calTarget ?? '--'} 千卡/天`
