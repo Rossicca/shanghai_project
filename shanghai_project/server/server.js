@@ -146,6 +146,7 @@ app.post('/api/recipe/recommendations', async (req, res) => {
       people: req.body.people ?? 1,
       cookTime: req.body.cookTime ?? 30,
       difficulty: req.body.difficulty ?? '简单',
+      mealType: req.body.mealType ?? 'any',
       user: req.body.user,
     });
     res.json({ data: { recommendations } });
@@ -165,6 +166,7 @@ app.post('/api/recipe/generate', async (req, res) => {
       people: req.body.people ?? 1,
       cookTime: req.body.cookTime ?? 20,
       difficulty: req.body.difficulty ?? '简单',
+      mealType: req.body.mealType ?? 'any',
       selectedDish: sanitizeSelectedDish(req.body.selectedDish),
       user: req.body.user,
     });

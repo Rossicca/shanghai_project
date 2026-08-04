@@ -123,6 +123,8 @@ function mockRecipeRecommendations(params) {
       { name: `${nut}燕麦能量球`, emoji: '🍪', category: '加餐', required: [nut, '燕麦', '蜂蜜'], minutes: 15, calories: 320 },
       { name: `奶香${nut}吐司`, emoji: '🍞', category: '烘焙', required: [dairy, nut, '吐司', '鸡蛋'], minutes: 18, calories: 410 },
       { name: `${dairy}南瓜浓汤`, emoji: '🥣', category: '汤羹', required: [dairy, '南瓜', '洋葱'], minutes: 25, calories: 300 },
+      { name: `香蕉${dairy}燕麦煎饼`, emoji: '🥞', category: '快手早餐', required: [dairy, '香蕉', '燕麦', '鸡蛋'], minutes: 15, calories: 390 },
+      { name: `${nut}酸奶水果碗`, emoji: '🍓', category: '轻食加餐', required: [nut, '酸奶', '草莓', '苹果'], minutes: 6, calories: 290 },
     ];
   } else {
     templates = [
@@ -132,6 +134,8 @@ function mockRecipeRecommendations(params) {
       { name: `${main}菌菇豆腐煲`, emoji: '🍲', category: '炖菜', required: [main, '豆腐', '香菇'], minutes: 30, calories: 390 },
       { name: `${main}荞麦拌面`, emoji: '🍜', category: '轻食主食', required: [main, '荞麦面', '黄瓜', '芝麻酱'], minutes: 18, calories: 450 },
       { name: `${main}彩蔬烘蛋`, emoji: '🥚', category: '高蛋白轻食', required: [main, '鸡蛋', '彩椒', '牛奶'], minutes: 22, calories: 360 },
+      { name: `${main}咖喱杂蔬饭`, emoji: '🍛', category: '一锅主食', required: [main, '咖喱', '土豆', '胡萝卜', '米饭'], minutes: 35, calories: 560 },
+      { name: `${main}蔬菜蛋饼`, emoji: '🥞', category: '快手早餐', required: [main, '鸡蛋', '面粉', '胡萝卜'], minutes: 16, calories: 400 },
     ];
   }
   return templates.map((item, index) => {
@@ -144,7 +148,7 @@ function mockRecipeRecommendations(params) {
       name: item.name,
       coverEmoji: item.emoji,
       category: item.category,
-      pantryLevel: index < 2 ? 'existing' : index < 4 ? 'topup' : 'explore',
+      pantryLevel: index < 3 ? 'existing' : index < 6 ? 'topup' : 'explore',
       description: `以${main}为主食材的${item.category}方案，允许补充少量常见食材获得更完整的口味。`,
       reason: `结合现有${availableNames.slice(0, 3).join('、') || main}与${params.user?.goal || '日常均衡'}目标推荐。`,
       availableIngredients,

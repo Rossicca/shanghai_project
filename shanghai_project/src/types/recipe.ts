@@ -95,6 +95,7 @@ export interface RecipeGenerateParams {
   people: number;
   cookTime: number;
   difficulty: '简单' | '中等' | '困难';
+  mealType: 'any' | 'breakfast' | 'lunch' | 'dinner' | 'dessert';
   selectedDish?: Pick<RecipeCandidate, 'name' | 'missingIngredients' | 'pantryLevel' | 'sourceVideo'>;
   /** 用户身体数据/目标（用于热量对比），可空 */
   user?: {

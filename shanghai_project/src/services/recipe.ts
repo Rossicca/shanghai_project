@@ -55,7 +55,7 @@ export async function generateRecipeFromSession(
     servings: params.people,
     maxCookTime: params.cookTime,
     difficulty: params.difficulty,
-    mealType: 'lunch',
+    mealType: params.mealType === 'any' ? undefined : params.mealType,
     selectedDish: params.selectedDish,
   });
   return {

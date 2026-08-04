@@ -318,7 +318,13 @@ async function run() {
         user: { goal: '保持健康', caloriesTarget: 450 },
       },
     });
-    assert.ok(recommendations.data.data.recommendations.length >= 5);
+    assert.equal(recommendations.data.data.recommendations.length, 8);
+    assert.ok(new Set(recommendations.data.data.recommendations.map((item) => item.category)).size >= 5);
+    const categoryCounts = recommendations.data.data.recommendations.reduce((counts, item) => ({
+      ...counts,
+      [item.category]: (counts[item.category] || 0) + 1,
+    }), {});
+    assert.ok(Math.max(...Object.values(categoryCounts)) <= 2);
     assert.ok(recommendations.data.data.recommendations.some((item) => ['甜品', '早餐', '饮品'].includes(item.category)));
     assert.ok(recommendations.data.data.recommendations.every((item) =>
       Array.isArray(item.availableIngredients) && Array.isArray(item.missingIngredients)

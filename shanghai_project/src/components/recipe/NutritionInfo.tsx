@@ -61,7 +61,7 @@ export function NutritionInfo({ calories, protein, carbs, fat, targetCalories }:
         <View style={styles.donutWrap}>
           <Svg width={SIZE} height={SIZE}>
             <Circle cx={SIZE / 2} cy={SIZE / 2} r={RADIUS} stroke={colors.backgroundElement} strokeWidth={STROKE} fill="none" />
-            {arcs.map((a) => (
+            {arcs.filter((a) => a.dash > 0).map((a) => (
               <Circle
                 key={a.key}
                 cx={SIZE / 2}
@@ -70,8 +70,11 @@ export function NutritionInfo({ calories, protein, carbs, fat, targetCalories }:
                 stroke={a.color}
                 strokeWidth={STROKE}
                 fill="none"
-                strokeDasharray={`${a.dash} ${CIRCUMFERENCE - a.dash}`}
-                strokeDashoffset={a.startOffset}
+                strokeDasharray={[
+                  Math.max(a.dash, 0.001),
+                  Math.max(CIRCUMFERENCE - a.dash, 0.001),
+                ]}
+                strokeDashoffset={Number.isFinite(a.startOffset) ? a.startOffset : 0}
                 strokeLinecap="butt"
                 rotation={-90}
                 origin={`${SIZE / 2}, ${SIZE / 2}`}
