@@ -1,5 +1,5 @@
 import type { WorkoutPlan, WorkoutPlanInput, WorkoutRecommendParams, WorkoutVideo } from '@/types/workout';
-import { AI_TIMEOUT } from '@/constants/config';
+import { AI_TIMEOUT, API_BASE_URL } from '@/constants/config';
 
 import { api } from './api';
 
@@ -18,7 +18,9 @@ function mapWorkoutVideo(item: any): WorkoutVideo {
     category: item.category || item.categoryName || '\u5168\u8eab\u71c3\u8102',
     calories: Number(item.calories || 0),
     coverColor: item.coverColor || '#2FA886',
-    coverUrl: item.coverUrl || null,
+    coverUrl: item.coverUrl
+      ? (item.coverUrl.startsWith('/') ? `${API_BASE_URL}${item.coverUrl}` : item.coverUrl)
+      : null,
     source: typeof item.source === 'string' && /^https?:\/\//.test(item.source) ? item.source : undefined,
     sourceUrl: item.sourceUrl || item.videoUrl || undefined,
     platform: item.platform || 'bilibili',

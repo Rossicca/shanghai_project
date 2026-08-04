@@ -45,8 +45,13 @@ export function WorkoutFeedItem({ video, active, saved, onToggleSave, onOpen }: 
     <View style={styles.item}>
       <VideoPlayer video={video} playing={active} />
 
-      {/* 底部渐变：仅底部 40% 渐变，保证文字可读 */}
-      <View style={styles.bottomFade} />
+      {/* 底部渐变：多层叠加模拟 CSS linear-gradient(to top, rgba(0,0,0,0.6), transparent) */}
+      <View style={styles.gradientContainer}>
+        <View style={[styles.gradStep, { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }]} />
+        <View style={[styles.gradStep, { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' }]} />
+        <View style={[styles.gradStep, { flex: 1, backgroundColor: 'rgba(0,0,0,0.18)' }]} />
+        <View style={[styles.gradStep, { flex: 1, backgroundColor: 'rgba(0,0,0,0.06)' }]} />
+      </View>
 
       {/* 右侧操作栏 */}
       <View style={styles.actions}>
@@ -97,11 +102,11 @@ export function WorkoutFeedItem({ video, active, saved, onToggleSave, onOpen }: 
 const styles = StyleSheet.create({
   item: { flex: 1, position: 'relative', backgroundColor: '#000' },
 
-  // 底部渐变（仅底部 45% 从透明到半黑）
-  bottomFade: {
-    position: 'absolute', left: 0, right: 0, bottom: 0, height: '45%',
-    // RN 不支持 CSS linear-gradient，用两层 View 模拟
+  // 底部渐变：4层叠加，从底到顶 opacity 递减
+  gradientContainer: {
+    position: 'absolute', left: 0, right: 0, bottom: 0, height: '50%',
   },
+  gradStep: {},
 
   actions: {
     position: 'absolute', right: 14, bottom: 130, gap: 24, alignItems: 'center',
