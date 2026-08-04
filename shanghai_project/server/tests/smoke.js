@@ -306,7 +306,7 @@ async function run() {
 
     const legacyRecognition = await request('/api/recognize', {
       method: 'POST',
-      body: { image: 'dGVzdA==' },
+      body: { image: 'data:image/jpeg;base64,dGVzdA==' },
     });
     assert.ok(legacyRecognition.data.ingredients.length > 0);
     const recommendations = await request('/api/recipe/recommendations', {

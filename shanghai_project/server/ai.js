@@ -126,11 +126,23 @@ async function recognizeFoodBaidu(imageBase64) {
   }));
 }
 
+function normalizeVisionImage(value) {
+  return String(value || '')
+    .trim()
+    .replace(/^data:image\/[a-z0-9.+-]+;base64,/i, '')
+    .replace(/\s+/g, '');
+}
+
 /** 1. 识别食物 */
 async function recognizeFood(imageBase64) {
-  if (isMockMode()) return DEMO_INGREDIENTS.map((i) => ({ ...i }));
+  const normalizedImage = normalizeVisionImage(imageBase64);
+  if (!normalizedImage) throw new Error('图片数据为空或格式无效');
+  if (isMockMode()) {
+    if (process.env.AI_FORCE_DEMO === 'true') return DEMO_INGREDIENTS.map((i) => ({ ...i }));
+    throw new Error('AI 视觉模型未配置，已拒绝返回固定演示食材');
+  }
   // 百度云：走专用菜品识别 API（无需视觉大模型）
-  if (config.ai.provider === 'baidu') return recognizeFoodBaidu(imageBase64);
+  if (config.ai.provider === 'baidu') return recognizeFoodBaidu(normalizedImage);
   try {
     const content = await chat({
       model: config.ai.visionModel,
@@ -146,7 +158,7 @@ async function recognizeFood(imageBase64) {
           role: 'user',
           content: [
             { type: 'text', text: '识别这张图片里的食物，给出名称、估算重量和置信度。' },
-            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imageBase64}` } },
+            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${normalizedImage}` } },
           ],
         },
       ],
