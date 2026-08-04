@@ -7,6 +7,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Card } from '@/components/ui/Card';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { recipeCoverUrl } from '@/services/media';
 import { fetchRecipeVideos } from '@/services/recipe';
 import type { Recipe, RecipeVideoRecommendation } from '@/types/recipe';
 
@@ -62,7 +63,9 @@ export function RecipeVideoSection({ recipe }: { recipe: Recipe }) {
         <View style={styles.headerCopy}>
           <ThemedText type="subtitle">跟着视频做</ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
-            汇集多个视频平台，优先展示 AI 匹配结果
+            {recipe.sourceVideo
+              ? '首条是你选菜时参考的原教程，菜谱与视频保持一致'
+              : '汇集多个视频平台，优先展示 AI 匹配结果'}
           </ThemedText>
         </View>
       </View>
@@ -84,7 +87,7 @@ export function RecipeVideoSection({ recipe }: { recipe: Recipe }) {
               onPress={() => openUrl(video.sourceUrl)}
               style={({ pressed }) => [styles.video, { opacity: pressed ? 0.72 : 1 }]}>
               <View style={[styles.thumbnail, { backgroundColor: colors.backgroundElement }]}>
-                {video.coverUrl ? <Image source={{ uri: video.coverUrl }} style={styles.image} /> : null}
+                {recipeCoverUrl(video.coverUrl) ? <Image source={{ uri: recipeCoverUrl(video.coverUrl) }} style={styles.image} /> : null}
                 <View style={styles.playBadge}>
                   <Ionicons name="play" size={16} color="#FFFFFF" />
                 </View>

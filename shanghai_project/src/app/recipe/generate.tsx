@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { recipeCoverUrl } from '@/services/media';
 import { recommendRecipes } from '@/services/recipe';
 import { useRecipeStore } from '@/store/recipeStore';
 import { useUserStore } from '@/store/userStore';
@@ -16,6 +17,11 @@ import type { RecipeCandidate, RecipeGenerateParams } from '@/types/recipe';
 
 const COOK_TIMES = [10, 20, 30, 45, 60];
 const DIFFICULTIES = ['简单', '中等', '困难'] as const;
+const PANTRY_LABELS = {
+  existing: '少量补充',
+  topup: '补几样更丰富',
+  explore: '换一种吃法',
+} as const;
 
 export default function GenerateRecipe() {
   const colors = useTheme();
@@ -98,6 +104,8 @@ export default function GenerateRecipe() {
       const recipe = await generateRecipe(buildParams({
         name: candidate.name,
         missingIngredients: candidate.missingIngredients,
+        pantryLevel: candidate.pantryLevel,
+        sourceVideo: candidate.sourceVideo,
       }));
       selectRecipe(recipe);
       router.push({ pathname: '/recipe/[id]', params: { id: recipe.id } });
@@ -264,11 +272,17 @@ export default function GenerateRecipe() {
                       },
                     ]}>
                     <View style={styles.candidateTop}>
-                      <Text style={styles.candidateEmoji}>{candidate.coverEmoji}</Text>
+                      <View style={[styles.candidateCover, { backgroundColor: colors.backgroundElement }]}>
+                        <Text style={styles.candidateEmoji}>{candidate.coverEmoji}</Text>
+                        {recipeCoverUrl(candidate.sourceVideo?.coverUrl) ? (
+                          <Image source={{ uri: recipeCoverUrl(candidate.sourceVideo?.coverUrl) }} style={styles.candidateCoverImage} />
+                        ) : null}
+                      </View>
                       <View style={styles.candidateTitleWrap}>
                         <ThemedText type="subtitle">{candidate.name}</ThemedText>
                         <View style={styles.metaLine}>
                           <ThemedText type="small" themeColor="primary">{candidate.category}</ThemedText>
+                          <ThemedText type="small" themeColor="warning">{PANTRY_LABELS[candidate.pantryLevel]}</ThemedText>
                           <ThemedText type="small" themeColor="textSecondary">{candidate.cookTime} 分钟</ThemedText>
                           <ThemedText type="small" themeColor="textSecondary">约 {candidate.estimatedCalories} kcal</ThemedText>
                         </View>
@@ -279,6 +293,18 @@ export default function GenerateRecipe() {
                         color={isSelected ? colors.primary : colors.textSecondary}
                       />
                     </View>
+
+                    {candidate.sourceVideo ? (
+                      <View style={[styles.videoEvidence, { backgroundColor: colors.backgroundElement }]}>
+                        <Ionicons name="play-circle" size={17} color={colors.primary} />
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <ThemedText type="smallBold" numberOfLines={1}>真实教程依据</ThemedText>
+                          <ThemedText type="small" themeColor="textSecondary" numberOfLines={2}>
+                            {candidate.sourceVideo.title} · {candidate.sourceVideo.author}
+                          </ThemedText>
+                        </View>
+                      </View>
+                    ) : null}
 
                     <ThemedText type="small" themeColor="textSecondary">{candidate.description}</ThemedText>
 
@@ -353,11 +379,14 @@ const styles = StyleSheet.create({
   candidateList: { gap: Spacing.two },
   candidate: { borderWidth: 1, borderRadius: Radius.card, padding: Spacing.three, gap: Spacing.two },
   candidateTop: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  candidateCover: { width: 92, height: 66, borderRadius: Radius.button, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+  candidateCoverImage: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, width: '100%', height: '100%' },
   candidateEmoji: { fontSize: 30 },
   candidateTitleWrap: { flex: 1, minWidth: 0, gap: Spacing.one },
   metaLine: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
   ingredientSummary: { gap: Spacing.one },
   ingredientLine: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.one },
+  videoEvidence: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, borderRadius: Radius.button, padding: Spacing.two },
   reasonRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.one },
   tip: { textAlign: 'center' },
 });

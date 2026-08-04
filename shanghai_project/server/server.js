@@ -22,8 +22,9 @@ const workoutPlanRoutes = require('./routes/workout-plans');
 const statsRoutes = require('./routes/stats');
 
 // 旧版兼容路由（保持前端现有调用可用）
-const { recognizeFood, recommendRecipes, generateRecipe, recommendWorkout } = require('./ai');
+const { recognizeFood, generateRecipe, recommendWorkout } = require('./ai');
 const { DEMO_INGREDIENTS, WORKOUT_LIBRARY, pickMockRecipe, mockRecommendWorkout } = require('./demo-data');
+const { discoverRecipeRecommendations, sanitizeSelectedDish } = require('./recipe-discovery');
 const { recommendRecipeVideos } = require('./recipe-videos');
 
 const app = express();
@@ -68,6 +69,31 @@ app.use((req, res, next) => {
 // ---- 健康检查 ----
 app.get('/health', (req, res) => {
   res.json({ ok: true, mode: isMockMode() ? 'demo' : 'real', timestamp: new Date().toISOString() });
+});
+
+// B站封面禁止 localhost 热链；仅代理已验证的官方图片域名。
+app.get('/api/media/bilibili-cover', async (req, res) => {
+  try {
+    const target = new URL(String(req.query.url || ''));
+    if (target.protocol !== 'https:' || !/(^|\.)hdslb\.com$/i.test(target.hostname)) {
+      return res.status(400).json({ error: { code: 'INVALID_MEDIA_URL', message: '无效的封面地址' } });
+    }
+    const response = await fetch(target, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0',
+        Referer: 'https://www.bilibili.com/',
+      },
+    });
+    if (!response.ok) throw new Error(`cover HTTP ${response.status}`);
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+    if (!contentType.startsWith('image/')) throw new Error('cover content type invalid');
+    res.set('Content-Type', contentType);
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.send(Buffer.from(await response.arrayBuffer()));
+  } catch (error) {
+    console.warn('[media] B站封面代理失败:', error.message);
+    res.status(502).json({ error: { code: 'MEDIA_PROXY_FAILED', message: '封面加载失败' } });
+  }
 });
 
 // ---- API v1 路由 (带认证) ----
@@ -115,7 +141,7 @@ app.post('/api/recipe/recommendations', async (req, res) => {
     });
   }
   try {
-    const recommendations = await recommendRecipes({
+    const recommendations = await discoverRecipeRecommendations({
       ingredients: ingredients.slice(0, 15),
       people: req.body.people ?? 1,
       cookTime: req.body.cookTime ?? 30,
@@ -139,7 +165,7 @@ app.post('/api/recipe/generate', async (req, res) => {
       people: req.body.people ?? 1,
       cookTime: req.body.cookTime ?? 20,
       difficulty: req.body.difficulty ?? '简单',
-      selectedDish: req.body.selectedDish,
+      selectedDish: sanitizeSelectedDish(req.body.selectedDish),
       user: req.body.user,
     });
     res.json({ recipe: { ...recipe, id: 'r' + Date.now() } });

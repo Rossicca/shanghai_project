@@ -9,6 +9,7 @@ function mapRecipe(data: any): Recipe {
     name: String(data.name || '未命名菜谱'),
     description: String(data.description || ''),
     coverEmoji: data.coverEmoji || '🍽️',
+    sourceVideo: data.sourceVideo || null,
     calories: Number(data.nutrition?.calories ?? data.calories ?? 0),
     protein: Number(data.nutrition?.protein ?? data.protein ?? 0),
     carbs: Number(data.nutrition?.carbs ?? data.carbs ?? 0),
@@ -62,6 +63,7 @@ export async function generateRecipeFromSession(
     name: data.name,
     description: data.description || '',
     coverEmoji: data.coverEmoji || '🍽️',
+    sourceVideo: data.sourceVideo || null,
     calories: Number(data.nutrition?.calories || 0),
     protein: Number(data.nutrition?.protein || 0),
     carbs: Number(data.nutrition?.carbs || 0),
@@ -125,6 +127,7 @@ export async function fetchRecipeVideos(recipe: Recipe): Promise<RecipeVideoReco
       name: recipe.name,
       ingredients: recipe.ingredients,
       steps: recipe.steps,
+      sourceVideo: recipe.sourceVideo,
     },
   }, { timeout: AI_TIMEOUT });
   return res.data.data;

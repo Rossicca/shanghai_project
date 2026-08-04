@@ -59,6 +59,7 @@ async function run() {
     assert.equal(health.data.ok, true);
     assert.equal(health.data.mode, 'demo', '没有本地 AI 密钥时必须明确标记为 demo');
     assert.ok(health.headers.get('x-request-id'), '响应必须包含 X-Request-ID');
+    await request('/api/media/bilibili-cover?url=https%3A%2F%2Fevil.example.com%2Fcover.jpg', { status: 400 });
 
     const unauthenticated = await request('/api/v1/recognition/history', { status: 401 });
     assert.ok(unauthenticated.data.error.requestId, '\u9519\u8bef\u54cd\u5e94\u5fc5\u987b\u5305\u542b requestId');

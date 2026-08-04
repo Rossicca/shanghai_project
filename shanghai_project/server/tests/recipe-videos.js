@@ -45,13 +45,24 @@ async function main() {
       name: '香煎鸡胸肉',
       ingredients: [{ name: '鸡胸肉' }, { name: '西兰花' }],
       steps: ['腌制鸡胸肉', '平底锅煎熟'],
+      sourceVideo: {
+        id: 'BV1SOURCE999',
+        title: '用户选定的香煎鸡胸肉教程',
+        author: '原教程作者',
+        duration: 480,
+        coverUrl: 'https://i0.hdslb.com/source.jpg',
+        sourceUrl: 'https://evil.example.com/not-used',
+        description: '香煎鸡胸肉教程',
+      },
     });
     assert.equal(result.rankingMode, 'search');
-    assert.equal(result.videos.length, 1);
-    assert.equal(result.videos[0].id, 'BV1TEST12345');
-    assert.equal(result.videos[0].title, '香煎鸡胸肉完整做法');
-    assert.equal(result.videos[0].duration, 515);
-    assert.equal(result.videos[0].sourceUrl, 'https://www.bilibili.com/video/BV1TEST12345');
+    assert.equal(result.videos.length, 2);
+    assert.equal(result.videos[0].id, 'BV1SOURCE999');
+    assert.equal(result.videos[0].sourceUrl, 'https://www.bilibili.com/video/BV1SOURCE999');
+    assert.match(result.videos[0].reason, /原教程/);
+    assert.equal(result.videos[1].id, 'BV1TEST12345');
+    assert.equal(result.videos[1].title, '香煎鸡胸肉完整做法');
+    assert.equal(result.videos[1].duration, 515);
     assert.deepEqual(
       result.platformSearches.map((item) => item.platform),
       ['bilibili', 'douyin', 'xiaohongshu', 'youtube']

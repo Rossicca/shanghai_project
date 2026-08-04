@@ -144,6 +144,7 @@ function mockRecipeRecommendations(params) {
       name: item.name,
       coverEmoji: item.emoji,
       category: item.category,
+      pantryLevel: index < 2 ? 'existing' : index < 4 ? 'topup' : 'explore',
       description: `以${main}为主食材的${item.category}方案，允许补充少量常见食材获得更完整的口味。`,
       reason: `结合现有${availableNames.slice(0, 3).join('、') || main}与${params.user?.goal || '日常均衡'}目标推荐。`,
       availableIngredients,
@@ -151,6 +152,7 @@ function mockRecipeRecommendations(params) {
       cookTime: item.minutes,
       difficulty: '简单',
       estimatedCalories: item.calories,
+      sourceVideo: null,
     };
   });
 }

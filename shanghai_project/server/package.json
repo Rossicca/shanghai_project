@@ -9,6 +9,7 @@
     "dev": "node --watch server.js",
     "test:smoke": "node tests/smoke.js",
     "test:recipe-videos": "node tests/recipe-videos.js",
+    "test:recipe-discovery": "node tests/recipe-discovery.js",
     "test:ai-quality": "node tests/ai-quality.js"
   },
   "dependencies": {

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { NutritionInfo } from '@/components/recipe/NutritionInfo';
 import { RecipeVideoSection } from '@/components/recipe/RecipeVideoSection';
@@ -12,6 +12,7 @@ import { Card } from '@/components/ui/Card';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { getToken } from '@/services/api';
+import { recipeCoverUrl } from '@/services/media';
 import { fetchRecipe, reimagineRecipe } from '@/services/recipe';
 import { useRecipeStore } from '@/store/recipeStore';
 import { useUserStore } from '@/store/userStore';
@@ -30,6 +31,7 @@ export default function RecipeDetail() {
   const [detailRecipe, setDetailRecipe] = useState(currentRecipe?.id === id ? currentRecipe : null);
   const [detailLoading, setDetailLoading] = useState(Boolean(id && currentRecipe?.id !== id && getToken()));
   const [saveError, setSaveError] = useState('');
+  const [failedCoverId, setFailedCoverId] = useState('');
   const recipe = currentRecipe?.id === id ? currentRecipe : detailRecipe?.id === id ? detailRecipe : null;
   const saved = recipe ? savedRecipes.some((r) => r.id === recipe.id) : false;
   const targetCalories = recipe?.nutritionTarget?.targetCalories ?? estimateTargetCalories(bodyData, goal);
@@ -86,7 +88,22 @@ export default function RecipeDetail() {
     <ThemedView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={[styles.cover, { backgroundColor: colors.primarySoft }]}>
-          <Text style={styles.coverEmoji}>{recipe.coverEmoji}</Text>
+          {recipeCoverUrl(recipe.sourceVideo?.coverUrl) && failedCoverId !== recipe.id ? (
+            <>
+              <Image
+                source={{ uri: recipeCoverUrl(recipe.sourceVideo?.coverUrl) }}
+                style={styles.coverImage}
+                resizeMode="cover"
+                onError={() => setFailedCoverId(recipe.id)}
+              />
+              <View style={styles.coverSource}>
+                <Ionicons name="play-circle" size={14} color="#FFFFFF" />
+                <Text style={styles.coverSourceText}>教程视频封面</Text>
+              </View>
+            </>
+          ) : (
+            <Text style={styles.coverEmoji}>{recipe.coverEmoji}</Text>
+          )}
         </View>
 
         <ThemedText type="title">{recipe.name}</ThemedText>
@@ -187,6 +204,9 @@ const styles = StyleSheet.create({
   content: { padding: Spacing.three, gap: Spacing.three },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.three },
   cover: { height: 160, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  coverImage: { width: '100%', height: '100%', borderRadius: 20 },
+  coverSource: { position: 'absolute', left: Spacing.two, bottom: Spacing.two, flexDirection: 'row', alignItems: 'center', gap: Spacing.one, backgroundColor: 'rgba(0,0,0,0.68)', borderRadius: 12, paddingHorizontal: Spacing.two, paddingVertical: Spacing.one },
+  coverSourceText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
   coverEmoji: { fontSize: 80 },
   metaRow: { flexDirection: 'row', gap: Spacing.two },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two, borderRadius: 12 },

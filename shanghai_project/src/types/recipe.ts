@@ -16,6 +16,7 @@ export interface Recipe {
   name: string;
   description: string;
   coverEmoji: string;
+  sourceVideo?: RecipeSourceVideo | null;
   calories: number; // 千卡
   protein: number; // 克
   carbs: number; // 克
@@ -32,6 +33,17 @@ export interface Recipe {
     caloriePercentage: number;
     isAcceptable: boolean;
   } | null;
+}
+
+export interface RecipeSourceVideo {
+  id: string;
+  title: string;
+  author: string;
+  duration: number;
+  coverUrl?: string | null;
+  sourceUrl: string;
+  description?: string;
+  platform: 'bilibili';
 }
 
 export interface RecipeVideo {
@@ -66,6 +78,7 @@ export interface RecipeCandidate {
   name: string;
   coverEmoji: string;
   category: string;
+  pantryLevel: 'existing' | 'topup' | 'explore';
   description: string;
   reason: string;
   availableIngredients: string[];
@@ -73,6 +86,7 @@ export interface RecipeCandidate {
   cookTime: number;
   difficulty: '简单' | '中等' | '困难';
   estimatedCalories: number;
+  sourceVideo: RecipeSourceVideo | null;
 }
 
 /** 生成菜谱的请求参数 */
@@ -81,7 +95,7 @@ export interface RecipeGenerateParams {
   people: number;
   cookTime: number;
   difficulty: '简单' | '中等' | '困难';
-  selectedDish?: Pick<RecipeCandidate, 'name' | 'missingIngredients'>;
+  selectedDish?: Pick<RecipeCandidate, 'name' | 'missingIngredients' | 'pantryLevel' | 'sourceVideo'>;
   /** 用户身体数据/目标（用于热量对比），可空 */
   user?: {
     caloriesTarget?: number;

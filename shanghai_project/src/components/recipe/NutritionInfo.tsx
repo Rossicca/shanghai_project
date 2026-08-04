@@ -23,13 +23,17 @@ const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 /** 营养信息：三大营养素环形图 + 热量对比 */
 export function NutritionInfo({ calories, protein, carbs, fat, targetCalories }: Props) {
   const colors = useTheme();
-  const total = Math.max(protein + carbs + fat, 1);
+  const safeCalories = Number.isFinite(calories) ? Math.max(0, calories) : 0;
+  const safeProtein = Number.isFinite(protein) ? Math.max(0, protein) : 0;
+  const safeCarbs = Number.isFinite(carbs) ? Math.max(0, carbs) : 0;
+  const safeFat = Number.isFinite(fat) ? Math.max(0, fat) : 0;
+  const total = Math.max(safeProtein + safeCarbs + safeFat, 1);
 
   // 蛋白/碳水/脂肪 三段弧
   const segments = [
-    { key: '蛋白质', value: protein, color: colors.success },
-    { key: '碳水', value: carbs, color: colors.warning },
-    { key: '脂肪', value: fat, color: '#9B59B6' },
+    { key: '蛋白质', value: safeProtein, color: colors.success },
+    { key: '碳水', value: safeCarbs, color: colors.warning },
+    { key: '脂肪', value: safeFat, color: '#9B59B6' },
   ];
 
   let acc = 0;
@@ -42,8 +46,8 @@ export function NutritionInfo({ calories, protein, carbs, fat, targetCalories }:
   });
 
   const status = targetCalories
-    ? calories <= targetCalories * 1.05
-      ? calories >= targetCalories * 0.85
+    ? safeCalories <= targetCalories * 1.05
+      ? safeCalories >= targetCalories * 0.85
         ? '达标'
         : '偏低'
       : '超标'
@@ -75,7 +79,7 @@ export function NutritionInfo({ calories, protein, carbs, fat, targetCalories }:
             ))}
           </Svg>
           <View style={styles.donutCenter}>
-            <Text style={{ fontSize: 24, fontWeight: '800', color: colors.text }}>{calories}</Text>
+            <Text style={{ fontSize: 24, fontWeight: '800', color: colors.text }}>{safeCalories}</Text>
             <Text style={{ fontSize: 11, color: colors.textSecondary }}>千卡</Text>
           </View>
         </View>
@@ -92,7 +96,7 @@ export function NutritionInfo({ calories, protein, carbs, fat, targetCalories }:
           <View style={styles.infoRow}>
             <Text style={{ color: colors.text, flex: 1 }}>蛋白占比</Text>
             <Text style={{ color: colors.textSecondary, fontWeight: '700' }}>
-              {Math.round((protein / total) * 100)}%
+              {Math.round((safeProtein / total) * 100)}%
             </Text>
           </View>
         </View>
@@ -101,7 +105,7 @@ export function NutritionInfo({ calories, protein, carbs, fat, targetCalories }:
       {targetCalories ? (
         <View style={[styles.targetRow, { backgroundColor: colors.primarySoft }]}>
           <ThemedText type="small" themeColor="primary">
-            你的目标 {targetCalories} 千卡 · 本菜 {calories} 千卡
+            你的目标 {targetCalories} 千卡 · 本菜 {safeCalories} 千卡
           </ThemedText>
           <View style={[styles.statusBadge, { backgroundColor: status === '达标' ? colors.success : status === '超标' ? colors.danger : colors.warning }]}>
             <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>{status}</Text>
