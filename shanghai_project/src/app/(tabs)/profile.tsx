@@ -71,7 +71,8 @@ export default function ProfileTab() {
       ? (dashboard.totalSavedRecipes ?? 0) + (dashboard.totalSavedWorkouts ?? 0)
       : savedRecipes.length + savedVideos.length
   );
-  const loggedIn = !!user;
+  // 游客也有本地 user，但只有持有 Token 才是已登录账号。
+  const loggedIn = Boolean(user && getToken());
 
   function openRecipe(r: Recipe) {
     selectRecipe(r);

@@ -84,6 +84,14 @@ app.use('/api/v1/stats', authMiddleware, statsRoutes);
 app.post('/api/recognize', async (req, res) => {
   try {
     const ingredients = await recognizeFood(req.body.image || '');
+    if (!Array.isArray(ingredients) || ingredients.length === 0) {
+      return res.status(422).json({
+        error: {
+          code: 'NO_INGREDIENTS_FOUND',
+          message: '未识别到有效食材，可以重拍或手动添加',
+        },
+      });
+    }
     res.json({ ingredients });
   } catch (e) {
     console.error('[compat] recognize error:', e);
