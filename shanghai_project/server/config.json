@@ -3,7 +3,8 @@
   "ai": {
     "enabled": true,
     "provider": "volcano",
-    "baseURL": "https://ark.cn-beijing.volces.com/api/v3"
+    "baseURL": "https://ark.cn-beijing.volces.com/api/v3",
+    "reasoningEffort": "minimal"
   },
   "demo": {
     "enabled": true,

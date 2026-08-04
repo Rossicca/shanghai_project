@@ -53,14 +53,18 @@ if (!process.env.JWT_SECRET && !localSecrets.server?.jwtSecret) {
   console.warn('[config] 未显式配置 JWT_SECRET，正在使用本机持久化随机密钥。');
 }
 
-function isMockMode() {
-  return (
-    process.env.AI_FORCE_DEMO === 'true' ||
-    !config.ai.enabled ||
-    !config.ai.apiKey ||
-    !config.ai.visionModel ||
-    !config.ai.textModel
-  );
+/** 文本 LLM（菜谱生成 / 运动推荐）是否已配置 OpenAI 兼容的密钥与模型 */
+function isTextLlmReady() {
+  return Boolean(config.ai.apiKey && config.ai.textModel && config.ai.baseURL);
 }
 
-module.exports = { config, isMockMode };
+function isMockMode() {
+  if (process.env.AI_FORCE_DEMO === 'true') return true;
+  if (!config.ai.enabled) return true;
+  if (config.ai.provider === 'baidu') {
+    return !config.ai.baidu?.apiKey || !config.ai.baidu?.secretKey;
+  }
+  return !config.ai.apiKey || !config.ai.visionModel || !config.ai.textModel;
+}
+
+module.exports = { config, isMockMode, isTextLlmReady };

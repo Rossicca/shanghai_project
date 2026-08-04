@@ -7,7 +7,7 @@
  */
 
 const { DEMO_INGREDIENTS, pickMockRecipe, mockRecommendWorkout } = require('./demo-data');
-const { config, isMockMode } = require('./config');
+const { config, isMockMode, isTextLlmReady } = require('./config');
 
 function httpJson(url, options) {
   const u = new URL(url);
@@ -49,7 +49,7 @@ function parseJson(text) {
   throw new Error(`模型输出不是合法 JSON (length=${str.length})`);
 }
 
-async function chat({ model, messages, temperature = 0.7, maxTokens = 1500, responseFormat }) {
+async function chat({ model, messages, temperature = 0.7, maxTokens = 1500, responseFormat, reasoningEffort = config.ai.reasoningEffort }) {
   const res = await httpJson(`${config.ai.baseURL}/chat/completions`, {
     headers: {
       'Content-Type': 'application/json',
@@ -58,6 +58,8 @@ async function chat({ model, messages, temperature = 0.7, maxTokens = 1500, resp
     body: JSON.stringify({
       model, messages, temperature, max_tokens: maxTokens,
       ...(responseFormat ? { response_format: responseFormat } : {}),
+      // 豆包 Seed 2.1 默认深度思考（high）很慢，这里可在 config.json 里调低加速演示
+      ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
     }),
   });
   if (res.status !== 200) {
@@ -78,9 +80,57 @@ async function chat({ model, messages, temperature = 0.7, maxTokens = 1500, resp
     : content;
 }
 
+/** 百度智能云：菜品识别专用 API（无需视觉大模型） */
+const BAIDU_OAUTH_URL = 'https://aip.baidubce.com/oauth/2.0/token';
+const BAIDU_DISH_URL = 'https://aip.baidubce.com/rest/2.0/image-classify/v2/dish';
+let baiduTokenCache = { value: '', expiresAt: 0 };
+
+async function getBaiduAccessToken() {
+  const now = Date.now();
+  if (baiduTokenCache.value && now < baiduTokenCache.expiresAt - 60 * 1000) {
+    return baiduTokenCache.value;
+  }
+  const { apiKey, secretKey } = config.ai.baidu || {};
+  const url = `${BAIDU_OAUTH_URL}?grant_type=client_credentials` +
+    `&client_id=${encodeURIComponent(apiKey || '')}` +
+    `&client_secret=${encodeURIComponent(secretKey || '')}`;
+  const res = await httpJson(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: '',
+  });
+  if (res.status !== 200 || !res.data?.access_token) {
+    throw new Error(`百度 access_token 获取失败 ${res.status}: ${JSON.stringify(res.data).slice(0, 200)}`);
+  }
+  baiduTokenCache = {
+    value: res.data.access_token,
+    expiresAt: now + (Number(res.data.expires_in) || 2592000) * 1000,
+  };
+  return baiduTokenCache.value;
+}
+
+async function recognizeFoodBaidu(imageBase64) {
+  const token = await getBaiduAccessToken();
+  const res = await httpJson(`${BAIDU_DISH_URL}?access_token=${encodeURIComponent(token)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `image=${encodeURIComponent(imageBase64)}&top_num=5`,
+  });
+  if (res.status !== 200 || !Array.isArray(res.data?.result)) {
+    throw new Error(`百度菜品识别失败 ${res.status}: ${JSON.stringify(res.data).slice(0, 200)}`);
+  }
+  return res.data.result.map((item) => ({
+    name: item.name || '未知菜品',
+    amount: '100',
+    confidence: Number(item.probability || 0.9),
+  }));
+}
+
 /** 1. 识别食物 */
 async function recognizeFood(imageBase64) {
   if (isMockMode()) return DEMO_INGREDIENTS.map((i) => ({ ...i }));
+  // 百度云：走专用菜品识别 API（无需视觉大模型）
+  if (config.ai.provider === 'baidu') return recognizeFoodBaidu(imageBase64);
   try {
     const content = await chat({
       model: config.ai.visionModel,
@@ -111,7 +161,7 @@ async function recognizeFood(imageBase64) {
 
 /** 2. 生成菜谱 */
 async function generateRecipe(params) {
-  if (isMockMode()) {
+  if (isMockMode() || !isTextLlmReady()) {
     const recipe = pickMockRecipe(params.ingredients);
     return { ...recipe, id: 'r' + Date.now() };
   }
@@ -167,7 +217,7 @@ ${params.user?.dietType ? `饮食类型：${params.user.dietType}` : ''}`,
 
 /** 3. 运动推荐 */
 async function recommendWorkout(params) {
-  if (isMockMode()) return mockRecommendWorkout(params);
+  if (isMockMode() || !isTextLlmReady()) return mockRecommendWorkout(params);
   try {
     const content = await chat({
       model: config.ai.textModel,
@@ -270,7 +320,7 @@ function mockWorkoutPlan(params) {
 }
 
 async function generateWorkoutPlan(params) {
-  if (isMockMode()) return mockWorkoutPlan(params);
+  if (isMockMode() || !isTextLlmReady()) return mockWorkoutPlan(params);
   const content = await chat({
     model: config.ai.textModel,
     maxTokens: 4096,

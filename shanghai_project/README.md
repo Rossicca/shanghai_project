@@ -27,7 +27,7 @@ npx expo start
 Copy-Item server/config.toml.example server/config.toml
 ```
 
-然后编辑 `server/config.toml`，填写本机的 API Key、视觉模型和文本模型。非敏感的服务地址及开关保存在 `server/config.json`。支持火山方舟及其他 OpenAI 兼容协议；配置不完整时后端使用内置演示数据，配置完整后若真实 AI 调用失败则明确返回错误，不会用 Mock 伪装成功。
+然后编辑 `server/config.toml`，在 `[ai]` 下填写 **API Key** 和模型 ID（[火山引擎方舟控制台](https://console.volcengine.com/ark) → 开通模型 → 创建 API Key）。当前后端接入的是**火山方舟「豆包 Doubao-Seed-2.1-Pro」**（模型 ID `doubao-seed-2-1-pro-260628`，256K 上下文，支持文本+图片）：拍照识别、菜谱生成、运动推荐全部走豆包，一个 Key 搞定；配置不完整时后端使用内置演示数据，配置完整后若真实 AI 调用失败则明确返回错误，不会用 Mock 伪装成功。
 
 > 不要把 API Key、真实测试账号密码或 JWT Secret 写进 `config.json`，也不要提交 `config.toml`。
 
@@ -38,6 +38,8 @@ Invoke-RestMethod http://localhost:8787/health
 ```
 
 返回 `mode: "demo"` 表示演示数据，`mode: "real"` 才表示本地真实 AI 配置完整。
+
+> 方舟（豆包）模式说明：识别（视觉）、菜谱生成 / 运动推荐统一走 Doubao-Seed-2.1-Pro。模型会默认开启深度思考（`reasoning_content`），如需更快可把 `chat()` 调用加上 `reasoning_effort: "minimal"`。
 
 ## 本地检查
 
