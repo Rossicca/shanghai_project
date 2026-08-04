@@ -24,6 +24,7 @@ const statsRoutes = require('./routes/stats');
 // 旧版兼容路由（保持前端现有调用可用）
 const { recognizeFood, generateRecipe, recommendWorkout } = require('./ai');
 const { DEMO_INGREDIENTS, WORKOUT_LIBRARY, pickMockRecipe, mockRecommendWorkout } = require('./demo-data');
+const { recommendRecipeVideos } = require('./recipe-videos');
 
 const app = express();
 const PORT = config.port || 8787;
@@ -123,6 +124,25 @@ app.post('/api/recipe/generate', async (req, res) => {
         code: 'AI_RECIPE_FAILED',
         message: '\u83dc\u8c31\u751f\u6210\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5',
       },
+    });
+  }
+});
+
+// POST /api/recipe/videos — 实时检索并匹配菜谱制作视频
+app.post('/api/recipe/videos', async (req, res) => {
+  const recipe = req.body?.recipe || req.body;
+  if (!recipe || typeof recipe.name !== 'string' || !recipe.name.trim()) {
+    return res.status(400).json({
+      error: { code: 'INVALID_PARAMS', message: '缺少菜谱名称' },
+    });
+  }
+  try {
+    const data = await recommendRecipeVideos(recipe);
+    res.json({ data });
+  } catch (error) {
+    console.error('[recipe-videos] recommend error:', error);
+    res.status(502).json({
+      error: { code: 'RECIPE_VIDEO_SEARCH_FAILED', message: '制作视频搜索失败，请稍后重试' },
     });
   }
 });

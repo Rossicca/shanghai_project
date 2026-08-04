@@ -251,6 +251,7 @@ async function recommendWorkout(params) {
     }
   ]
 }
+
 推荐 6 个视频，覆盖不同难度和类别。理由要结合用户的身高体重年龄目标给出个性化建议。`,
         },
         {
@@ -271,6 +272,39 @@ async function recommendWorkout(params) {
     console.error('[ai] 真实健身推荐调用失败:', e.message);
     throw e;
   }
+}
+
+/** 只在真实检索结果中排序菜谱视频，模型不得编造链接或视频。 */
+async function rankRecipeVideos({ recipe, candidates }) {
+  if (isMockMode() || !isTextLlmReady()) return [];
+  const content = await chat({
+    model: config.ai.textModel,
+    maxTokens: 1000,
+    temperature: 0.2,
+    responseFormat: { type: 'json_object' },
+    messages: [
+      {
+        role: 'system',
+        content: `你是菜谱视频匹配助手。只能从候选列表选择视频，不得新增、改写 ID 或编造链接。
+根据菜名、食材和步骤选出最多 3 个最匹配的制作教程。优先完整做法、标题与菜名一致、食材相近的视频。
+严格只输出 JSON：{"recommendations":[{"id":"候选视频ID","reason":"一句具体匹配理由"}]}`,
+      },
+      { role: 'user', content: JSON.stringify({ recipe, candidates }) },
+    ],
+  });
+  const parsed = parseJson(content);
+  const byId = new Map(candidates.map((video) => [video.id, video]));
+  return (Array.isArray(parsed.recommendations) ? parsed.recommendations : [])
+    .map((item) => {
+      const candidate = byId.get(String(item.id));
+      if (!candidate) return null;
+      return {
+        ...candidate,
+        reason: String(item.reason || '').trim().slice(0, 120),
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 3);
 }
 
 function mockWorkoutPlan(params) {
@@ -339,4 +373,4 @@ weeklySchedule \u5929\u6570\u5fc5\u987b\u7b49\u4e8e weeklyFrequency\uff1b\u5355\
   return parseJson(content);
 }
 
-module.exports = { recognizeFood, generateRecipe, recommendWorkout, generateWorkoutPlan };
+module.exports = { recognizeFood, generateRecipe, recommendWorkout, generateWorkoutPlan, rankRecipeVideos };

@@ -34,6 +34,32 @@ export interface Recipe {
   } | null;
 }
 
+export interface RecipeVideo {
+  id: string;
+  title: string;
+  author: string;
+  duration: number;
+  coverUrl?: string | null;
+  sourceUrl: string;
+  playCount?: number;
+  reason: string;
+  platform: 'bilibili';
+}
+
+export interface RecipeVideoRecommendation {
+  query: string;
+  searchUrl: string;
+  platformSearches: {
+    platform: 'bilibili' | 'douyin' | 'xiaohongshu' | 'youtube';
+    label: string;
+    url: string;
+    resultType: 'video' | 'search';
+  }[];
+  rankingMode: 'ai' | 'search' | 'fallback';
+  videos: RecipeVideo[];
+  warning?: string | null;
+}
+
 /** 生成菜谱的请求参数 */
 export interface RecipeGenerateParams {
   ingredients: { name: string; amount: string }[];

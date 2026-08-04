@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { NutritionInfo } from '@/components/recipe/NutritionInfo';
+import { RecipeVideoSection } from '@/components/recipe/RecipeVideoSection';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Button } from '@/components/ui/Button';
@@ -73,6 +74,7 @@ export default function RecipeDetail() {
     try {
       const next = await reimagineRecipe(recipe.id, 'stir_fry');
       selectRecipe(next);
+      router.replace({ pathname: '/recipe/[id]', params: { id: next.id } });
     } catch (error) {
       setSwitchError((error as Error).message || '换做法失败，请重试');
     } finally {
@@ -134,6 +136,8 @@ export default function RecipeDetail() {
             </View>
           ))}
         </Card>
+
+        <RecipeVideoSection key={recipe.id} recipe={recipe} />
 
         {recipe.tips?.length ? (
           <Card>

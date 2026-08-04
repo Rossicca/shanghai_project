@@ -1,4 +1,4 @@
-import type { Recipe, RecipeGenerateParams } from '@/types/recipe';
+import type { Recipe, RecipeGenerateParams, RecipeVideoRecommendation } from '@/types/recipe';
 import { AI_TIMEOUT } from '@/constants/config';
 
 import { api } from './api';
@@ -108,4 +108,16 @@ export async function fetchSavedRecipes() {
 export async function fetchRecipeHistory() {
   const res = await api.get('/api/v1/recipes/history/list');
   return (res.data.data || []).map(mapRecipe);
+}
+
+/** 实时检索与当前菜谱匹配的公开视频。 */
+export async function fetchRecipeVideos(recipe: Recipe): Promise<RecipeVideoRecommendation> {
+  const res = await api.post('/api/recipe/videos', {
+    recipe: {
+      name: recipe.name,
+      ingredients: recipe.ingredients,
+      steps: recipe.steps,
+    },
+  }, { timeout: AI_TIMEOUT });
+  return res.data.data;
 }
