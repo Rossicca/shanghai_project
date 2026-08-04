@@ -1,17 +1,17 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
   useWindowDimensions,
   type ViewToken,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CategoryChip } from '@/components/workout/CategoryChip';
 import { WorkoutFeedItem } from '@/components/workout/WorkoutFeedItem';
@@ -22,29 +22,18 @@ import { useTheme } from '@/hooks/use-theme';
 import { useUserStore } from '@/store/userStore';
 import { useWorkoutStore } from '@/store/workoutStore';
 
+const CAT_BAR_H = 52; // 分类栏大约高度
+
 export default function WorkoutTab() {
   const colors = useTheme();
   const { width, height: windowHeight } = useWindowDimensions();
-  const {
-    feed,
-    currentCategory,
-    isLoading,
-    isLoadingMore,
-    hasMore,
-    error,
-    savedVideos,
-    fetchFeed,
-    switchCategory,
-    toggleSave,
-    selectVideo,
-    addHistory,
-    loadMore,
-  } = useWorkoutStore();
+  const { feed, currentCategory, isLoading, isLoadingMore, hasMore, error, savedVideos,
+    fetchFeed, switchCategory, toggleSave, selectVideo, addHistory, loadMore } = useWorkoutStore();
   const bodyData = useUserStore((s) => s.bodyData);
   const goal = useUserStore((s) => s.goal);
 
   const [activeIndex, setActiveIndex] = useState(0);
-  const [feedHeight, setFeedHeight] = useState(0);
+  const [pageH, setPageH] = useState(windowHeight - CAT_BAR_H);
   const savedIds = new Set(savedVideos.map((v) => v.id));
 
   const [onViewableItemsChanged] = useState(
@@ -62,120 +51,91 @@ export default function WorkoutTab() {
     switchCategory(cat, { bodyData: bodyData ?? undefined, goal: goal ?? undefined });
     setActiveIndex(0);
   }
-
   function openDetail(video: (typeof feed)[number]) {
-    addHistory(video);
-    selectVideo(video);
+    addHistory(video); selectVideo(video);
     router.push({ pathname: '/workout/[id]', params: { id: video.id } });
   }
 
-  // 用实际测量高度；未测量时用窗口高度估算
-  const itemHeight = feedHeight > 0 ? feedHeight : windowHeight - 120;
+  const itemH = pageH > 0 ? pageH - CAT_BAR_H : windowHeight - CAT_BAR_H - 60;
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        {/* 分类标签栏 */}
+    <View
+      style={styles.root}
+      onLayout={(e) => { const h = e.nativeEvent.layout.height; if (h > 0) setPageH(h); }}>
+      {/* 视频流全屏 */}
+      {isLoading && feed.length === 0 ? (
+        <View style={[styles.center, { height: itemH }]}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={{ color: colors.textSecondary, marginTop: 12 }}>AI 为你挑选视频...</Text>
+        </View>
+      ) : error && feed.length === 0 ? (
+        <View style={[styles.center, { height: itemH }]}>
+          <Ionicons name="cloud-offline-outline" size={32} color={colors.textSecondary} />
+          <Text style={{ color: colors.textSecondary, fontSize: 16, marginTop: 8 }}>加载失败</Text>
+          <Pressable onPress={() => fetchFeed({ bodyData: bodyData ?? undefined, goal: goal ?? undefined })}>
+            <Text style={{ color: colors.primary, fontWeight: '700', marginTop: 8 }}>重新加载</Text>
+          </Pressable>
+        </View>
+      ) : feed.length === 0 ? (
+        <View style={[styles.center, { height: itemH }]}>
+          <Ionicons name="play-circle-outline" size={32} color={colors.textSecondary} />
+          <Text style={{ color: colors.textSecondary, fontSize: 16, marginTop: 8 }}>暂无视频</Text>
+        </View>
+      ) : (
         <FlatList
-          horizontal
-          data={CATEGORIES}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoryBar}
-          keyExtractor={(c) => c}
-          renderItem={({ item }) => (
-            <CategoryChip label={item} isSelected={currentCategory === item} onPress={() => handleSwitch(item)} />
+          data={feed}
+          keyExtractor={(v) => v.id}
+          pagingEnabled
+          showsVerticalScrollIndicator={false}
+          onViewableItemsChanged={onViewableItemsChanged}
+          viewabilityConfig={viewabilityConfig}
+          onEndReached={() => { if (hasMore) loadMore(); }}
+          onEndReachedThreshold={0.5}
+          snapToInterval={itemH}
+          decelerationRate="fast"
+          disableIntervalMomentum
+          getItemLayout={(_, i) => ({ length: itemH, offset: itemH * i, index: i })}
+          ListFooterComponent={
+            isLoadingMore ? <ActivityIndicator color={colors.primary} style={{ padding: 20 }} /> : null
+          }
+          renderItem={({ item, index }) => (
+            <View style={{ width, height: itemH }}>
+              <WorkoutFeedItem
+                video={item}
+                active={index === activeIndex}
+                saved={savedIds.has(item.id)}
+                onToggleSave={() => toggleSave(item)}
+                onOpen={() => openDetail(item)}
+              />
+            </View>
           )}
         />
+      )}
 
-        {/* 视频流 */}
-        <View
-          style={styles.feedWrap}
-          onLayout={(e) => {
-            const h = e.nativeEvent.layout.height;
-            if (h > 0 && h !== feedHeight) setFeedHeight(h);
-          }}>
-          {isLoading && feed.length === 0 ? (
-            <View style={styles.center}>
-              <ActivityIndicator size="large" color={colors.primary} />
-              <ThemedText>AI 正在为你挑选视频...</ThemedText>
-            </View>
-          ) : error && feed.length === 0 ? (
-            <View style={styles.center}>
-              <Ionicons name="cloud-offline-outline" size={32} color={colors.textSecondary} />
-              <ThemedText type="subtitle">视频暂时加载失败</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'center' }}>
-                {error}
-              </ThemedText>
-              <Pressable onPress={() => fetchFeed({ bodyData: bodyData ?? undefined, goal: goal ?? undefined })}>
-                <ThemedText type="smallBold" themeColor="primary">重新加载</ThemedText>
-              </Pressable>
-            </View>
-          ) : feed.length === 0 ? (
-            <View style={styles.center}>
-              <Ionicons name="play-circle-outline" size={32} color={colors.textSecondary} />
-              <ThemedText type="subtitle">暂无推荐视频</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">切换分类试试</ThemedText>
-            </View>
-          ) : (
-            <FlatList
-              data={feed}
-              keyExtractor={(v) => v.id}
-              pagingEnabled
-              showsVerticalScrollIndicator={false}
-              onViewableItemsChanged={onViewableItemsChanged}
-              viewabilityConfig={viewabilityConfig}
-              onEndReached={() => { if (hasMore) loadMore(); }}
-              onEndReachedThreshold={0.6}
-              snapToInterval={itemHeight}
-              decelerationRate="fast"
-              disableIntervalMomentum
-              getItemLayout={(_, index) => ({
-                length: itemHeight,
-                offset: itemHeight * index,
-                index,
-              })}
-              ListFooterComponent={
-                isLoadingMore ? (
-                  <ActivityIndicator color={colors.primary} style={{ padding: Spacing.three }} />
-                ) : (
-                  <View style={styles.footer}>
-                    <View style={styles.footerDivider}>
-                      <View style={[styles.footerLine, { backgroundColor: colors.border }]} />
-                      <Text style={[styles.footerText, { color: colors.textSecondary }]}>
-                        AI 推荐 · 训练视频 & 健身成果展示
-                      </Text>
-                      <View style={[styles.footerLine, { backgroundColor: colors.border }]} />
-                    </View>
-                  </View>
-                )
-              }
-              renderItem={({ item, index }) => (
-                <View style={{ width, height: itemHeight }}>
-                  <WorkoutFeedItem
-                    video={item}
-                    active={index === activeIndex}
-                    saved={savedIds.has(item.id)}
-                    onToggleSave={() => toggleSave(item)}
-                    onOpen={() => openDetail(item)}
-                  />
-                </View>
-              )}
-            />
-          )}
-        </View>
-      </SafeAreaView>
+      {/* 分类标签 —— 浮在视频上方 */}
+      <View style={styles.catOverlay} pointerEvents="box-none">
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.catBar}>
+          {CATEGORIES.map((cat) => (
+            <CategoryChip key={cat} label={cat} dark
+              isSelected={currentCategory === cat}
+              onPress={() => handleSwitch(cat)} />
+          ))}
+        </ScrollView>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  safeArea: { flex: 1 },
-  categoryBar: { gap: Spacing.two, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two },
-  feedWrap: { flex: 1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.three, padding: Spacing.four },
-  footer: { padding: Spacing.three, gap: Spacing.two, paddingBottom: Spacing.five },
-  footerDivider: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
-  footerLine: { flex: 1, height: StyleSheet.hairlineWidth },
-  footerText: { fontSize: 12, fontWeight: '600' },
+  root: { flex: 1, backgroundColor: '#000' },
+  center: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#111' },
+  // 分类栏浮层
+  catOverlay: {
+    position: 'absolute', top: 0, left: 0, right: 0,
+    paddingTop: 50, // safe area
+    paddingBottom: 6,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  catBar: { gap: Spacing.two, paddingHorizontal: Spacing.three },
 });

@@ -7,10 +7,11 @@ type Props = {
   label: string;
   isSelected?: boolean;
   onPress?: () => void;
+  dark?: boolean;
 };
 
 /** 分类标签芯片 */
-export function CategoryChip({ label, isSelected, onPress }: Props) {
+export function CategoryChip({ label, isSelected, onPress, dark }: Props) {
   const colors = useTheme();
 
   return (
@@ -18,11 +19,17 @@ export function CategoryChip({ label, isSelected, onPress }: Props) {
       <Text
         style={[
           styles.chip,
-          {
-            backgroundColor: isSelected ? colors.primary : colors.backgroundElement,
-            color: isSelected ? '#fff' : colors.text,
-            borderColor: isSelected ? colors.primary : colors.border,
-          },
+          dark
+            ? {
+                backgroundColor: isSelected ? colors.primary : 'rgba(255,255,255,0.12)',
+                color: isSelected ? '#fff' : 'rgba(255,255,255,0.9)',
+                borderColor: isSelected ? colors.primary : 'rgba(255,255,255,0.18)',
+              }
+            : {
+                backgroundColor: isSelected ? colors.primary : colors.backgroundElement,
+                color: isSelected ? '#fff' : colors.text,
+                borderColor: isSelected ? colors.primary : colors.border,
+              },
         ]}>
         {label}
       </Text>

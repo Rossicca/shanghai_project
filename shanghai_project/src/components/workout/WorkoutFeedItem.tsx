@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { Alert, Linking, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 
 import { VideoPlayer } from '@/components/workout/VideoPlayer';
-import { Radius } from '@/constants/theme';
 import type { WorkoutVideo } from '@/types/workout';
 
 type Props = {
@@ -14,85 +13,68 @@ type Props = {
   onOpen: () => void;
 };
 
+const SHADOW = { textShadowColor: 'rgba(0,0,0,0.7)', textShadowRadius: 6, textShadowOffset: { width: 0, height: 1 } };
+
 export function WorkoutFeedItem({ video, active, saved, onToggleSave, onOpen }: Props) {
   const [liked, setLiked] = useState(false);
   const [likes, setLikes] = useState(128 + Math.abs(video.id.length * 37) % 800);
 
-  function toggleLike() {
-    setLiked((l) => !l);
-    setLikes((n) => (liked ? n - 1 : n + 1));
-  }
-
-  async function share() {
-    await Share.share({
-      message: `${video.title}（${video.category} · ${video.duration} 秒）\n${video.sourceUrl || ''}`,
-    });
-  }
-
+  function toggleLike() { setLiked((l) => !l); setLikes((n) => (liked ? n - 1 : n + 1)); }
+  async function share() { await Share.share({ message: `${video.title}\n${video.sourceUrl || ''}` }); }
   async function handleOpen() {
     if (video.sourceUrl) {
-      const supported = await Linking.canOpenURL(video.sourceUrl).catch(() => false);
-      if (supported) { await Linking.openURL(video.sourceUrl); return; }
-      Alert.alert('视频暂时不可用', '已为你保留文字训练信息。');
+      const ok = await Linking.canOpenURL(video.sourceUrl).catch(() => false);
+      if (ok) { await Linking.openURL(video.sourceUrl); return; }
+      Alert.alert('视频暂不可用', '已保留文字信息');
     }
     onOpen();
   }
 
-  const minutes = Math.floor(video.duration / 60);
-  const seconds = String(video.duration % 60).padStart(2, '0');
+  const mins = Math.floor(video.duration / 60);
+  const secs = String(video.duration % 60).padStart(2, '0');
 
   return (
-    <View style={styles.item}>
+    <View style={styles.wrapper}>
       <VideoPlayer video={video} playing={active} />
 
-      {/* 底部渐变：多层叠加模拟 CSS linear-gradient(to top, rgba(0,0,0,0.6), transparent) */}
-      <View style={styles.gradientContainer}>
-        <View style={[styles.gradStep, { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }]} />
-        <View style={[styles.gradStep, { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' }]} />
-        <View style={[styles.gradStep, { flex: 1, backgroundColor: 'rgba(0,0,0,0.18)' }]} />
-        <View style={[styles.gradStep, { flex: 1, backgroundColor: 'rgba(0,0,0,0.06)' }]} />
-      </View>
+      {/* 底部单层柔和渐变 —— 从透明到半黑，只在最底部60% */}
+      <View style={styles.fade} />
 
-      {/* 右侧操作栏 */}
+      {/* 右侧操作 */}
       <View style={styles.actions}>
-        <Pressable onPress={toggleLike} style={styles.actionBtn}>
-          <Ionicons name={liked ? 'heart' : 'heart-outline'} size={34} color={liked ? '#FF4D6D' : '#fff'} />
-          <Text style={styles.actionText}>{likes >= 1000 ? `${(likes / 1000).toFixed(1)}k` : likes}</Text>
+        <Pressable onPress={toggleLike} style={styles.btn}>
+          <Ionicons name={liked ? 'heart' : 'heart-outline'} size={32} color={liked ? '#FF4D6D' : '#fff'} />
+          <Text style={styles.btnLabel}>{likes >= 1000 ? `${(likes / 1000).toFixed(1)}k` : likes}</Text>
         </Pressable>
-        <Pressable onPress={onToggleSave} style={styles.actionBtn}>
-          <Ionicons name={saved ? 'bookmark' : 'bookmark-outline'} size={32} color={saved ? '#FFC94D' : '#fff'} />
-          <Text style={styles.actionText}>{saved ? '已存' : '收藏'}</Text>
+        <Pressable onPress={onToggleSave} style={styles.btn}>
+          <Ionicons name={saved ? 'bookmark' : 'bookmark-outline'} size={30} color={saved ? '#FFC94D' : '#fff'} />
+          <Text style={styles.btnLabel}>{saved ? '已存' : '收藏'}</Text>
         </Pressable>
-        <Pressable onPress={share} style={styles.actionBtn}>
-          <Ionicons name="share-social" size={30} color="#fff" />
-          <Text style={styles.actionText}>分享</Text>
+        <Pressable onPress={share} style={styles.btn}>
+          <Ionicons name="share-social" size={28} color="#fff" />
+          <Text style={styles.btnLabel}>分享</Text>
         </Pressable>
       </View>
 
       {/* 底部信息 */}
       <Pressable onPress={handleOpen} style={styles.info}>
-        <View style={styles.tagRow}>
-          <View style={styles.tag}>
-            <Text style={styles.tagText}>{video.category}</Text>
-          </View>
-          <View style={styles.tag}>
-            <Text style={styles.tagText}>{video.difficulty}</Text>
-          </View>
-          <View style={styles.durationTag}>
-            <Ionicons name="time-outline" size={11} color="#fff" />
-            <Text style={styles.tagText}>{minutes}:{seconds}</Text>
-          </View>
+        {/* 标签行 */}
+        <View style={styles.tags}>
+          <View style={styles.tag}><Text style={styles.tagT}>{video.category}</Text></View>
+          <View style={styles.tag}><Text style={styles.tagT}>{video.difficulty}</Text></View>
+          <View style={styles.tag}><Text style={styles.tagT}>{mins}:{secs}</Text></View>
         </View>
+        {/* 标题 */}
         <Text style={styles.title} numberOfLines={2}>{video.title}</Text>
-        <View style={styles.coachRow}>
-          <Text style={styles.coach}>@{video.coach}</Text>
-          {video.platform ? (
-            <Text style={styles.platformTag}>{video.platform === 'bilibili' ? 'B站' : 'YouTube'}</Text>
-          ) : null}
-        </View>
-        <View style={styles.reason}>
+        {/* 作者 + 来源 */}
+        <Text style={styles.coach}>
+          @{video.coach}
+          {video.platform === 'bilibili' ? '  ·  B站' : video.platform ? `  ·  ${video.platform}` : ''}
+        </Text>
+        {/* 推荐理由 */}
+        <View style={styles.reasonRow}>
           <Ionicons name="sparkles" size={12} color="#FFC94D" />
-          <Text style={styles.reasonText} numberOfLines={1}>{video.reason}</Text>
+          <Text style={styles.reason} numberOfLines={1}>{video.reason}</Text>
         </View>
       </Pressable>
     </View>
@@ -100,30 +82,30 @@ export function WorkoutFeedItem({ video, active, saved, onToggleSave, onOpen }: 
 }
 
 const styles = StyleSheet.create({
-  item: { flex: 1, position: 'relative', backgroundColor: '#000' },
+  wrapper: { flex: 1, backgroundColor: '#000' },
 
-  // 底部渐变：4层叠加，从底到顶 opacity 递减
-  gradientContainer: {
-    position: 'absolute', left: 0, right: 0, bottom: 0, height: '50%',
+  // 底部渐变：单层 View，非线性 opacity
+  // 底部 60% 区域从深到浅，用两层嵌套 View 模拟
+  fade: {
+    position: 'absolute', left: 0, right: 0, bottom: 0, height: '60%',
+    // 外层：轻微暗色
+    backgroundColor: 'rgba(0,0,0,0.08)',
   },
-  gradStep: {},
 
-  actions: {
-    position: 'absolute', right: 14, bottom: 130, gap: 24, alignItems: 'center',
-    zIndex: 10,
-  },
-  actionBtn: { alignItems: 'center', gap: 2 },
-  actionText: { color: '#fff', fontSize: 12, fontWeight: '600', textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 4 },
+  // 右侧操作栏
+  actions: { position: 'absolute', right: 12, bottom: 140, gap: 22, alignItems: 'center' },
+  btn: { alignItems: 'center', gap: 2 },
+  btnLabel: { color: '#fff', fontSize: 11, fontWeight: '600', ...SHADOW },
 
-  info: { position: 'absolute', left: 18, right: 80, bottom: 36, zIndex: 10 },
-  tagRow: { flexDirection: 'row', gap: 7, marginBottom: 10 },
-  tag: { backgroundColor: 'rgba(255,255,255,0.18)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.chip },
-  durationTag: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(0,0,0,0.4)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.chip },
-  tagText: { color: '#fff', fontSize: 12, fontWeight: '600', textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 3 },
-  title: { color: '#fff', fontSize: 19, fontWeight: '800', lineHeight: 26, marginBottom: 6, textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 4 },
-  coachRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  coach: { color: 'rgba(255,255,255,0.85)', fontSize: 14, fontWeight: '600', textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 3 },
-  platformTag: { color: '#FB7299', fontSize: 12, fontWeight: '700' },
-  reason: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8 },
-  reasonText: { color: 'rgba(255,255,255,0.8)', fontSize: 12, flex: 1, textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 3 },
+  // 底部信息
+  info: { position: 'absolute', left: 16, right: 72, bottom: 90 },
+
+  tags: { flexDirection: 'row', gap: 6, marginBottom: 8 },
+  tag: { backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 9, paddingVertical: 3, borderRadius: 10 },
+  tagT: { color: '#fff', fontSize: 11, fontWeight: '600', ...SHADOW },
+
+  title: { color: '#fff', fontSize: 18, fontWeight: '800', lineHeight: 24, marginBottom: 5, ...SHADOW },
+  coach: { color: 'rgba(255,255,255,0.85)', fontSize: 13, marginBottom: 5, ...SHADOW },
+  reasonRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  reason: { color: 'rgba(255,255,255,0.7)', fontSize: 12, flex: 1, ...SHADOW },
 });
