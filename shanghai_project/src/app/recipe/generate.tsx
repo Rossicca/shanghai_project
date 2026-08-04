@@ -37,6 +37,7 @@ export default function GenerateRecipe() {
   const goal = useUserStore((s) => s.goal);
 
   const [ingredients, setIngredients] = useState(currentIngredients);
+  const [newIngredient, setNewIngredient] = useState('');
   const [people, setPeople] = useState(1);
   const [cookTime, setCookTime] = useState(20);
   const [difficulty, setDifficulty] = useState<(typeof DIFFICULTIES)[number]>('简单');
@@ -62,6 +63,26 @@ export default function GenerateRecipe() {
   function removeAt(index: number) {
     setIngredients((prev) => prev.filter((_, i) => i !== index));
     clearRecommendations();
+  }
+
+  function addIngredient() {
+    const name = newIngredient.trim();
+    if (!name) return;
+    if (ingredients.some((item) => item.name.trim().toLowerCase() === name.toLowerCase())) {
+      setError('这个食材已经添加过了');
+      return;
+    }
+    setIngredients((current) => [
+      ...current,
+      { name, amount: '适量', confidence: 1, category: '其他' },
+    ]);
+    setNewIngredient('');
+    clearRecommendations();
+  }
+
+  function leavePage() {
+    if (router.canGoBack()) router.back();
+    else router.replace('/recipe');
   }
 
   function clearRecommendations() {
@@ -162,13 +183,37 @@ export default function GenerateRecipe() {
   return (
     <ThemedView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.pageHeader}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="返回菜谱首页"
+            hitSlop={8}
+            onPress={leavePage}
+            style={[styles.backButton, { backgroundColor: colors.backgroundElement }]}>
+            <Ionicons name="arrow-back" size={21} color={colors.text} />
+          </Pressable>
+          <View style={{ flex: 1 }}>
+            <ThemedText type="title">AI 制作菜谱</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">先确认食材，再选择制作条件</ThemedText>
+          </View>
+        </View>
+
         <Card>
           <View style={styles.cardTitle}>
             <ThemedText type="subtitle">确认食材</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
-              可调整用量
+              已添加 {ingredients.length} 种
             </ThemedText>
           </View>
+          {ingredients.length === 0 ? (
+            <View style={[styles.emptyIngredients, { backgroundColor: colors.backgroundElement }]}>
+              <Ionicons name="basket-outline" size={25} color={colors.primary} />
+              <View style={{ flex: 1 }}>
+                <ThemedText type="smallBold">还没有食材</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">输入至少一种食材，AI 才能开始推荐</ThemedText>
+              </View>
+            </View>
+          ) : null}
           {ingredients.map((item, i) => (
             <View key={`${item.name}-${i}`} style={styles.ingredientRow}>
               <ThemedText style={{ flex: 1 }}>{item.name}</ThemedText>
@@ -182,6 +227,33 @@ export default function GenerateRecipe() {
               </Pressable>
             </View>
           ))}
+          <View style={styles.addIngredientRow}>
+            <TextInput
+              value={newIngredient}
+              onChangeText={(value) => { setNewIngredient(value); setError(''); }}
+              onSubmitEditing={addIngredient}
+              placeholder="例如：鸡蛋、番茄、牛奶"
+              placeholderTextColor={colors.textSecondary}
+              returnKeyType="done"
+              style={[styles.addIngredientInput, {
+                backgroundColor: colors.backgroundElement,
+                borderColor: colors.border,
+                color: colors.text,
+              }]}
+            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="添加食材"
+              disabled={!newIngredient.trim()}
+              onPress={addIngredient}
+              style={({ pressed }) => [
+                styles.addIngredientButton,
+                { backgroundColor: colors.primary, opacity: !newIngredient.trim() ? 0.45 : pressed ? 0.75 : 1 },
+              ]}>
+              <Ionicons name="add" size={20} color="#FFFFFF" />
+              <Text style={styles.addIngredientButtonText}>添加</Text>
+            </Pressable>
+          </View>
         </Card>
 
         <Card>
@@ -279,13 +351,20 @@ export default function GenerateRecipe() {
             </ThemedText>
           </Card>
         ) : recommendations.length === 0 ? (
-          <Button
-            title="AI 推荐 8 种做法"
-            icon="sparkles"
-            size="large"
-            onPress={runRecommend}
-            disabled={ingredients.length === 0}
-          />
+          <View style={styles.recommendAction}>
+            <Button
+              title={ingredients.length === 0 ? '请先添加食材' : 'AI 推荐 8 种做法'}
+              icon={ingredients.length === 0 ? 'basket-outline' : 'sparkles'}
+              size="large"
+              onPress={runRecommend}
+              disabled={ingredients.length === 0}
+            />
+            {ingredients.length === 0 ? (
+              <ThemedText type="small" themeColor="warning" style={styles.tip}>
+                上方添加食材后即可推荐，制作条件可以稍后再调整
+              </ThemedText>
+            ) : null}
+          </View>
         ) : null}
 
         {recommendations.length > 0 ? (
@@ -449,15 +528,23 @@ export default function GenerateRecipe() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: Spacing.three, gap: Spacing.three },
+  pageHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
+  backButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   cardTitle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.two },
+  emptyIngredients: { minHeight: 64, borderRadius: Radius.button, padding: Spacing.three, flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   ingredientRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, marginVertical: Spacing.one },
   amountInput: { width: 100, borderRadius: Radius.button, paddingHorizontal: Spacing.two, paddingVertical: 6, fontSize: 14, textAlign: 'center' },
+  addIngredientRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, marginTop: Spacing.two },
+  addIngredientInput: { flex: 1, minHeight: 44, borderWidth: 1, borderRadius: Radius.button, paddingHorizontal: Spacing.three },
+  addIngredientButton: { minHeight: 44, borderRadius: Radius.button, paddingHorizontal: Spacing.three, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.one },
+  addIngredientButtonText: { color: '#FFFFFF', fontWeight: '800' },
   condLabel: { marginTop: Spacing.three },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: Spacing.four, marginTop: Spacing.two },
   stepBtn: { width: 36, height: 36, borderRadius: Radius.button, alignItems: 'center', justifyContent: 'center' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two, marginTop: Spacing.two },
   chip: { paddingHorizontal: Spacing.three, paddingVertical: Spacing.two, borderRadius: Radius.chip },
   generating: { alignItems: 'center', gap: Spacing.two, paddingVertical: Spacing.four },
+  recommendAction: { gap: Spacing.two },
   recommendationSection: { gap: Spacing.three, marginTop: Spacing.two },
   recommendationHeading: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
   candidateList: { gap: Spacing.two },
