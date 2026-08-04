@@ -19,7 +19,7 @@ export default function TabLayout() {
         headerStyle: { backgroundColor: colors.background },
         headerTitleStyle: { color: colors.text, fontWeight: '700' },
         headerShadowVisible: false,
-        sceneStyle: { backgroundColor: colors.background },
+        sceneStyle: { flex: 1, backgroundColor: colors.background },
       }}>
       <Tabs.Screen
         name="index"

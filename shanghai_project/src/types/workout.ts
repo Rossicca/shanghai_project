@@ -74,6 +74,27 @@ export interface WorkoutPlanInput {
   hasEquipment: boolean;
   fitnessLevel: 'beginner' | 'intermediate' | 'advanced';
   limitations: string[];
+  bodyData?: {
+    height: number;
+    weight: number;
+    age: number;
+    gender: string;
+    bmi?: number;
+    bmr?: number;
+    tdee?: number;
+    targetCalories?: number;
+    bodyFat?: number;
+  };
+  goal?: {
+    type: string;
+    targetWeight?: number;
+  };
+}
+
+export interface PlanSection {
+  name: string;
+  duration?: string;
+  notes: string;
 }
 
 export interface WorkoutPlanExercise {
@@ -82,21 +103,27 @@ export interface WorkoutPlanExercise {
   reps: string;
   restSeconds: number;
   notes: string;
-  videoId: string | null;
-  videoUrl: string | null;
+  category?: string;
+  searchKeyword?: string;
+}
+
+export interface WorkoutPlanDay {
+  day: number;
+  title: string;
+  focusDescription?: string;
+  durationMinutes: number;
+  warmup?: PlanSection[];
+  exercises: WorkoutPlanExercise[];
+  stretching?: PlanSection[];
 }
 
 export interface WorkoutPlan {
-  planId: string;
+  planId?: string;
   goalType: WorkoutPlanInput['goalType'];
   summary: string;
-  weeklySchedule: {
-    day: number;
-    title: string;
-    durationMinutes: number;
-    exercises: WorkoutPlanExercise[];
-  }[];
+  weeklySchedule: WorkoutPlanDay[];
+  restDays?: number[];
   reminders: string[];
-  disclaimer: string;
-  createdAt: string;
+  disclaimer?: string;
+  createdAt?: string;
 }

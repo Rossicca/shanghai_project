@@ -15,7 +15,7 @@ import { useRecipeStore } from '@/store/recipeStore';
 import { useUserStore } from '@/store/userStore';
 import { useWorkoutStore } from '@/store/workoutStore';
 import type { Recipe } from '@/types/recipe';
-import { calcBMI, estimateTargetCalories } from '@/utils/nutrition';
+import { calcBMI, targetCalories, macroSplit, bmiLabel } from '@/utils/nutrition';
 
 const WEEKDAY_LABELS = ['一', '二', '三', '四', '五', '六', '日'];
 
@@ -40,7 +40,8 @@ export default function HomeScreen() {
   );
   const todayIntake = todayRecipes.reduce((s, r) => s + (r.calories ?? 0), 0);
   const burned = workoutHistory.reduce((s, v) => s + (v.calories ?? 0), 0);
-  const target = estimateTargetCalories(bodyData, goal) ?? 1800;
+  const target = targetCalories(bodyData, goal) ?? 1800;
+  const macros = target ? macroSplit(target, goal?.type || '健康') : null;
   const pct = Math.round((todayIntake / target) * 100);
   const remain = Math.max(0, target - todayIntake);
   const bmi = calcBMI(bodyData);
@@ -289,6 +290,41 @@ export default function HomeScreen() {
             </View>
           </View>
 
+          {/* 今日饮食建议 */}
+          {macros && (
+            <View style={styles.section}>
+              <View style={styles.feedHead}>
+                <ThemedText type="smallBold" style={styles.sectionTitle}>
+                  今日饮食建议
+                </ThemedText>
+                <Pressable onPress={() => router.push('/recipe')}>
+                  <Text style={[styles.more, { color: colors.success }]}>去菜谱 ›</Text>
+                </Pressable>
+              </View>
+              <View style={[styles.dietBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View style={styles.dietItem}>
+                  <Text style={[styles.dietVal, { color: colors.primary }]}>{target}千卡</Text>
+                  <Text style={[styles.dietLabel, { color: colors.textSecondary }]}>目标热量</Text>
+                </View>
+                <View style={[styles.dietDiv, { backgroundColor: colors.border }]} />
+                <View style={styles.dietItem}>
+                  <Text style={[styles.dietVal, { color: '#E74C3C' }]}>{macros.protein}g</Text>
+                  <Text style={[styles.dietLabel, { color: colors.textSecondary }]}>蛋白质</Text>
+                </View>
+                <View style={[styles.dietDiv, { backgroundColor: colors.border }]} />
+                <View style={styles.dietItem}>
+                  <Text style={[styles.dietVal, { color: '#F5B14C' }]}>{macros.carbs}g</Text>
+                  <Text style={[styles.dietLabel, { color: colors.textSecondary }]}>碳水</Text>
+                </View>
+                <View style={[styles.dietDiv, { backgroundColor: colors.border }]} />
+                <View style={styles.dietItem}>
+                  <Text style={[styles.dietVal, { color: '#3E6FA8' }]}>{macros.fat}g</Text>
+                  <Text style={[styles.dietLabel, { color: colors.textSecondary }]}>脂肪</Text>
+                </View>
+              </View>
+            </View>
+          )}
+
           {/* 今日推荐 */}
           <View style={styles.section}>
             <View style={styles.feedHead}>
@@ -437,6 +473,13 @@ const styles = StyleSheet.create({
   feedBody: { padding: 10, gap: 5 },
   feedTitle: { fontSize: 13, fontWeight: '700', lineHeight: 17, minHeight: 34 },
   feedMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  // 饮食建议
+  dietBar: { flexDirection: 'row', borderRadius: Radius.card, borderWidth: 1, padding: Spacing.three, marginTop: 4 },
+  dietItem: { flex: 1, alignItems: 'center', gap: 2 },
+  dietVal: { fontSize: 16, fontWeight: '800' },
+  dietLabel: { fontSize: 10 },
+  dietDiv: { width: 1, height: 22, alignSelf: 'center' },
+
   feedEmpty: {},
   tip: { textAlign: 'center', marginTop: Spacing.two, paddingHorizontal: Spacing.four },
 });
