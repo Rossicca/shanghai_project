@@ -488,10 +488,10 @@ async function generateWorkoutPlan(params) {
     instruction: '基于所有数据制定个性化周训练计划。每项身体指标都要在计划中有所体现。',
   });
   const content = await chat({
-    model: config.ai.textModel,
-    maxTokens: 8192,
-    temperature: 0.35,
-    timeout: 120000,
+    model: 'doubao-seed-2-1-turbo-260628',  // Turbo版：快得多，计划生成不用深度推理
+    maxTokens: 4096,
+    temperature: 0.3,
+    timeout: 180000,
     responseFormat: { type: 'json_object' },
     messages: [
       {
