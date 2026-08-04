@@ -65,9 +65,15 @@ export default function WorkoutPlanPage() {
   // ===== 第2步：身材维度（可选）=====
   const [waist, setWaist] = useState(savedBody?.waist ? String(savedBody.waist) : '');
   const [hip, setHip] = useState(savedBody?.hip ? String(savedBody.hip) : '');
+  const [chest, setChest] = useState('');
+  const [arm, setArm] = useState('');
+  const [thigh, setThigh] = useState('');
+  const [calf, setCalf] = useState('');
+  const [shoulder, setShoulder] = useState('');
+  const [neck, setNeck] = useState('');
 
   // ===== 第3步：目标与条件 =====
-  const [goalType, setGoalType] = useState<string>(savedGoal?.type ?? '减脂');
+  const [goalType, setGoalType] = useState<string[]>([savedGoal?.type ?? '减脂']);
   const [targetWeight, setTargetWeight] = useState(savedGoal?.targetWeight ? String(savedGoal.targetWeight) : '');
   const [equipment, setEquipment] = useState<string[]>(() => {
     if (!savedGoal) return ['mat'];
@@ -75,7 +81,8 @@ export default function WorkoutPlanPage() {
   });
   const [style, setStyle] = useState('moderate');
   const [weeklyFrequency, setWeeklyFrequency] = useState(savedGoal?.weeklyFrequency ?? 3);
-  const [sessionDuration, setSessionDuration] = useState(goalType === '减脂' ? 45 : 30);
+  const primaryGoal = goalType[0] || '减脂';
+  const [sessionDuration, setSessionDuration] = useState(primaryGoal === '减脂' ? 45 : 30);
   const [limitations, setLimitations] = useState('');
 
   // ---- 计划状态 ----
@@ -90,10 +97,10 @@ export default function WorkoutPlanPage() {
   const bmr = calcBMR({ height: hNum, weight: wNum, age: parseInt(age) || 25, gender } as BodyData);
   const bodyForTdee: BodyData = { height: hNum, weight: wNum, age: parseInt(age) || 25, gender };
   const tdee = calcTDEE(bodyForTdee, weeklyFrequency);
-  const calTarget = targetCalories(bodyForTdee, { type: goalType } as any, weeklyFrequency);
-  const macros = calTarget ? macroSplit(calTarget, goalType) : null;
+  const calTarget = targetCalories(bodyForTdee, { type: primaryGoal } as any, weeklyFrequency);
+  const macros = calTarget ? macroSplit(calTarget, primaryGoal) : null;
   const ideal = idealWeightRange(hNum);
-  const splitAdvice = trainingSplitAdvice(weeklyFrequency, goalType);
+  const splitAdvice = trainingSplitAdvice(weeklyFrequency, primaryGoal);
 
   // 体脂率：优先用户填的，否则估算
   const bodyFatNum = parseFloat(bodyFat) || undefined;
@@ -134,10 +141,10 @@ export default function WorkoutPlanPage() {
         hip: parseFloat(hip) || undefined,
       };
       await setBodyData(body);
-      await setGoal({ type: goalType as any, targetWeight: parseFloat(targetWeight) || undefined, weeklyFrequency });
+      await setGoal({ type: primaryGoal as any, targetWeight: parseFloat(targetWeight) || undefined, weeklyFrequency });
 
       const input: WorkoutPlanInput = {
-        goalType: ({ '减脂': 'lose_fat', '增肌': 'gain_muscle', '塑形': 'shape' } as const)[goalType] || 'maintain',
+        goalType: ({ '减脂': 'lose_fat', '增肌': 'gain_muscle', '塑形': 'shape' } as const)[primaryGoal] || 'maintain',
         weeklyFrequency,
         sessionDurationMinutes: sessionDuration,
         workoutLocation: 'home',
@@ -150,7 +157,8 @@ export default function WorkoutPlanPage() {
           tdee: tdee ?? undefined, targetCalories: calTarget,
           bodyFat: estimatedBF ?? undefined,
         },
-        goal: { type: goalType, targetWeight: parseFloat(targetWeight) || undefined },
+        goal: { type: primaryGoal, targetWeight: parseFloat(targetWeight) || undefined },
+        goalTypes: goalType, // 多选目标全部传给AI
         // 额外传给 AI 的上下文
         equipmentList: equipment.filter((k) => k !== 'none'),
         trainingStyle: style,
@@ -158,15 +166,12 @@ export default function WorkoutPlanPage() {
       } as any;
 
       const result = await generateWorkoutPlan(input);
-      setPlan(result);
       savePlan(result);
+      // 跳转到结果页
+      router.push('/workout/plan-result');
     } catch (e) {
       setError((e as Error).message || '训练计划生成失败');
     } finally { setLoading(false); }
-  }
-
-  function openBilibili(keyword: string) {
-    Linking.openURL(`https://search.bilibili.com/all?keyword=${encodeURIComponent(keyword)}`).catch(() => {});
   }
 
   // ===== 渲染 =====
@@ -221,34 +226,41 @@ export default function WorkoutPlanPage() {
             )}
 
             {/* 体脂率 */}
-            <ThemedText type="smallBold">体脂率</ThemedText>
+            <ThemedText type="smallBold">体脂率（可选）</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              {estimatedBF
+                ? `AI 根据你的身体数据分析：约 ${estimatedBF.toFixed(1)}%（${bfDisplay || '—'}）。如你测过体脂率可自行填入覆盖。`
+                : '填写身高体重和围度后自动估算，也可自填'}
+            </ThemedText>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.two }}>
               <TextInput
                 value={bodyFat}
                 onChangeText={(t) => setBodyFat(t.replace(/[^\d.]/g, ''))}
-                placeholder={estimatedBF ? `估算 ${estimatedBF.toFixed(1)}%` : '自填或留空'}
+                placeholder={estimatedBF ? `使用估算 ${estimatedBF.toFixed(1)}%` : '自动估算'}
                 placeholderTextColor={colors.textSecondary}
                 keyboardType="numeric"
                 style={[styles.input, { flex: 1, color: colors.text, backgroundColor: colors.backgroundElement }]}
               />
               <Text style={{ color: colors.textSecondary, fontSize: 13 }}>%</Text>
             </View>
-            {!bodyFat && estimatedBF && (
-              <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 2 }}>
-                未填写时使用围度估算值（{estimatedBF.toFixed(1)}%）
-              </Text>
-            )}
           </Card>
 
           {/* ====== 步骤2：身材维度（可选）====== */}
-          <StepBadge num={2} label="身材维度" sub="可选" colors={colors} />
+          <StepBadge num={2} label="身材维度" sub="可选 · 越详细计划越精准" colors={colors} />
           <Card style={styles.card}>
-            <ThemedText type="small" themeColor="textSecondary" style={{ marginBottom: Spacing.two }}>
-              填写后体脂率和计划更精准
-            </ThemedText>
+            <View style={styles.row3}>
+              <Field label="胸围" value={chest} onChange={setChest} suffix="cm" numeric optional colors={colors} />
+              <Field label="肩宽" value={shoulder} onChange={setShoulder} suffix="cm" numeric optional colors={colors} />
+              <Field label="臂围" value={arm} onChange={setArm} suffix="cm" numeric optional colors={colors} />
+            </View>
             <View style={styles.row3}>
               <Field label="腰围" value={waist} onChange={setWaist} suffix="cm" numeric optional colors={colors} />
               <Field label="臀围" value={hip} onChange={setHip} suffix="cm" numeric optional colors={colors} />
+              <Field label="大腿围" value={thigh} onChange={setThigh} suffix="cm" numeric optional colors={colors} />
+            </View>
+            <View style={styles.row3}>
+              <Field label="小腿围" value={calf} onChange={setCalf} suffix="cm" numeric optional colors={colors} />
+              <Field label="颈围" value={neck} onChange={setNeck} suffix="cm" numeric optional colors={colors} />
               <View style={{ flex: 1 }} />
             </View>
           </Card>
@@ -261,15 +273,27 @@ export default function WorkoutPlanPage() {
             <ThemedText type="smallBold">健身目标</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">选择主要方向，AI 会针对性设计</ThemedText>
             <View style={styles.chipRow}>
-              {GOAL_TYPES.map((g) => (
-                <Pressable key={g} onPress={() => setGoalType(g)} style={[styles.chip, {
-                  backgroundColor: goalType === g ? colors.primary : colors.backgroundElement,
-                  borderColor: goalType === g ? colors.primary : colors.border,
-                }]}>
-                  <Text style={{ color: goalType === g ? '#fff' : colors.text, fontWeight: '700' }}>{g}</Text>
-                </Pressable>
-              ))}
+              {GOAL_TYPES.map((g) => {
+                const sel = goalType.includes(g);
+                return (
+                  <Pressable key={g} onPress={() => {
+                    if (sel && goalType.length > 1) {
+                      setGoalType(goalType.filter((t) => t !== g));
+                    } else if (!sel) {
+                      setGoalType([...goalType, g]);
+                    }
+                  }} style={[styles.chip, {
+                    backgroundColor: sel ? colors.primary : colors.backgroundElement,
+                    borderColor: sel ? colors.primary : colors.border,
+                  }]}>
+                    <Text style={{ color: sel ? '#fff' : colors.text, fontWeight: '700' }}>{g}</Text>
+                  </Pressable>
+                );
+              })}
             </View>
+            <ThemedText type="small" themeColor="textSecondary">
+              已选：{goalType.join(' + ')}（至少保留一项）
+            </ThemedText>
           </Card>
 
           {/* 3b. 目标体重 */}
@@ -413,89 +437,6 @@ export default function WorkoutPlanPage() {
             </View>
           ) : null}
 
-          {/* ====== 已有计划 ====== */}
-          {plan ? (
-            <View style={styles.planResult}>
-              {/* 今日状态 */}
-              {todayInfo && (
-                <View style={[styles.todayCard, {
-                  backgroundColor: todayInfo.isTrainingDay ? colors.primarySoft : colors.yellowSoft,
-                }]}>
-                  <Ionicons name={todayInfo.isTrainingDay ? 'flame' : 'cafe'} size={22}
-                    color={todayInfo.isTrainingDay ? colors.primary : '#B07A26'} />
-                  <View style={{ flex: 1 }}>
-                    <ThemedText type="subtitle">
-                      {todayInfo.isTrainingDay
-                        ? `今天训练日 · ${todayInfo.day!.title}`
-                        : '今天是休息日 · 肌肉在恢复中生长'}
-                    </ThemedText>
-                    {todayInfo.isTrainingDay && (
-                      <ThemedText type="small" themeColor="textSecondary">
-                        约{todayInfo.day!.durationMinutes}分钟 · {todayInfo.day!.exercises.length}个动作
-                      </ThemedText>
-                    )}
-                  </View>
-                </View>
-              )}
-
-              <ThemedText type="subtitle" style={{ marginBottom: Spacing.two }}>📋 每周计划</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary" style={{ marginBottom: Spacing.two }}>
-                {plan.summary}
-              </ThemedText>
-
-              {plan.weeklySchedule.map((day) => (
-                <Card key={day.day} style={styles.dayCard}>
-                  <View style={styles.dayHead}>
-                    <View>
-                      <ThemedText type="smallBold">第{day.day}天 · 周{WEEKDAY[(day.day - 1) % 7]}</ThemedText>
-                      <ThemedText type="subtitle">{day.title}</ThemedText>
-                      {day.focusDescription ? (
-                        <ThemedText type="small" themeColor="textSecondary">{day.focusDescription}</ThemedText>
-                      ) : null}
-                    </View>
-                    <View style={[styles.dayBadge, { backgroundColor: colors.primarySoft }]}>
-                      <Text style={{ color: colors.primary, fontWeight: '700' }}>{day.durationMinutes}min</Text>
-                    </View>
-                  </View>
-
-                  {day.warmup?.length ? (
-                    <PhaseBlock color="#B07A26" bg={colors.yellowSoft} icon="sunny" title={`热身 · ${day.warmup.reduce((s,w) => s + (parseInt(w.duration||'0')||0), 0)}min`} items={day.warmup} colors={colors} />
-                  ) : null}
-
-                  <PhaseBlock color={colors.primary} bg={colors.primarySoft} icon="barbell" title={`训练 · ${day.exercises.length}个动作`} items={day.exercises} colors={colors}
-                    renderRight={(ex: any) => ex.searchKeyword ? (
-                      <Pressable style={[styles.searchBtn, { backgroundColor: '#FB7299' }]} onPress={() => openBilibili(ex.searchKeyword!)}>
-                        <Ionicons name="play-circle" size={16} color="#fff" />
-                        <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>找跟练</Text>
-                      </Pressable>
-                    ) : null}
-                  />
-
-                  {day.stretching?.length ? (
-                    <PhaseBlock color="#3E6FA8" bg="#E7F0FA" icon="leaf" title="拉伸放松" items={day.stretching} colors={colors} />
-                  ) : null}
-                </Card>
-              ))}
-
-              <View style={[styles.reminders, { backgroundColor: colors.backgroundElement }]}>
-                <ThemedText type="smallBold">训练提醒</ThemedText>
-                {plan.reminders.map((item, i) => (
-                  <View key={`r-${i}`} style={styles.reminderRow}>
-                    <Ionicons name="checkmark-circle-outline" size={16} color={colors.primary} />
-                    <ThemedText type="small" style={{ flex: 1 }}>{item}</ThemedText>
-                  </View>
-                ))}
-              </View>
-            </View>
-          ) : (
-            <Card style={[styles.planResult, { alignItems: 'center', padding: Spacing.five }]}>
-              <Ionicons name="fitness-outline" size={48} color={colors.backgroundSelected} />
-              <ThemedText type="subtitle" style={{ marginTop: Spacing.two }}>填写上方信息</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'center' }}>
-                越详细的身体数据，AI 生成的训练计划越精准
-              </ThemedText>
-            </Card>
-          )}
         </ScrollView>
       </SafeAreaView>
     </ThemedView>

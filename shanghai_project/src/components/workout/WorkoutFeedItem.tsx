@@ -84,21 +84,18 @@ export function WorkoutFeedItem({ video, active, saved, onToggleSave, onOpen }: 
 const styles = StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: '#000' },
 
-  // 底部渐变：单层 View，非线性 opacity
-  // 底部 60% 区域从深到浅，用两层嵌套 View 模拟
+  // 底部渐变：从底到顶 0→50% 渐暗
   fade: {
-    position: 'absolute', left: 0, right: 0, bottom: 0, height: '60%',
-    // 外层：轻微暗色
-    backgroundColor: 'rgba(0,0,0,0.08)',
+    position: 'absolute', left: 0, right: 0, bottom: 0, height: '40%',
   },
 
-  // 右侧操作栏
-  actions: { position: 'absolute', right: 12, bottom: 140, gap: 22, alignItems: 'center' },
+  // 右侧操作栏 — 与底部文字对齐
+  actions: { position: 'absolute', right: 12, bottom: 80, gap: 22, alignItems: 'center' },
   btn: { alignItems: 'center', gap: 2 },
   btnLabel: { color: '#fff', fontSize: 11, fontWeight: '600', ...SHADOW },
 
-  // 底部信息
-  info: { position: 'absolute', left: 16, right: 72, bottom: 90 },
+  // 底部信息 — 紧贴导航栏上方
+  info: { position: 'absolute', left: 16, right: 72, bottom: 52 },
 
   tags: { flexDirection: 'row', gap: 6, marginBottom: 8 },
   tag: { backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 9, paddingVertical: 3, borderRadius: 10 },

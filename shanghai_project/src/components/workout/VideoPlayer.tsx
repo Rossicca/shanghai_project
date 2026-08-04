@@ -11,6 +11,7 @@ type Props = { video: WorkoutVideo; playing?: boolean; onEnd?: () => void; showC
 export function VideoPlayer({ video, playing = true, onEnd, showControls }: Props) {
   const [pulse] = useState(() => new Animated.Value(1));
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [imgDims, setImgDims] = useState<{ w: number; h: number } | null>(null);
 
   useEffect(() => {
     let loop: Animated.CompositeAnimation | null = null;
@@ -23,15 +24,10 @@ export function VideoPlayer({ video, playing = true, onEnd, showControls }: Prop
       );
       loop.start();
       if (showControls && onEnd) {
-        timer.current = setInterval(() => {
-          onEnd();
-        }, video.duration * 1000);
+        timer.current = setInterval(() => onEnd(), video.duration * 1000);
       }
     }
-    return () => {
-      loop?.stop(); pulse.setValue(1);
-      if (timer.current) clearInterval(timer.current);
-    };
+    return () => { loop?.stop(); pulse.setValue(1); if (timer.current) clearInterval(timer.current); };
   }, [playing, video.source, video.duration, pulse, showControls, onEnd]);
 
   function openExternal() {
@@ -41,23 +37,44 @@ export function VideoPlayer({ video, playing = true, onEnd, showControls }: Prop
       .catch(() => Alert.alert('暂不可用'));
   }
 
-  // 真实视频源
+  // 预加载封面图获取尺寸，判断横/竖屏
+  useEffect(() => {
+    if (!video.coverUrl) return;
+    if (Platform.OS === 'web') {
+      const img = new window.Image();
+      img.onload = () => setImgDims({ w: img.naturalWidth, h: img.naturalHeight });
+      img.src = video.coverUrl;
+    } else {
+      const { Image: RNImage } = require('react-native');
+      RNImage.getSize(video.coverUrl,
+        (w: number, h: number) => setImgDims({ w, h }),
+        () => {}
+      );
+    }
+  }, [video.coverUrl]);
+
+  // 判断封面是横屏(宽>高)还是竖屏
+  const isLandscape = imgDims ? imgDims.w > imgDims.h : true; // B站默认横屏
+
   if (video.source) {
     return <RealVideo source={video.source} playing={playing} />;
   }
 
-  // 封面
   return (
-    <Pressable onPress={openExternal} style={[styles.fill, { backgroundColor: video.coverColor || '#1a1a2e' }]}>
-      {/* B站封面图 —— contain 完整显示，不裁切 */}
+    <Pressable onPress={openExternal} style={[styles.fill, { backgroundColor: video.coverColor || '#0f0f1a' }]}>
       {video.coverUrl ? (
-        <Image source={{ uri: video.coverUrl }} style={styles.img} contentFit="cover" transition={200} />
+        <Image
+          source={{ uri: video.coverUrl }}
+          style={styles.fill}
+          contentFit={isLandscape ? 'contain' : 'cover'}
+          transition={200}
+        />
       ) : null}
 
       {/* 播放按钮 */}
       <Animated.View style={[styles.playWrap, { transform: [{ scale: pulse }] }]}>
         <View style={styles.playBtn}>
-          <Ionicons name="play" size={26} color="#fff" style={{ marginLeft: 3 }} />
+          <Ionicons name="play" size={24} color="#fff" style={{ marginLeft: 3 }} />
         </View>
       </Animated.View>
     </Pressable>
@@ -72,10 +89,9 @@ function RealVideo({ source, playing }: { source: string; playing: boolean }) {
 
 const styles = StyleSheet.create({
   fill: { flex: 1, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  img: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%' } as any,
-  playWrap: {},
+  playWrap: { zIndex: 5 },
   playBtn: {
-    width: 66, height: 66, borderRadius: 33,
+    width: 62, height: 62, borderRadius: 31,
     backgroundColor: 'rgba(0,0,0,0.28)',
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 2, borderColor: 'rgba(255,255,255,0.5)',
