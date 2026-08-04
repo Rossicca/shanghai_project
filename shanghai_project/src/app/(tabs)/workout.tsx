@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Dimensions,
   FlatList,
   Pressable,
   StyleSheet,
@@ -21,6 +22,8 @@ import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useUserStore } from '@/store/userStore';
 import { useWorkoutStore } from '@/store/workoutStore';
+
+const WINDOW_HEIGHT = Dimensions.get('window').height;
 
 export default function WorkoutTab() {
   const colors = useTheme();
@@ -43,7 +46,7 @@ export default function WorkoutTab() {
   const goal = useUserStore((s) => s.goal);
 
   const [activeIndex, setActiveIndex] = useState(0);
-  const [listHeight, setListHeight] = useState(0);
+  const [listHeight, setListHeight] = useState(WINDOW_HEIGHT - 100);
   const savedIds = new Set(savedVideos.map((v) => v.id));
 
   const [onViewableItemsChanged] = useState(
@@ -68,9 +71,12 @@ export default function WorkoutTab() {
     router.push({ pathname: '/workout/[id]', params: { id: video.id } });
   }
 
+  // 首屏视频高度 = 窗口高度 - 状态栏 - 分类栏（约 50）- 底部安全区
+  const itemHeight = listHeight > 0 ? listHeight : WINDOW_HEIGHT - 100;
+
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         {/* 分类标签栏 */}
         <FlatList
           horizontal
@@ -83,7 +89,7 @@ export default function WorkoutTab() {
           )}
         />
 
-        {/* 视频信息流 —— 纯视频推荐 + AI 健身成果展示 */}
+        {/* 视频流 —— 占满剩余空间 */}
         {isLoading && feed.length === 0 ? (
           <View style={styles.loading}>
             <ActivityIndicator size="large" color={colors.primary} />
@@ -107,7 +113,12 @@ export default function WorkoutTab() {
             <ThemedText type="small" themeColor="textSecondary">可以切换其他分类，或稍后再来。</ThemedText>
           </View>
         ) : (
-          <View style={styles.feedWrap} onLayout={(e) => setListHeight(e.nativeEvent.layout.height)}>
+          <View
+            style={styles.feedWrap}
+            onLayout={(e) => {
+              const h = e.nativeEvent.layout.height;
+              if (h > 0) setListHeight(h);
+            }}>
             <FlatList
               data={feed}
               keyExtractor={(v) => v.id}
@@ -117,8 +128,12 @@ export default function WorkoutTab() {
               viewabilityConfig={viewabilityConfig}
               onEndReached={() => { if (hasMore) loadMore(); }}
               onEndReachedThreshold={0.6}
+              snapToInterval={itemHeight}
+              decelerationRate="fast"
               ListFooterComponent={
-                isLoadingMore ? <ActivityIndicator color={colors.primary} style={{ padding: Spacing.three }} /> : (
+                isLoadingMore ? (
+                  <ActivityIndicator color={colors.primary} style={{ padding: Spacing.three }} />
+                ) : (
                   <View style={styles.footer}>
                     <View style={styles.footerDivider}>
                       <View style={[styles.footerLine, { backgroundColor: colors.border }]} />
@@ -133,9 +148,13 @@ export default function WorkoutTab() {
                   </View>
                 )
               }
-              style={{ flex: 1 }}
+              getItemLayout={(_, index) => ({
+                length: itemHeight,
+                offset: itemHeight * index,
+                index,
+              })}
               renderItem={({ item, index }) => (
-                <View style={{ height: listHeight || 600 }}>
+                <View style={{ height: itemHeight }}>
                   <WorkoutFeedItem
                     video={item}
                     active={index === activeIndex}

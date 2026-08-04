@@ -15,10 +15,8 @@ type Props = {
 
 /**
  * 跟练视频播放器：
- * - 有真实 source 用 expo-video 播放
- * - 无 source 但有 sourceUrl 显示"去B站观看"按钮
- * - 无 source（纯演示数据）用"示范动画"替代：脉冲图标 + 进度条模拟跟练
- * 动画用 RN 内置 Animated（不用 reanimated，避免 Expo Go 原生崩溃问题）。
+ * - 有真实 source → expo-video 播放
+ * - 否则显示封面卡片（渐变色背景 + 分类 + 播放按钮 + 时长/难度/平台标签）
  */
 export function VideoPlayer({ video, playing = true, onEnd, showControls }: Props) {
   const [progress, setProgress] = useState(0);
@@ -30,8 +28,8 @@ export function VideoPlayer({ video, playing = true, onEnd, showControls }: Prop
     if (playing) {
       loop = Animated.loop(
         Animated.sequence([
-          Animated.timing(pulse, { toValue: 1.15, duration: 500, useNativeDriver: Platform.OS !== 'web' }),
-          Animated.timing(pulse, { toValue: 1, duration: 500, useNativeDriver: Platform.OS !== 'web' }),
+          Animated.timing(pulse, { toValue: 1.08, duration: 600, useNativeDriver: Platform.OS !== 'web' }),
+          Animated.timing(pulse, { toValue: 1, duration: 600, useNativeDriver: Platform.OS !== 'web' }),
         ])
       );
       loop.start();
@@ -54,7 +52,9 @@ export function VideoPlayer({ video, playing = true, onEnd, showControls }: Prop
     };
   }, [playing, video.duration, onEnd, pulse]);
 
-  const remain = Math.max(0, Math.round((video.duration * (100 - progress)) / 100));
+  const minutes = Math.floor(video.duration / 60);
+  const seconds = String(video.duration % 60).padStart(2, '0');
+  const categoryEmoji = CATEGORY_ICONS[video.category] ?? '💪';
 
   function openExternal() {
     if (!video.sourceUrl) return;
@@ -63,76 +63,71 @@ export function VideoPlayer({ video, playing = true, onEnd, showControls }: Prop
       .catch(() => Alert.alert('视频暂时不可用', '文字动作说明仍可正常使用。'));
   }
 
-  // 真实视频
+  // 真实视频源 → 直接播放
   if (video.source) {
     return <RealVideo source={video.source} playing={playing} />;
   }
 
-  // 有外部链接（B站/YouTube）的推荐视频
-  if (video.sourceUrl) {
-    return (
-      <View style={[styles.container, { backgroundColor: video.coverColor }]}>
-        <Animated.View style={[styles.emojiWrap, { transform: [{ scale: pulse }] }]}>
-          <Text style={styles.emoji}>{CATEGORY_ICONS[video.category] ?? '💪'}</Text>
-        </Animated.View>
-        <View style={styles.bottomInfo}>
-          <Text style={styles.playingText}>
-            {playing ? '🔥 跟练中' : '⏸ 已暂停'} · {video.category}
-          </Text>
-          {showControls ? (
-            <Text style={styles.remainText}>还剩 {Math.floor(remain / 60)}:{String(remain % 60).padStart(2, '0')}</Text>
+  // 封面卡片
+  return (
+    <View style={[styles.cover, { backgroundColor: video.coverColor }]}>
+      {/* 光影叠加层 — 模拟渐变 */}
+      <View style={[styles.overlay, { backgroundColor: 'rgba(0,0,0,0.12)' }]} />
+      <View style={[styles.overlayTop, { backgroundColor: 'rgba(255,255,255,0.08)' }]} />
+
+      {/* 左上角：分类 */}
+      <View style={styles.badgeTop}>
+        <Text style={styles.badgeEmoji}>{categoryEmoji}</Text>
+        <Text style={styles.badgeLabel}>{video.category}</Text>
+      </View>
+
+      {/* 中间：播放按钮 */}
+      <Animated.View style={[styles.playWrap, { transform: [{ scale: pulse }] }]}>
+        <View style={styles.playCircle}>
+          <Ionicons name="play" size={30} color="#fff" style={{ marginLeft: 4 }} />
+        </View>
+      </Animated.View>
+
+      {/* 底部信息条 */}
+      <View style={styles.coverFooter}>
+        <View style={styles.metaRow}>
+          <View style={styles.metaChip}>
+            <Ionicons name="time-outline" size={12} color="#fff" />
+            <Text style={styles.metaText}>{minutes}:{seconds}</Text>
+          </View>
+          <View style={[styles.metaChip, { backgroundColor: 'rgba(255,255,255,0.18)' }]}>
+            <Text style={styles.metaText}>{video.difficulty}</Text>
+          </View>
+          {video.platform === 'bilibili' ? (
+            <View style={[styles.metaChip, { backgroundColor: '#FB7299' }]}>
+              <Text style={styles.metaText}>B站</Text>
+            </View>
+          ) : video.platform ? (
+            <View style={[styles.metaChip, { backgroundColor: '#FF0000' }]}>
+              <Text style={styles.metaText}>YouTube</Text>
+            </View>
           ) : null}
         </View>
+
+        {/* 进度条 */}
         <View style={styles.progressTrack}>
           <View style={[styles.progressFill, { width: `${progress}%` }]} />
         </View>
-        {showControls ? (
-          <View style={styles.tip}>
-            <Ionicons name="information-circle-outline" size={14} color="rgba(255,255,255,0.85)" />
-            <Text style={styles.tipText}>演示视频：以示范动画代替真实跟练视频</Text>
-          </View>
-        ) : null}
-        <Pressable style={styles.watchBtn} onPress={openExternal}>
-          <Ionicons name="logo-youtube" size={20} color="#fff" />
-          <Text style={styles.watchBtnText}>
-            {video.platform === 'bilibili' ? '去B站观看 ›' : '跳转观看 ›'}
-          </Text>
-        </Pressable>
       </View>
-    );
-  }
 
-  // 纯演示动画（无任何链接）
-  return (
-    <View style={[styles.container, { backgroundColor: video.coverColor }]}>
-      <Animated.View style={[styles.emojiWrap, { transform: [{ scale: pulse }] }]}>
-        <Text style={styles.emoji}>{CATEGORY_ICONS[video.category] ?? '💪'}</Text>
-      </Animated.View>
-      <View style={styles.bottomInfo}>
-        <Text style={styles.playingText}>
-          {playing ? '🔥 跟练中' : '⏸ 已暂停'} · {video.category}
-        </Text>
-        {showControls ? (
-          <Text style={styles.remainText}>还剩 {Math.floor(remain / 60)}:{String(remain % 60).padStart(2, '0')}</Text>
-        ) : null}
-      </View>
-      <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${progress}%` }]} />
-      </View>
-      {showControls ? (
-        <View style={styles.tip}>
-          <Ionicons name="information-circle-outline" size={14} color="rgba(255,255,255,0.85)" />
-          <Text style={styles.tipText}>演示视频：以示范动画代替真实跟练视频</Text>
-        </View>
+      {/* 跳转按钮 */}
+      {video.sourceUrl ? (
+        <Pressable style={styles.jumpBtn} onPress={openExternal}>
+          <Ionicons name="play-circle" size={18} color="#fff" />
+          <Text style={styles.jumpText}>观看完整视频</Text>
+        </Pressable>
       ) : null}
     </View>
   );
 }
 
 function RealVideo({ source, playing }: { source: string; playing: boolean }) {
-  const player = useVideoPlayer(source, (p) => {
-    p.loop = false;
-  });
+  const player = useVideoPlayer(source, (p) => { p.loop = false; });
   useEffect(() => {
     if (playing) player.play();
     else player.pause();
@@ -142,26 +137,53 @@ function RealVideo({ source, playing }: { source: string; playing: boolean }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  emojiWrap: { width: 120, height: 120, alignItems: 'center', justifyContent: 'center' },
-  emoji: { fontSize: 72 },
-  bottomInfo: { position: 'absolute', bottom: 44, alignItems: 'center', gap: 4 },
-  playingText: { color: '#fff', fontWeight: '800', fontSize: 16, textShadowColor: 'rgba(0,0,0,0.4)', textShadowRadius: 4 },
-  remainText: { color: 'rgba(255,255,255,0.9)', fontSize: 13, fontWeight: '700' },
-  progressTrack: { position: 'absolute', top: 6, left: 8, right: 8, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.3)', overflow: 'hidden' },
-  progressFill: { height: '100%', backgroundColor: '#fff' },
-  tip: { position: 'absolute', bottom: 8, flexDirection: 'row', alignItems: 'center', gap: 4 },
-  tipText: { color: 'rgba(255,255,255,0.85)', fontSize: 12 },
-  watchBtn: {
-    position: 'absolute',
-    bottom: 80,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#FB7299',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+  cover: { flex: 1, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  overlay: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+  },
+  overlayTop: {
+    position: 'absolute', top: 0, left: 0, right: 0, height: '40%',
+    borderBottomLeftRadius: 999, borderBottomRightRadius: 999,
+  },
+
+  badgeTop: {
+    position: 'absolute', top: 44, left: 20,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: 'rgba(0,0,0,0.35)', paddingHorizontal: 12, paddingVertical: 6,
     borderRadius: 20,
   },
-  watchBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  badgeEmoji: { fontSize: 15 },
+  badgeLabel: { color: '#fff', fontSize: 13, fontWeight: '700' },
+
+  playWrap: {},
+  playCircle: {
+    width: 76, height: 76, borderRadius: 38,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2.5, borderColor: 'rgba(255,255,255,0.5)',
+  },
+
+  coverFooter: {
+    position: 'absolute', bottom: 88, left: 20, right: 20, gap: 10,
+  },
+  metaRow: { flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
+  metaChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: 'rgba(0,0,0,0.4)', paddingHorizontal: 9, paddingVertical: 4,
+    borderRadius: 12,
+  },
+  metaText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+
+  progressTrack: {
+    height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.25)', overflow: 'hidden',
+  },
+  progressFill: { height: '100%', backgroundColor: '#fff' },
+
+  jumpBtn: {
+    position: 'absolute', bottom: 44, right: 20,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#FB7299', paddingHorizontal: 16, paddingVertical: 9,
+    borderRadius: 22,
+  },
+  jumpText: { color: '#fff', fontSize: 13, fontWeight: '700' },
 });

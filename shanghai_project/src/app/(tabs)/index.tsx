@@ -63,7 +63,6 @@ export default function HomeScreen() {
               <View style={[styles.logoMark, { backgroundColor: colors.primary }]}>
                 <Ionicons name="leaf" size={19} color="#fff" />
               </View>
-              <Text style={[styles.brandName, { color: colors.text }]}>芽芽健康</Text>
             </View>
             <View style={styles.topIcons}>
               <Pressable hitSlop={8} onPress={() => setNoticesOpen(true)}>
