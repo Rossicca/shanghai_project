@@ -13,6 +13,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { getToken } from '@/services/api';
 import { fetchLatestWorkoutPlan, generateWorkoutPlan } from '@/services/workout';
 import { useUserStore } from '@/store/userStore';
+import { usePlanStore } from '@/store/planStore';
 import type { WorkoutPlan, WorkoutPlanInput } from '@/types/workout';
 
 const DURATIONS = [20, 30, 45, 60];
@@ -30,6 +31,7 @@ function goalCode(value?: string): WorkoutPlanInput['goalType'] {
 export default function WorkoutPlanPage() {
   const colors = useTheme();
   const goal = useUserStore((state) => state.goal);
+  const savePlan = usePlanStore((state) => state.setPlan);
   const [weeklyFrequency, setWeeklyFrequency] = useState(() => goal?.weeklyFrequency ?? 3);
   const [duration, setDuration] = useState(30);
   const [location, setLocation] = useState<WorkoutPlanInput['workoutLocation']>('home');
@@ -42,8 +44,10 @@ export default function WorkoutPlanPage() {
 
   useEffect(() => {
     if (!getToken()) return;
-    fetchLatestWorkoutPlan().then(setPlan).catch(() => {});
-  }, []);
+    fetchLatestWorkoutPlan().then((latest) => {
+      if (latest) { setPlan(latest); savePlan(latest); }
+    }).catch(() => {});
+  }, [savePlan]);
 
   async function runGenerate() {
     if (!getToken()) {
@@ -63,6 +67,7 @@ export default function WorkoutPlanPage() {
         limitations: limitations.split(/[，,；;\n]/).map((item) => item.trim()).filter(Boolean),
       });
       setPlan(result);
+      savePlan(result);
     } catch (requestError) {
       setError((requestError as Error).message || '训练计划生成失败，请重试');
     } finally {

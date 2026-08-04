@@ -6,6 +6,7 @@ import {
   FlatList,
   Pressable,
   StyleSheet,
+  Text,
   View,
   type ViewToken,
 } from 'react-native';
@@ -71,57 +72,18 @@ export default function WorkoutTab() {
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         {/* 分类标签栏 */}
-        <View>
-          <FlatList
-            horizontal
-            data={CATEGORIES}
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.categoryBar}
-            keyExtractor={(c) => c}
-            renderItem={({ item }) => (
-              <CategoryChip label={item} isSelected={currentCategory === item} onPress={() => handleSwitch(item)} />
-            )}
-          />
-        </View>
+        <FlatList
+          horizontal
+          data={CATEGORIES}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categoryBar}
+          keyExtractor={(c) => c}
+          renderItem={({ item }) => (
+            <CategoryChip label={item} isSelected={currentCategory === item} onPress={() => handleSwitch(item)} />
+          )}
+        />
 
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.push('/workout/plan')}
-          style={[styles.planEntry, { backgroundColor: colors.primarySoft }]}>
-          <View style={[styles.planIcon, { backgroundColor: colors.primary }]}>
-            <Ionicons name="calendar-outline" size={20} color="#fff" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <ThemedText type="smallBold">生成每周训练计划</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              按目标、器械和身体限制安排动作与提醒
-            </ThemedText>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={colors.primary} />
-        </Pressable>
-
-        {/* 个性化提示 */}
-        <View style={styles.personalBar}>
-          <Ionicons
-            name={bodyData ? 'sparkles' : 'information-circle-outline'}
-            size={16}
-            color={bodyData ? colors.warning : colors.textSecondary}
-          />
-          <ThemedText type="small" themeColor="textSecondary" style={{ flex: 1 }}>
-            {bodyData
-              ? `已按你的数据（${bodyData.height}cm/${bodyData.weight}kg，目标${goal?.type ?? '健康'}）个性化推荐`
-              : '填写身体数据后，推荐会更精准'}
-          </ThemedText>
-          {!bodyData ? (
-            <Pressable onPress={() => router.push('/profile/body')}>
-              <ThemedText type="small" themeColor="primary">
-                去填写 ›
-              </ThemedText>
-            </Pressable>
-          ) : null}
-        </View>
-
-        {/* 视频信息流 */}
+        {/* 视频信息流 —— 纯视频推荐 + AI 健身成果展示 */}
         {isLoading && feed.length === 0 ? (
           <View style={styles.loading}>
             <ActivityIndicator size="large" color={colors.primary} />
@@ -132,7 +94,7 @@ export default function WorkoutTab() {
             <Ionicons name="cloud-offline-outline" size={32} color={colors.textSecondary} />
             <ThemedText type="subtitle">视频暂时加载失败</ThemedText>
             <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'center' }}>
-              {error}。你的身体数据和收藏不会丢失。
+              {error}
             </ThemedText>
             <Pressable onPress={() => fetchFeed({ bodyData: bodyData ?? undefined, goal: goal ?? undefined })}>
               <ThemedText type="smallBold" themeColor="primary">重新加载</ThemedText>
@@ -140,8 +102,8 @@ export default function WorkoutTab() {
           </View>
         ) : feed.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="barbell-outline" size={32} color={colors.textSecondary} />
-            <ThemedText type="subtitle">这个分类还没有视频</ThemedText>
+            <Ionicons name="play-circle-outline" size={32} color={colors.textSecondary} />
+            <ThemedText type="subtitle">暂无推荐视频</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">可以切换其他分类，或稍后再来。</ThemedText>
           </View>
         ) : (
@@ -155,7 +117,22 @@ export default function WorkoutTab() {
               viewabilityConfig={viewabilityConfig}
               onEndReached={() => { if (hasMore) loadMore(); }}
               onEndReachedThreshold={0.6}
-              ListFooterComponent={isLoadingMore ? <ActivityIndicator color={colors.primary} /> : null}
+              ListFooterComponent={
+                isLoadingMore ? <ActivityIndicator color={colors.primary} style={{ padding: Spacing.three }} /> : (
+                  <View style={styles.footer}>
+                    <View style={styles.footerDivider}>
+                      <View style={[styles.footerLine, { backgroundColor: colors.border }]} />
+                      <Text style={[styles.footerText, { color: colors.textSecondary }]}>
+                        AI 推荐 · 训练视频 & 健身成果展示
+                      </Text>
+                      <View style={[styles.footerLine, { backgroundColor: colors.border }]} />
+                    </View>
+                    <ThemedText type="small" themeColor="textSecondary" style={styles.footerSub}>
+                      个性化推荐，越练越精准
+                    </ThemedText>
+                  </View>
+                )
+              }
               style={{ flex: 1 }}
               renderItem={({ item, index }) => (
                 <View style={{ height: listHeight || 600 }}>
@@ -180,20 +157,12 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   safeArea: { flex: 1 },
   categoryBar: { gap: Spacing.two, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two },
-  personalBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.one,
-  },
-  planEntry: {
-    flexDirection: 'row', alignItems: 'center', gap: Spacing.two,
-    marginHorizontal: Spacing.three, marginBottom: Spacing.two,
-    padding: Spacing.three, borderRadius: 16,
-  },
-  planIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.three },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.two, padding: Spacing.four },
   feedWrap: { flex: 1 },
+  footer: { padding: Spacing.three, gap: Spacing.two, paddingBottom: Spacing.five },
+  footerDivider: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  footerLine: { flex: 1, height: StyleSheet.hairlineWidth },
+  footerText: { fontSize: 12, fontWeight: '600' },
+  footerSub: { textAlign: 'center' },
 });

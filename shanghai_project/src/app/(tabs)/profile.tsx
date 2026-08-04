@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { FastingTimer } from '@/components/home/FastingTimer';
 import { StatsCard } from '@/components/profile/StatsCard';
 import { TrendChart } from '@/components/profile/TrendChart';
 import { ThemedText } from '@/components/themed-text';
@@ -107,6 +108,9 @@ export default function ProfileTab() {
               )}
             </View>
           </View>
+
+          {/* 断食番茄钟 */}
+          <FastingTimer />
 
           {/* 数据统计看板 */}
           <View style={styles.statsRow}>

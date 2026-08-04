@@ -51,8 +51,8 @@ export default function TabLayout() {
       <Tabs.Screen
         name="workout"
         options={{
-          title: '练',
-          tabBarIcon: ({ color, size }) => <Ionicons name="barbell" size={size} color={color} />,
+          title: '视频',
+          tabBarIcon: ({ color, size }) => <Ionicons name="play-circle" size={size} color={color} />,
         }}
       />
       <Tabs.Screen

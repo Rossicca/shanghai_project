@@ -4,31 +4,35 @@ import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { FastingTimer } from '@/components/home/FastingTimer';
 import { MoreSheet } from '@/components/home/MoreSheet';
 import { NotificationSheet } from '@/components/home/NotificationSheet';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { usePlanStore } from '@/store/planStore';
 import { useRecipeStore } from '@/store/recipeStore';
 import { useUserStore } from '@/store/userStore';
 import { useWorkoutStore } from '@/store/workoutStore';
 import type { Recipe } from '@/types/recipe';
 import { calcBMI, estimateTargetCalories } from '@/utils/nutrition';
 
+const WEEKDAY_LABELS = ['一', '二', '三', '四', '五', '六', '日'];
+
 export default function HomeScreen() {
   const colors = useTheme();
   const { bodyData, goal, bodyHistory } = useUserStore();
   const { recipeHistory, loadLocal: loadRecipes, selectRecipe } = useRecipeStore();
   const { history: workoutHistory, loadLocal: loadWorkouts } = useWorkoutStore();
+  const { plan, loadPlan } = usePlanStore();
   const [noticesOpen, setNoticesOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
 
   useEffect(() => {
     loadRecipes();
     loadWorkouts();
-  }, [loadRecipes, loadWorkouts]);
+    loadPlan();
+  }, [loadRecipes, loadWorkouts, loadPlan]);
 
   const todayKey = new Date().toDateString();
   const todayRecipes = recipeHistory.filter(
@@ -79,10 +83,116 @@ export default function HomeScreen() {
             </ThemedText>
           </View>
 
-          {/* 断食番茄钟 */}
-          <View style={styles.section}>
-            <FastingTimer />
-          </View>
+          {/* ====== 训练计划 Hero —— 首页首屏核心 ====== */}
+          {plan ? (
+            /* 已有计划 → 展示计划详情 */
+            <View style={styles.heroSection}>
+              <View style={[styles.planHeroCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View style={styles.planHeroHead}>
+                  <View style={styles.planHeroTitleRow}>
+                    <View style={[styles.planHeroIcon, { backgroundColor: colors.primarySoft }]}>
+                      <Ionicons name="calendar" size={20} color={colors.primary} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <ThemedText type="subtitle">我的训练计划</ThemedText>
+                      <ThemedText type="small" themeColor="textSecondary">{plan.summary}</ThemedText>
+                    </View>
+                  </View>
+                  <Pressable
+                    style={[styles.planAdjustBtn, { borderColor: colors.primary }]}
+                    onPress={() => router.push('/workout/plan')}>
+                    <Text style={[styles.planAdjustText, { color: colors.primary }]}>调整计划</Text>
+                  </Pressable>
+                </View>
+
+                {/* 本周概览 */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.weekScroll}>
+                  {plan.weeklySchedule.map((day, i) => (
+                    <View key={day.day} style={[styles.dayCard, { backgroundColor: colors.backgroundElement }]}>
+                      <Text style={[styles.dayLabel, { color: colors.textSecondary }]}>
+                        周{WEEKDAY_LABELS[i % 7]}
+                      </Text>
+                      <Text style={[styles.dayTitle, { color: colors.text }]} numberOfLines={1}>
+                        {day.title}
+                      </Text>
+                      <Text style={[styles.dayDur, { color: colors.primary }]}>
+                        {day.durationMinutes}分钟
+                      </Text>
+                      <View style={styles.dayExList}>
+                        {day.exercises.slice(0, 3).map((ex, j) => (
+                          <Text key={j} style={[styles.dayEx, { color: colors.textSecondary }]} numberOfLines={1}>
+                            · {ex.name}
+                          </Text>
+                        ))}
+                        {day.exercises.length > 3 ? (
+                          <Text style={[styles.dayEx, { color: colors.textSecondary }]}>
+                            +{day.exercises.length - 3} 个动作
+                          </Text>
+                        ) : null}
+                      </View>
+                    </View>
+                  ))}
+                </ScrollView>
+
+                <Pressable
+                  style={[styles.todayBtn, { backgroundColor: colors.primary }]}
+                  onPress={() => router.push('/workout/plan')}>
+                  <Ionicons name="play-circle" size={20} color="#fff" />
+                  <Text style={styles.todayBtnText}>查看完整计划</Text>
+                  <Ionicons name="chevron-forward" size={18} color="#fff" />
+                </Pressable>
+              </View>
+            </View>
+          ) : (
+            /* 无计划 → 引导生成 */
+            <View style={styles.heroSection}>
+              <View style={[styles.heroCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View style={[styles.heroIconWrap, { backgroundColor: colors.primarySoft }]}>
+                  <Ionicons name="fitness" size={36} color={colors.primary} />
+                </View>
+                <Text style={[styles.heroTitle, { color: colors.text }]}>生成你的专属训练计划</Text>
+                <Text style={[styles.heroDesc, { color: colors.textSecondary }]}>
+                  AI 根据你的身体数据、健身目标和器械条件，{'\n'}制定每周个性化训练方案
+                </Text>
+
+                <View style={styles.heroTags}>
+                  {bodyData ? (
+                    <View style={[styles.heroTag, { backgroundColor: colors.successSoft }]}>
+                      <Ionicons name="body" size={14} color={colors.success} />
+                      <Text style={[styles.heroTagText, { color: colors.success }]}>
+                        {bodyData.height}cm / {bodyData.weight}kg
+                      </Text>
+                    </View>
+                  ) : null}
+                  {goal ? (
+                    <View style={[styles.heroTag, { backgroundColor: colors.primarySoft }]}>
+                      <Ionicons name="flag" size={14} color={colors.primary} />
+                      <Text style={[styles.heroTagText, { color: colors.primary }]}>{goal.type}</Text>
+                    </View>
+                  ) : null}
+                  <View style={[styles.heroTag, { backgroundColor: colors.yellowSoft }]}>
+                    <Ionicons name="time" size={14} color="#B07A26" />
+                    <Text style={[styles.heroTagText, { color: '#B07A26' }]}>AI 定制</Text>
+                  </View>
+                </View>
+
+                <Pressable
+                  style={[styles.heroBtn, { backgroundColor: colors.primary }]}
+                  onPress={() => router.push('/workout/plan')}>
+                  <Ionicons name="calendar-outline" size={20} color="#fff" />
+                  <Text style={styles.heroBtnText}>开始定制训练计划</Text>
+                </Pressable>
+
+                {!bodyData && (
+                  <Pressable onPress={() => router.push('/profile/body')}>
+                    <ThemedText type="small" themeColor="primary" style={{ textAlign: 'center' }}>
+                      先填写身体数据，让 AI 更懂你 ›
+                    </ThemedText>
+                  </Pressable>
+                )}
+              </View>
+            </View>
+          )}
 
           {/* 今日目标（线形进度） */}
           <View style={[styles.ringCard, { backgroundColor: colors.card }]}>
@@ -93,7 +203,6 @@ export default function HomeScreen() {
               </View>
             </View>
             <View style={styles.lineRow}>
-              {/* 线形进度条 */}
               <View style={styles.lineBarWrap}>
                 <View style={[styles.lineBar, { backgroundColor: colors.backgroundSelected }]}>
                   <View style={[styles.lineFill, { width: `${Math.min(100, pct)}%`, backgroundColor: colors.primary }]} />
@@ -140,9 +249,9 @@ export default function HomeScreen() {
               </Pressable>
               <Pressable style={styles.cell} onPress={() => router.push('/workout')}>
                 <View style={[styles.cellIcon, { backgroundColor: colors.yellowSoft }]}>
-                  <Ionicons name="barbell" size={22} color="#B07A26" />
+                  <Ionicons name="play-circle" size={22} color="#B07A26" />
                 </View>
-                <Text style={[styles.cellLabel, { color: colors.textSecondary }]}>运动推荐</Text>
+                <Text style={[styles.cellLabel, { color: colors.textSecondary }]}>训练视频</Text>
               </Pressable>
               <Pressable style={styles.cell} onPress={() => router.push('/recipe')}>
                 <View style={[styles.cellIcon, { backgroundColor: colors.pinkSoft }]}>
@@ -241,33 +350,58 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   safeArea: { flex: 1 },
   content: { paddingBottom: Spacing.five, gap: Spacing.three },
-  // 品牌行
   brandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.three + 4,
-    paddingTop: Spacing.two,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: Spacing.three + 4, paddingTop: Spacing.two,
   },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-  logoMark: {
-    width: 30,
-    height: 30,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  logoMark: { width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   brandName: { fontSize: 19, fontWeight: '800', letterSpacing: 0.5 },
   topIcons: { flexDirection: 'row', gap: 14 },
-  // 问候
   greet: { paddingHorizontal: Spacing.four, gap: 3 },
   greetTitle: { fontSize: 22, fontWeight: '800', lineHeight: 30 },
-  // 今日目标卡
-  ringCard: {
-    marginHorizontal: Spacing.three + 4,
-    borderRadius: Radius.card,
-    padding: Spacing.three,
+
+  // ====== 训练计划 Hero ======
+  heroSection: { paddingHorizontal: Spacing.three + 4 },
+
+  heroCard: {
+    borderRadius: Radius.card, borderWidth: 1, padding: Spacing.four,
+    alignItems: 'center', gap: Spacing.two,
   },
+  heroIconWrap: { width: 72, height: 72, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  heroTitle: { fontSize: 20, fontWeight: '800', textAlign: 'center' },
+  heroDesc: { fontSize: 13, lineHeight: 20, textAlign: 'center' },
+  heroTags: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two, justifyContent: 'center' },
+  heroTag: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: Radius.chip },
+  heroTagText: { fontSize: 12, fontWeight: '600' },
+  heroBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.two,
+    paddingHorizontal: Spacing.five, paddingVertical: 14, borderRadius: Radius.button,
+    marginTop: Spacing.one, width: '100%',
+  },
+  heroBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+
+  planHeroCard: { borderRadius: Radius.card, borderWidth: 1, padding: Spacing.three, gap: Spacing.three },
+  planHeroHead: { gap: Spacing.two },
+  planHeroTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
+  planHeroIcon: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  planAdjustBtn: { alignSelf: 'flex-end', paddingHorizontal: 14, paddingVertical: 6, borderRadius: Radius.chip, borderWidth: 1 },
+  planAdjustText: { fontSize: 13, fontWeight: '700' },
+  weekScroll: { maxHeight: 170 },
+  dayCard: { width: 148, padding: Spacing.two + 2, borderRadius: 14, marginRight: Spacing.two, gap: 5 },
+  dayLabel: { fontSize: 11, fontWeight: '600' },
+  dayTitle: { fontSize: 13, fontWeight: '800' },
+  dayDur: { fontSize: 12, fontWeight: '700' },
+  dayExList: { gap: 1 },
+  dayEx: { fontSize: 11, lineHeight: 17 },
+  todayBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: Spacing.two, paddingVertical: 12, borderRadius: Radius.button,
+  },
+  todayBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+
+  // 今日目标卡
+  ringCard: { marginHorizontal: Spacing.three + 4, borderRadius: Radius.card, padding: Spacing.three },
   ringHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   pill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   pillText: { fontSize: 11, fontWeight: '600' },
@@ -281,34 +415,20 @@ const styles = StyleSheet.create({
   infoKey: { fontSize: 12 },
   infoVal: { fontSize: 15, fontWeight: '700' },
   cta: {
-    marginTop: 14,
-    borderRadius: 14,
-    paddingVertical: 13,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
+    marginTop: 14, borderRadius: 14, paddingVertical: 13,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
   },
   ctaText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  // 金刚区
   section: { paddingHorizontal: Spacing.three + 4, gap: 10 },
   sectionTitle: { fontSize: 15 },
   grid: { flexDirection: 'row', gap: 10 },
   cell: { flex: 1, alignItems: 'center', gap: 7, paddingVertical: 10 },
   cellIcon: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   cellLabel: { fontSize: 11, fontWeight: '600' },
-  // 数据行
   dataStrip: { flexDirection: 'row', gap: 10, paddingHorizontal: Spacing.three + 4 },
-  dataCell: {
-    flex: 1,
-    borderRadius: 14,
-    paddingVertical: 12,
-    alignItems: 'center',
-    gap: 2,
-  },
+  dataCell: { flex: 1, borderRadius: 14, paddingVertical: 12, alignItems: 'center', gap: 2 },
   dataNum: { fontSize: 17, fontWeight: '800' },
   dataLabel: { fontSize: 10 },
-  // 内容流
   feedHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   more: { fontSize: 12, fontWeight: '600' },
   feedScroll: { gap: 12, paddingBottom: 6 },
