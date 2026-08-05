@@ -10,7 +10,7 @@ const express = require('express');
 const cors = require('cors');
 const { randomUUID } = require('crypto');
 const https = require('https');
-const { authMiddleware } = require('./auth');
+const { authMiddleware, adminMiddleware } = require('./auth');
 const { config, isMockMode } = require('./config');
 
 // 路由
@@ -21,6 +21,7 @@ const recipeRoutes = require('./routes/recipes');
 const workoutRoutes = require('./routes/workouts');
 const workoutPlanRoutes = require('./routes/workout-plans');
 const statsRoutes = require('./routes/stats');
+const adminRoutes = require('./routes/admin');
 
 // 旧版兼容路由（保持前端现有调用可用）
 const { recognizeFood, generateRecipe, recommendWorkout } = require('./ai');
@@ -105,6 +106,7 @@ app.use('/api/v1/recipes', authMiddleware, recipeRoutes);
 app.use('/api/v1/workouts', authMiddleware, workoutRoutes);
 app.use('/api/v1/workout-plans', authMiddleware, workoutPlanRoutes);
 app.use('/api/v1/stats', authMiddleware, statsRoutes);
+app.use('/api/v1/admin', authMiddleware, adminMiddleware, adminRoutes);
 
 // ---- 旧版 API 兼容 (前端现有调用) ----
 
@@ -301,15 +303,27 @@ app.use((err, req, res, next) => {
 });
 
 // ---- 启动 ----
-app.listen(PORT, () => {
-  const mode = isMockMode() ? '演示数据(mock)' : '真实 AI';
-  console.log(`\n╔══════════════════════════════════════════════╗`);
-  console.log(`║   Shanghai Project 后端 v2.0                ║`);
-  console.log(`║   地址: http://localhost:${PORT}                  ║`);
-  console.log(`║   模式: ${mode}                         ║`);
-  console.log(`║   文档: http://localhost:${PORT}/health          ║`);
-  console.log(`╚══════════════════════════════════════════════╝\n`);
-  if (isMockMode()) {
-    console.log('💡 提示: 复制 server/config.toml.example 为 config.toml，填写本地密钥和模型后可切换真实 AI。');
-  }
-});
+async function start() {
+  // 初始化 SQLite 数据库
+  const { getDb } = require('./db');
+  await getDb().catch((e) => {
+    console.error('[server] 数据库初始化失败:', e);
+    process.exit(1);
+  });
+
+  app.listen(PORT, () => {
+    const mode = isMockMode() ? '演示数据(mock)' : '真实 AI';
+    console.log(`\n╔══════════════════════════════════════════════╗`);
+    console.log(`║   Shanghai Project 后端 v2.0                ║`);
+    console.log(`║   地址: http://localhost:${PORT}                  ║`);
+    console.log(`║   模式: ${mode}                         ║`);
+    console.log(`║   数据库: SQLite                            ║`);
+    console.log(`║   文档: http://localhost:${PORT}/health          ║`);
+    console.log(`╚══════════════════════════════════════════════╝\n`);
+    if (isMockMode()) {
+      console.log('💡 提示: 复制 server/config.toml.example 为 config.toml，填写本地密钥和模型后可切换真实 AI。');
+    }
+  });
+}
+
+start();

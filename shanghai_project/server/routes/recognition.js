@@ -6,7 +6,7 @@ const express = require('express');
 const multer = require('multer');
 const router = express.Router();
 const db = require('../db');
-const { recognizeFood } = require('../ai');
+const { recognizeFood, normalizeVisionImage } = require('../ai');
 
 const imageUpload = multer({
   storage: multer.memoryStorage(),
@@ -38,7 +38,8 @@ function parseImageUpload(req, res, next) {
  */
 router.post('/upload', parseImageUpload, async (req, res) => {
   try {
-    const imageBase64 = req.body.image || req.file?.buffer.toString('base64') || '';
+    // 网页相机传来的是完整 data URL，先剥前缀再按纯 base64 计算体积
+    const imageBase64 = normalizeVisionImage(req.body.image) || req.file?.buffer.toString('base64') || '';
 
     if (!imageBase64) {
       return res.status(400).json({

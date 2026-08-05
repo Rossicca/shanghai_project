@@ -79,6 +79,19 @@ function authMiddleware(req, res, next) {
   next();
 }
 
+/** 管理员认证中间件（需在 authMiddleware 之后使用） */
+function adminMiddleware(req, res, next) {
+  const db = require('./db');
+  const user = db.findById('users', req.user.userId);
+  if (!user || user.role !== 'admin') {
+    return res.status(403).json({
+      error: { code: 'FORBIDDEN', message: '仅管理员可执行此操作' },
+    });
+  }
+  req.userData = user;
+  next();
+}
+
 module.exports = {
   hashPassword,
   verifyPassword,
@@ -86,4 +99,5 @@ module.exports = {
   generateRefreshToken,
   verifyToken,
   authMiddleware,
+  adminMiddleware,
 };

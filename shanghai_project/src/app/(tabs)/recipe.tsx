@@ -15,7 +15,7 @@ import type { Recipe } from '@/types/recipe';
 
 export default function RecipeTab() {
   const colors = useTheme();
-  const { savedRecipes, recipeHistory, saveRecipe, unsaveRecipe, loadLocal, selectRecipe, error } = useRecipeStore();
+  const { savedRecipes, recipeHistory, saveRecipe, unsaveRecipe, loadLocal, selectRecipe } = useRecipeStore();
 
   useEffect(() => {
     loadLocal();
@@ -44,15 +44,13 @@ export default function RecipeTab() {
             </View>
           </Pressable>
 
-          {error ? <ThemedText type="small" themeColor="danger">{error}</ThemedText> : null}
-
           {savedRecipes.length > 0 ? (
             <>
               <ThemedText type="smallBold">我的收藏</ThemedText>
               <RecipeList
                 recipes={savedRecipes}
                 onPress={openRecipe}
-                onSave={(r) => { void unsaveRecipe(r.id).catch(() => {}); }}
+                onSave={(r) => unsaveRecipe(r.id)}
                 savedIds={savedIds}
               />
             </>
@@ -64,9 +62,7 @@ export default function RecipeTab() {
               <RecipeList
                 recipes={recipeHistory.slice(0, 5)}
                 onPress={openRecipe}
-                onSave={(r) => {
-                  void (savedIds.has(r.id) ? unsaveRecipe(r.id) : saveRecipe(r)).catch(() => {});
-                }}
+                onSave={(r) => (savedIds.has(r.id) ? unsaveRecipe(r.id) : saveRecipe(r))}
                 savedIds={savedIds}
               />
             </>
