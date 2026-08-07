@@ -3,7 +3,13 @@
 jwtSecret = "replace-with-a-random-local-secret"
 
 [ai]
-# 火山方舟或其他 OpenAI 兼容服务的本地配置。
-apiKey = "replace-with-your-api-key"
-visionModel = "replace-with-vision-endpoint-or-model"
-textModel = "replace-with-text-endpoint-or-model"
+# 火山方舟 — 视觉模型（拍照识别食材）
+apiKey = "replace-with-your-volcano-api-key"
+baseURL = "https://ark.cn-beijing.volces.com/api/v3"
+visionModel = "doubao-seed-2-1-pro-260628"
+
+# DeepSeek 官方 — 文本模型（菜谱推荐/生成、运动推荐）
+# 如果不配 DeepSeek，文本也会走火山方舟。两个 Key 填一个即可跑通。
+textApiKey = "replace-with-your-deepseek-api-key"
+textBaseURL = "https://api.deepseek.com/v1"
+textModel = "deepseek-chat"

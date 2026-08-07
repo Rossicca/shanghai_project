@@ -113,8 +113,28 @@ app.use('/api/v1/admin', authMiddleware, adminMiddleware, adminRoutes);
 // POST /api/recognize — 识别食材
 app.post('/api/recognize', async (req, res) => {
   try {
-    const ingredients = await recognizeFood(req.body.image || '');
-    if (!Array.isArray(ingredients) || ingredients.length === 0) {
+    // 支持 images 数组（多图）或 image 单字段（兼容旧版）
+    const images = Array.isArray(req.body.images) && req.body.images.length > 0
+      ? req.body.images
+      : [req.body.image || ''];
+    // 逐张识别，合并去重（同名食材取置信度最高的）
+    const allResults = await Promise.allSettled(
+      images.filter((img) => img && String(img).trim()).map((img) => recognizeFood(img))
+    );
+    const merged = new Map();
+    for (const result of allResults) {
+      if (result.status !== 'fulfilled' || !Array.isArray(result.value)) continue;
+      for (const item of result.value) {
+        const key = String(item.name || '').trim();
+        if (!key) continue;
+        const existing = merged.get(key);
+        if (!existing || (item.confidence || 0) > (existing.confidence || 0)) {
+          merged.set(key, { ...item, name: key });
+        }
+      }
+    }
+    const ingredients = [...merged.values()];
+    if (ingredients.length === 0) {
       return res.status(422).json({
         error: {
           code: 'NO_INGREDIENTS_FOUND',

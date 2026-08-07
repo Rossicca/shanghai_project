@@ -3,7 +3,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { IngredientResult } from '@/components/camera/IngredientResult';
@@ -35,20 +35,22 @@ async function readImageBase64(uri: string, provided?: string | null): Promise<s
   });
 }
 
+type ImageEntry = { uri: string; base64: string };
+
 export default function Scan() {
   const colors = useTheme();
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
 
   const [mode, setMode] = useState<Mode>('idle');
-  const [previewUri, setPreviewUri] = useState<string | null>(null);
-  const [base64, setBase64] = useState<string | null>(null);
+  const [selectedImages, setSelectedImages] = useState<ImageEntry[]>([]);
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [imageId, setImageId] = useState<string | null>(null);
   const [history, setHistory] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [cameraReady, setCameraReady] = useState(false);
   const [capturing, setCapturing] = useState(false);
+  const [manualInput, setManualInput] = useState('');
 
   async function loadHistory() {
     setHistory(await loadIngredientHistory());
@@ -56,8 +58,7 @@ export default function Scan() {
 
   function enterIdle() {
     setMode('idle');
-    setPreviewUri(null);
-    setBase64(null);
+    setSelectedImages([]);
     setIngredients([]);
     setImageId(null);
     setError('');
@@ -88,8 +89,7 @@ export default function Scan() {
       if (!photo) throw new Error('相机没有返回照片');
       const encoded = await readImageBase64(photo.uri, photo.base64);
       if (!encoded) throw new Error('照片数据为空');
-      setPreviewUri(photo.uri);
-      setBase64(encoded);
+      setSelectedImages((prev) => [...prev, { uri: photo.uri, base64: encoded }]);
       setMode('preview');
     } catch (captureError) {
       setError((captureError as Error).message || '拍照失败，请重试或改用相册');
@@ -102,15 +102,18 @@ export default function Scan() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       base64: true,
-      allowsEditing: true,
+      allowsEditing: false,
+      allowsMultipleSelection: true,
       quality: 0.7,
     });
-    if (!result.canceled && result.assets[0]) {
+    if (!result.canceled && result.assets.length > 0) {
       try {
-        const asset = result.assets[0];
-        const encoded = await readImageBase64(asset.uri, asset.base64);
-        setPreviewUri(asset.uri);
-        setBase64(encoded);
+        const newImages: ImageEntry[] = [];
+        for (const asset of result.assets) {
+          const encoded = await readImageBase64(asset.uri, asset.base64);
+          newImages.push({ uri: asset.uri, base64: encoded });
+        }
+        setSelectedImages((prev) => [...prev, ...newImages]);
         setMode('preview');
       } catch (pickError) {
         setError((pickError as Error).message || '图片读取失败，请重新选择');
@@ -118,16 +121,28 @@ export default function Scan() {
     }
   }
 
+  function removeImage(index: number) {
+    setSelectedImages((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function addManualIngredients(text: string) {
+    const names = text.split(/[,，、\s]+/).filter(Boolean).slice(0, 20);
+    if (names.length === 0) return;
+    setIngredients(names.map((name) => ({ name: name.trim(), amount: '适量', confidence: 1 })));
+    setImageId(null);
+    setMode('result');
+  }
+
   async function runRecognition() {
-    if (!base64) {
-      setError('照片数据没有读取成功，请重新拍照或改用相册');
-      setMode('preview');
+    if (selectedImages.length === 0) {
+      setError('请先拍照或从相册选择图片');
       return;
     }
     setMode('recognizing');
     setError('');
     try {
-      const result = await recognizeFoodForFlow(base64);
+      const allBase64 = selectedImages.map((img) => img.base64);
+      const result = await recognizeFoodForFlow(allBase64);
       setImageId(result.imageId);
       setIngredients(result.ingredients);
       await addIngredientHistory(result.ingredients.map((i) => i.name));
@@ -206,23 +221,41 @@ export default function Scan() {
               <ThemedText type="smallBold">返回</ThemedText>
             </Pressable>
           </View>
-          {previewUri ? (
-            <View style={styles.previewWrap}>
-              <Image source={{ uri: previewUri }} style={styles.preview} resizeMode="contain" />
+          {selectedImages.length > 0 ? (
+            <View style={styles.multiPreview}>
+              {selectedImages.map((img, i) => (
+                <View key={i} style={styles.thumbWrap}>
+                  <Image source={{ uri: img.uri }} style={styles.thumb} resizeMode="cover" />
+                  <Pressable style={styles.removeBtn} onPress={() => removeImage(i)}>
+                    <Ionicons name="close-circle" size={22} color="#ff4444" />
+                  </Pressable>
+                </View>
+              ))}
+              <Pressable style={styles.addMoreBtn} onPress={takePhoto}>
+                <Ionicons name="camera" size={24} color={colors.primary} />
+                <ThemedText type="small">拍照</ThemedText>
+              </Pressable>
+              <Pressable style={styles.addMoreBtn} onPress={pickFromGallery}>
+                <Ionicons name="images" size={24} color={colors.primary} />
+                <ThemedText type="small">相册</ThemedText>
+              </Pressable>
             </View>
           ) : null}
+          <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'center' }}>
+            已选 {selectedImages.length} 张 · 可继续添加更多
+          </ThemedText>
           {mode === 'recognizing' ? (
             <View style={styles.recognizing}>
               <ActivityIndicator size="large" color={colors.primary} />
               <ThemedText>AI 正在识别食材...</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                初次识别可能稍慢，请稍候
+                多图识别可能稍慢，请稍候
               </ThemedText>
             </View>
           ) : (
             <View style={styles.previewActions}>
-              <Button title="重拍/重选" variant="outline" icon="refresh" onPress={enterIdle} />
-              <Button title="识别食材" icon="scan" onPress={runRecognition} size="large" style={{ flex: 1 }} />
+              <Button title="清空重来" variant="outline" icon="refresh" onPress={enterIdle} />
+              <Button title="开始识别" icon="scan" onPress={runRecognition} size="large" style={{ flex: 1 }} />
             </View>
           )}
         </SafeAreaView>
@@ -269,12 +302,30 @@ export default function Scan() {
           </View>
           <ThemedText type="title">拍一拍，识别食材</ThemedText>
           <ThemedText themeColor="textSecondary" style={styles.heroDesc}>
-            拍下手头的食物，AI 识别后推荐多种正餐、甜品或加餐做法
+            拍下手头的食物，AI 识别后推荐多种正餐、甜品或加餐做法{'\n'}支持多张图片一起上传
           </ThemedText>
         </View>
 
         <Button title="打开相机拍照" icon="camera" onPress={openCamera} size="large" />
-        <Button title="从相册选择图片" variant="secondary" icon="images" onPress={pickFromGallery} size="large" />
+        <Button title="从相册选择图片（可多选）" variant="secondary" icon="images" onPress={pickFromGallery} size="large" />
+
+        <View style={styles.divider}>
+          <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+          <ThemedText type="small" themeColor="textSecondary">或者直接输入食材名</ThemedText>
+          <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+        </View>
+
+        <View style={styles.manualRow}>
+          <TextInput
+            placeholder="输入食材名，用逗号或空格分隔，如：鸡蛋 番茄 猪肉"
+            value={manualInput}
+            onChangeText={setManualInput}
+            onSubmitEditing={() => { addManualIngredients(manualInput); setManualInput(''); }}
+            style={styles.manualInput}
+          />
+          <Button title="确定" size="small" onPress={() => { addManualIngredients(manualInput); setManualInput(''); }} />
+        </View>
+
         {error ? (
           <ThemedText type="small" themeColor="danger" style={styles.errorText}>
             {error}
@@ -297,7 +348,7 @@ export default function Scan() {
         ) : null}
 
         <ThemedText type="small" themeColor="textSecondary" style={styles.tip}>
-          * 拍照和相册图片都会发送给 AI 视觉模型识别，请尽量保持光线充足、画面清晰
+          * 拍照和相册图片会发送给 AI 视觉模型识别，也可直接输入食材名跳过识别
         </ThemedText>
       </SafeAreaView>
     </ThemedView>
@@ -329,9 +380,17 @@ const styles = StyleSheet.create({
   shutterDisabled: { opacity: 0.5 },
   shutterInner: { width: 58, height: 58, borderRadius: 29, backgroundColor: '#fff' },
 
-  // preview
-  previewWrap: { flex: 1, backgroundColor: '#000', borderRadius: Radius.card, overflow: 'hidden' },
-  preview: { width: '100%', height: '100%' },
+  // preview - multi image
+  multiPreview: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
+  thumbWrap: { position: 'relative', width: 80, height: 80, borderRadius: 8, overflow: 'hidden' },
+  thumb: { width: '100%', height: '100%' },
+  removeBtn: { position: 'absolute', top: -4, right: -4, backgroundColor: '#fff', borderRadius: 12 },
+  addMoreBtn: { width: 80, height: 80, borderRadius: 8, borderWidth: 1.5, borderColor: '#ccc', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 2 },
   previewActions: { flexDirection: 'row', gap: Spacing.two },
   recognizing: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.three },
+  // divider
+  divider: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  dividerLine: { flex: 1, height: 1 },
+  manualRow: { flexDirection: 'row', gap: Spacing.two, alignItems: 'center' },
+  manualInput: { flex: 1, padding: Spacing.two, borderRadius: Radius.chip, borderWidth: 1, borderColor: '#ccc', fontSize: 14 },
 });
