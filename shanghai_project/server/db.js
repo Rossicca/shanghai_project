@@ -29,6 +29,7 @@ async function getDb() {
     db = new SQL.Database();
   }
   initTables();
+  autoMigrateFromJson();
   saveDb();
   return db;
 }
@@ -268,6 +269,63 @@ function hasColumn(table, column) {
 /** 生成唯一 ID */
 function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+
+/** 表是否存在 */
+function tableExists(name) {
+  const rows = db.exec(`SELECT name FROM sqlite_master WHERE type='table' AND name = ?`, [name]);
+  return rows.length > 0 && rows[0].values.length > 0;
+}
+
+/** 表中记录数 */
+function countRows(name) {
+  const rows = db.exec(`SELECT COUNT(*) FROM "${name}"`);
+  return rows.length > 0 ? Number(rows[0].values[0][0]) : 0;
+}
+
+/**
+ * 启动时自动把遗留 JSON 数据导入 SQLite。
+ *
+ * 背景：存储层从 JSON 文件迁移到 SQLite 后，老账号存在本地 data/*.json 里，
+ * 若只拉新代码不手动跑 node server/migrate.js，新库是空的，老用户登录会提示
+ * "邮箱或密码错误"，只能重新注册。这里在启动时自动补齐。
+ *
+ * 安全性（幂等）：
+ * - 仅当对应表为空时才导入，已存在的库不会被旧 JSON 覆盖；
+ * - 表有数据则整表跳过，重复启动不会重复导入。
+ */
+function autoMigrateFromJson() {
+  if (!fs.existsSync(DATA_DIR)) return;
+  let total = 0;
+  const jsonFiles = fs.readdirSync(DATA_DIR).filter((f) => f.endsWith('.json'));
+  for (const file of jsonFiles) {
+    const tableName = file.replace('.json', '');
+    if (!tableExists(tableName)) continue;
+    try {
+      if (countRows(tableName) > 0) continue; // 表已有数据，不覆盖
+      const raw = fs.readFileSync(path.join(DATA_DIR, file), 'utf8');
+      const data = JSON.parse(raw);
+      if (!Array.isArray(data) || data.length === 0) continue;
+      for (const record of data) {
+        const cols = Object.keys(record);
+        const placeholders = cols.map(() => '?').join(',');
+        const values = cols.map((c) => {
+          const v = record[c];
+          return typeof v === 'object' && v !== null ? JSON.stringify(v) : v;
+        });
+        // OR IGNORE：防止 JSON 内 id/email 撞车
+        db.run(
+          `INSERT OR IGNORE INTO "${tableName}" (${cols.map((c) => `"${c}"`).join(',')}) VALUES (${placeholders})`,
+          values
+        );
+      }
+      total += data.length;
+      console.log(`[db] 自动迁移 JSON → SQLite: ${tableName} ${data.length} 条`);
+    } catch (error) {
+      console.warn(`[db] 自动迁移 ${tableName} 失败:`, error.message);
+    }
+  }
+  if (total > 0) console.log(`[db] 自动迁移完成，共导入 ${total} 条（老数据已保留）`);
 }
 
 /** 读取一个集合（返回数组） */
