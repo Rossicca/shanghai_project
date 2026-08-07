@@ -14,6 +14,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { getToken } from '@/services/api';
 import { fetchAdminStats } from '@/services/admin';
 import { fetchDashboard } from '@/services/workout';
+import { useCommunityStore } from '@/store/communityStore';
 import { useRecipeStore } from '@/store/recipeStore';
 import { useUserStore } from '@/store/userStore';
 import { useWorkoutStore } from '@/store/workoutStore';
@@ -31,19 +32,23 @@ export default function ProfileTab() {
     loadLocal: loadWorkouts,
     selectVideo,
   } = useWorkoutStore();
+  const { following, followers, load: loadCommunity } = useCommunityStore();
   const [dashboard, setDashboard] = useState<any>(null);
   const [dashboardError, setDashboardError] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
+
+  const friendCount = following.filter((n) => followers.includes(n)).length;
 
   useEffect(() => {
     load();
     loadRecipes();
     loadWorkouts();
+    loadCommunity();
     if (getToken()) {
       fetchDashboard().then(setDashboard).catch((error) => setDashboardError(error.message));
       fetchAdminStats().then(() => setIsAdmin(true)).catch(() => setIsAdmin(false));
     }
-  }, [load, loadRecipes, loadWorkouts]);
+  }, [load, loadRecipes, loadWorkouts, loadCommunity]);
 
   const bmi = calcBMI(bodyData);
   const bmiLabel = bmi ? (bmi < 18.5 ? '偏瘦' : bmi < 24 ? '正常' : bmi < 28 ? '偏胖' : '肥胖') : '';
@@ -90,6 +95,9 @@ export default function ProfileTab() {
                   </ThemedText>
                 </Pressable>
               )}
+              <ThemedText type="small" themeColor="textSecondary" style={styles.followCount}>
+                关注 {following.length} · 好友 {friendCount}
+              </ThemedText>
             </View>
           </View>
 
@@ -262,6 +270,7 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   content: { padding: Spacing.three, gap: Spacing.three },
   header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
+  followCount: { marginTop: 2 },
   avatar: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center' },
   statsRow: { flexDirection: 'row', gap: Spacing.two },
   rows: { gap: Spacing.two },

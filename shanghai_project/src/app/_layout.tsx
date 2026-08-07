@@ -27,6 +27,7 @@ export default function RootLayout() {
         <Stack.Screen name="recipe/generate" options={{ title: 'AI 生成菜谱' }} />
         <Stack.Screen name="recipe/[id]" options={{ title: '菜谱详情' }} />
         <Stack.Screen name="community/[id]" options={{ title: '动态详情' }} />
+        <Stack.Screen name="community/user/[name]" options={{ title: '个人主页' }} />
         <Stack.Screen name="workout/[id]" options={{ title: '视频详情' }} />
         <Stack.Screen name="workout/plan" options={{ headerShown: false }} />
         <Stack.Screen name="workout/category/[slug]" options={{ title: '分类视频' }} />

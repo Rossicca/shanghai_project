@@ -3,12 +3,14 @@ import { router } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Platform, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 
+import { FollowChip } from '@/components/community/FollowChip';
 import { ThemedText } from '@/components/themed-text';
 import { Card } from '@/components/ui/Card';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useCommunityStore } from '@/store/communityStore';
 import type { CommunityPost } from '@/types/community';
+import { isSelfAuthor } from '@/utils/community';
 
 const CATEGORY_COLORS: Record<CommunityPost['category'], string> = {
   打卡: '#2FA886',
@@ -20,6 +22,8 @@ const CATEGORY_COLORS: Record<CommunityPost['category'], string> = {
 type Props = {
   post: CommunityPost;
   onToggleLike?: (id: string) => void;
+  /** 是否显示关注按钮（用户主页复用卡片时传 false，避免重复按钮） */
+  showFollow?: boolean;
 };
 
 /** 分享文案：作者(+标签) · 分类\n内容 */
@@ -29,13 +33,15 @@ function buildShareText(post: CommunityPost): string {
 }
 
 /** 社区动态卡片 */
-export function PostCard({ post, onToggleLike }: Props) {
+export function PostCard({ post, onToggleLike, showFollow = true }: Props) {
   const colors = useTheme();
   const catColor = CATEGORY_COLORS[post.category];
-  const { commentsByPost } = useCommunityStore();
+  const { commentsByPost, following, followers } = useCommunityStore();
   const [toast, setToast] = useState('');
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const commentCount = commentsByPost[post.id]?.length ?? post.comments;
+  const isSelf = isSelfAuthor(post.author.name);
+  const isFriend = !isSelf && following.includes(post.author.name) && followers.includes(post.author.name);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -77,24 +83,37 @@ export function PostCard({ post, onToggleLike }: Props) {
 
   return (
     <Card style={styles.card}>
-      {/* 作者行 */}
+      {/* 作者行：点头像/名字进用户主页 */}
       <View style={styles.head}>
-        <View style={[styles.avatar, { backgroundColor: colors.primarySoft }]}>
-          <Text style={styles.avatarEmoji}>{post.author.avatar}</Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <View style={styles.nameRow}>
-            <ThemedText type="smallBold">{post.author.name}</ThemedText>
-            {post.author.tag ? (
-              <Text style={[styles.tag, { color: catColor, backgroundColor: `${catColor}1A` }]}>
-                {post.author.tag}
-              </Text>
+        <Pressable
+          style={styles.authorMain}
+          onPress={() =>
+            router.push({ pathname: '/community/user/[name]', params: { name: post.author.name } })
+          }>
+          <View style={[styles.avatar, { backgroundColor: colors.primarySoft }]}>
+            <Text style={styles.avatarEmoji}>{post.author.avatar}</Text>
+            {/* 好友角标：绝对定位在头像右上，不改变推文排版 */}
+            {isFriend ? (
+              <View style={[styles.friendBadge, { backgroundColor: colors.warning }]}>
+                <Ionicons name="star" size={9} color="#fff" />
+              </View>
             ) : null}
           </View>
-          <ThemedText type="small" themeColor="textSecondary">
-            {post.timeLabel}
-          </ThemedText>
-        </View>
+          <View style={styles.authorInfo}>
+            <View style={styles.nameRow}>
+              <ThemedText type="smallBold">{post.author.name}</ThemedText>
+              {post.author.tag ? (
+                <Text style={[styles.tag, { color: catColor, backgroundColor: `${catColor}1A` }]}>
+                  {post.author.tag}
+                </Text>
+              ) : null}
+            </View>
+            <ThemedText type="small" themeColor="textSecondary">
+              {post.timeLabel}
+            </ThemedText>
+          </View>
+        </Pressable>
+        {!isSelf && showFollow ? <FollowChip name={post.author.name} /> : null}
       </View>
 
       {/* 正文 */}
@@ -148,8 +167,20 @@ export function PostCard({ post, onToggleLike }: Props) {
 const styles = StyleSheet.create({
   card: { gap: Spacing.two + 2 },
   head: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  authorMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  authorInfo: { flex: 1 },
   avatar: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   avatarEmoji: { fontSize: 20 },
+  friendBadge: {
+    position: 'absolute',
+    top: -3,
+    right: -3,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one, marginBottom: 2 },
   tag: { fontSize: 10, fontWeight: '700', paddingHorizontal: 6, paddingVertical: 2, borderRadius: Radius.chip, overflow: 'hidden' },
   content: { fontSize: 14, lineHeight: 22 },

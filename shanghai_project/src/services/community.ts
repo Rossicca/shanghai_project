@@ -10,6 +10,7 @@ import type { Comment, CommunityPost, TimelineEntry } from '@/types/community';
 const KEY_POSTS = 'community:posts';
 const KEY_PHOTOS = 'community:photos';
 const KEY_COMMENTS = 'community:comments';
+const KEY_FOLLOWING = 'community:following';
 
 /** 评论表：postId -> 评论数组 */
 export type CommentMap = Record<string, Comment[]>;
@@ -203,4 +204,22 @@ export async function loadComments(): Promise<CommentMap> {
 
 export async function saveComments(comments: CommentMap): Promise<void> {
   await setJSON(KEY_COMMENTS, comments);
+}
+
+/** 我关注的用户（真实持久化；seed 让「关注」页签开箱有内容） */
+const SEED_FOLLOWING: string[] = ['晓雯', '阿哲'];
+
+/** 关注我的用户（演示种子数据，用于计算互关好友：following ∩ followers） */
+export const SEED_FOLLOWERS: string[] = ['晓雯', '沐沐', 'Kevin'];
+
+export async function loadFollowing(): Promise<string[]> {
+  const stored = await getJSON<string[]>(KEY_FOLLOWING);
+  if (stored) return stored;
+  // 首次：注入种子关注
+  await setJSON(KEY_FOLLOWING, SEED_FOLLOWING);
+  return SEED_FOLLOWING;
+}
+
+export async function saveFollowing(names: string[]): Promise<void> {
+  await setJSON(KEY_FOLLOWING, names);
 }

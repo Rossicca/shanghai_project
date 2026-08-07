@@ -8,11 +8,16 @@ interface CommunityState {
   posts: CommunityPost[];
   photos: TimelineEntry[];
   commentsByPost: Record<string, Comment[]>;
+  /** 我关注的作者名（真实持久化） */
+  following: string[];
+  /** 关注我的作者名（演示种子数据，用于互关好友） */
+  followers: string[];
   loaded: boolean;
   load: () => Promise<void>;
   addPost: (input: { content: string; category: CommunityPost['category'] }) => Promise<void>;
   toggleLike: (id: string) => Promise<void>;
   addComment: (postId: string, content: string) => Promise<void>;
+  toggleFollow: (name: string) => Promise<void>;
   addPhoto: (photo: TimelineEntry) => Promise<void>;
   removePhoto: (id: string) => Promise<void>;
 }
@@ -21,20 +26,23 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   posts: [],
   photos: [],
   commentsByPost: {},
+  following: [],
+  followers: [],
   loaded: false,
 
   load: async () => {
-    const [posts, photos, commentsByPost] = await Promise.all([
+    const [posts, photos, commentsByPost, following] = await Promise.all([
       communityService.loadPosts(),
       communityService.loadPhotos(),
       communityService.loadComments(),
+      communityService.loadFollowing(),
     ]);
     // 帖子计数以评论数组实际长度为准
     const syncedPosts = posts.map((p) => ({
       ...p,
       comments: commentsByPost[p.id]?.length ?? p.comments,
     }));
-    set({ posts: syncedPosts, photos, commentsByPost, loaded: true });
+    set({ posts: syncedPosts, photos, commentsByPost, following, followers: communityService.SEED_FOLLOWERS, loaded: true });
   },
 
   addPost: async ({ content, category }) => {
@@ -91,6 +99,13 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       communityService.saveComments(nextComments),
       communityService.savePosts(nextPosts),
     ]);
+  },
+
+  toggleFollow: async (name) => {
+    const cur = get().following;
+    const next = cur.includes(name) ? cur.filter((n) => n !== name) : [...cur, name];
+    set({ following: next });
+    await communityService.saveFollowing(next);
   },
 
   addPhoto: async (photo) => {
