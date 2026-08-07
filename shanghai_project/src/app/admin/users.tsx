@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -9,6 +9,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { deleteUser, fetchAdminUsers, updateUserRole, type AdminUser } from '@/services/admin';
+import { alertDialog, confirmDialog } from '@/utils/dialog';
 
 export default function AdminUsers() {
   const colors = useTheme();
@@ -51,46 +52,36 @@ export default function AdminUsers() {
 
   function handleToggleRole(user: AdminUser) {
     const newRole = user.role === 'admin' ? 'user' : 'admin';
-    Alert.alert(
-      '修改角色',
-      `将 ${user.email} 的角色改为「${newRole === 'admin' ? '管理员' : '普通用户'}」？`,
-      [
-        { text: '取消', style: 'cancel' },
-        {
-          text: '确认',
-          onPress: async () => {
-            try {
-              await updateUserRole(user.id, newRole);
-              setUsers(prev => prev.map(u => u.id === user.id ? { ...u, role: newRole } : u));
-            } catch (e: any) {
-              Alert.alert('错误', e.message);
-            }
-          },
-        },
-      ]
-    );
+    confirmDialog({
+      title: '修改角色',
+      message: `将 ${user.email} 的角色改为「${newRole === 'admin' ? '管理员' : '普通用户'}」？`,
+      confirmText: '确认',
+      onConfirm: async () => {
+        try {
+          await updateUserRole(user.id, newRole);
+          setUsers(prev => prev.map(u => u.id === user.id ? { ...u, role: newRole } : u));
+        } catch (e: any) {
+          alertDialog('错误', e.message);
+        }
+      },
+    });
   }
 
   function handleDelete(user: AdminUser) {
-    Alert.alert(
-      '删除用户',
-      `确定删除 ${user.email} 的所有数据？此操作不可恢复。`,
-      [
-        { text: '取消', style: 'cancel' },
-        {
-          text: '删除',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteUser(user.id);
-              setUsers(prev => prev.filter(u => u.id !== user.id));
-            } catch (e: any) {
-              Alert.alert('错误', e.message);
-            }
-          },
-        },
-      ]
-    );
+    confirmDialog({
+      title: '删除用户',
+      message: `确定删除 ${user.email} 的所有数据？此操作不可恢复。`,
+      confirmText: '删除',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await deleteUser(user.id);
+          setUsers(prev => prev.filter(u => u.id !== user.id));
+        } catch (e: any) {
+          alertDialog('错误', e.message);
+        }
+      },
+    });
   }
 
   function renderUser({ item }: { item: AdminUser }) {
@@ -133,7 +124,7 @@ export default function AdminUsers() {
         <View style={styles.userActions}>
           <Pressable
             style={[styles.actionBtn, { backgroundColor: isAdmin ? colors.warning + '20' : colors.primarySoft }]}
-            onPress={() => handleToggleRole(item)}>
+            onPress={(e) => { e.stopPropagation(); handleToggleRole(item); }}>
             <Ionicons name="swap-horizontal" size={14} color={isAdmin ? colors.warning : colors.primary} />
             <ThemedText type="small" style={{ fontSize: 11, color: isAdmin ? colors.warning : colors.primary }}>
               {isAdmin ? '取消管理员' : '设为管理员'}
@@ -141,7 +132,7 @@ export default function AdminUsers() {
           </Pressable>
           <Pressable
             style={[styles.actionBtn, { backgroundColor: colors.danger + '20' }]}
-            onPress={() => handleDelete(item)}>
+            onPress={(e) => { e.stopPropagation(); handleDelete(item); }}>
             <Ionicons name="trash-outline" size={14} color={colors.danger} />
             <ThemedText type="small" style={{ fontSize: 11, color: colors.danger }}>删除</ThemedText>
           </Pressable>

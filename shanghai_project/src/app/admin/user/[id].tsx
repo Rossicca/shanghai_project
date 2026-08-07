@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -10,6 +10,7 @@ import { Card } from '@/components/ui/Card';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { deleteUser, fetchAdminUserDetail, updateUserRole, type AdminUserDetail } from '@/services/admin';
+import { alertDialog, confirmDialog } from '@/utils/dialog';
 
 export default function AdminUserDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -38,38 +39,37 @@ export default function AdminUserDetail() {
   function handleToggleRole() {
     if (!detail) return;
     const newRole = detail.user.role === 'admin' ? 'user' : 'admin';
-    Alert.alert('修改角色', `将角色改为「${newRole === 'admin' ? '管理员' : '普通用户'}」？`, [
-      { text: '取消', style: 'cancel' },
-      {
-        text: '确认',
-        onPress: async () => {
-          try {
-            await updateUserRole(detail.user.id, newRole);
-            setDetail({ ...detail, user: { ...detail.user, role: newRole } });
-          } catch (e: any) {
-            Alert.alert('错误', e.message);
-          }
-        },
+    confirmDialog({
+      title: '修改角色',
+      message: `将角色改为「${newRole === 'admin' ? '管理员' : '普通用户'}」？`,
+      confirmText: '确认',
+      onConfirm: async () => {
+        try {
+          await updateUserRole(detail.user.id, newRole);
+          setDetail({ ...detail, user: { ...detail.user, role: newRole } });
+        } catch (e: any) {
+          alertDialog('错误', e.message);
+        }
       },
-    ]);
+    });
   }
 
   function handleDelete() {
     if (!detail) return;
-    Alert.alert('删除用户', `确定删除 ${detail.user.email} 的所有数据？`, [
-      { text: '取消', style: 'cancel' },
-      {
-        text: '删除', style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteUser(detail.user.id);
-            Alert.alert('已删除', '用户已删除', [{ text: '返回', onPress: () => history.back() }]);
-          } catch (e: any) {
-            Alert.alert('错误', e.message);
-          }
-        },
+    confirmDialog({
+      title: '删除用户',
+      message: `确定删除 ${detail.user.email} 的所有数据？`,
+      confirmText: '删除',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await deleteUser(detail.user.id);
+          alertDialog('已删除', '用户已删除', () => history.back());
+        } catch (e: any) {
+          alertDialog('错误', e.message);
+        }
       },
-    ]);
+    });
   }
 
   if (loading) {
