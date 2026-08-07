@@ -7,7 +7,7 @@
  */
 
 const { DEMO_INGREDIENTS, pickMockRecipe, mockRecipeRecommendations, mockRecommendWorkout } = require('./demo-data');
-const { config, isMockMode, isTextLlmReady } = require('./config');
+const { config, isMockMode, isTextLlmReady, isVisionReady, getTextProvider, getVisionProvider } = require('./config');
 
 function httpJson(url, options) {
   const u = new URL(url);
@@ -49,17 +49,18 @@ function parseJson(text) {
   throw new Error(`模型输出不是合法 JSON (length=${str.length})`);
 }
 
-async function chat({ model, messages, temperature = 0.7, maxTokens = 1500, responseFormat, reasoningEffort = config.ai.reasoningEffort }) {
-  const res = await httpJson(`${config.ai.baseURL}/chat/completions`, {
+async function chat({ model, messages, temperature = 0.7, maxTokens = 1500, responseFormat, reasoningEffort = config.ai.reasoningEffort, provider }) {
+  const { apiKey, baseURL } = provider || { apiKey: config.ai.apiKey, baseURL: config.ai.baseURL };
+  const res = await httpJson(`${baseURL}/chat/completions`, {
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${config.ai.apiKey}`,
+      Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
       model, messages, temperature, max_tokens: maxTokens,
       ...(responseFormat ? { response_format: responseFormat } : {}),
-      // 豆包 Seed 2.1 默认深度思考（high）很慢，这里可在 config.json 里调低加速演示
-      ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
+      // reasoning_effort 仅豆包/火山模型支持，DeepSeek 不兼容
+      ...(reasoningEffort && baseURL.includes('volces') ? { reasoning_effort: reasoningEffort } : {}),
     }),
   });
   if (res.status !== 200) {
@@ -149,7 +150,7 @@ function detectImageMime(imageBase64) {
 async function recognizeFood(imageBase64) {
   const normalizedImage = normalizeVisionImage(imageBase64);
   if (!normalizedImage) throw new Error('图片数据为空或格式无效');
-  if (isMockMode()) {
+  if (!isVisionReady()) {
     if (process.env.AI_FORCE_DEMO === 'true') return DEMO_INGREDIENTS.map((i) => ({ ...i }));
     throw new Error('AI 视觉模型未配置，已拒绝返回固定演示食材');
   }
@@ -160,11 +161,12 @@ async function recognizeFood(imageBase64) {
       model: config.ai.visionModel,
       maxTokens: 1400,
       temperature: 0.2,
+      provider: getVisionProvider(),
       messages: [
         {
           role: 'system',
           content:
-            '你是专业营养师，识别图片中的食物。严格只输出 JSON：{"ingredients":[{"name":"食材名","amount":"估重(g)","confidence":0-1}]}，最多 12 项。',
+            '你是专业营养师，识别图片中的所有食物。仔细估算每种食材的实际用量，严格只输出 JSON：{"ingredients":[{"name":"食材名","amount":"用量","confidence":0-1}]}。\n\n食材用量估算规则：\n- 可数的食材用数量：如"鸡蛋 2个""番茄 3个""土豆 1个""青椒 2根""大蒜 3瓣""香菇 5朵""鸡腿 2只"\n- 散装食材按体积估算克数：如"猪肉 300g""青菜 250g""豆腐 200g""米 150g"\n- 液体/半液体：如"牛奶 250ml""酸奶 100ml"\n- 根据图片中食材与常见参照物（手、砧板、碗盘）的大小比例来估算\n- 不要所有食材都写100g，要给出差异化的合理估值\n\n图片里有多少种食材就列出多少种，不要遗漏任何一种。',
         },
         {
           role: 'user',
@@ -183,25 +185,59 @@ async function recognizeFood(imageBase64) {
   }
 }
 
+/** 基础调料/调味品：任何家庭厨房都默认具备，绝不应列为"缺少食材" */
+const BASIC_CONDIMENTS = new Set([
+  '盐', '糖', '白糖', '冰糖', '红糖', '油', '食用油', '花生油', '菜籽油', '橄榄油', '猪油',
+  '酱油', '生抽', '老抽', '醋', '陈醋', '白醋', '米醋', '香醋',
+  '料酒', '蚝油', '鸡精', '味精', '胡椒粉', '花椒粉', '五香粉', '十三香',
+  '姜', '生姜', '蒜', '大蒜', '葱', '大葱', '小葱', '洋葱', '香菜',
+  '淀粉', '玉米淀粉', '土豆淀粉', '红薯淀粉', '香油', '芝麻油', '辣椒油',
+  '豆瓣酱', '黄豆酱', '甜面酱', '番茄酱', '辣椒酱', '老干妈',
+  '八角', '桂皮', '香叶', '花椒', '干辣椒', '孜然', '孜然粉',
+  '水', '清水', '开水', '温水',
+]);
+function isBasicCondiment(name) {
+  return BASIC_CONDIMENTS.has(String(name || '').trim());
+}
+function filterCondimentNames(list) {
+  return (Array.isArray(list) ? list : [])
+    .map(String).map((name) => name.trim()).filter(Boolean)
+    .filter((name) => !isBasicCondiment(name))
+    .slice(0, 10);
+}
+
 function normalizeRecipeRecommendations(value, params) {
   const list = Array.isArray(value?.recommendations) ? value.recommendations : [];
   const videoById = new Map((params.videoCandidates || []).map((video) => [video.id, video]));
   const seen = new Set();
+  const userIngredientNames = new Set(
+    (params.ingredients || []).map((item) => String(item?.name || '').trim()).filter(Boolean),
+  );
   return list
     .map((item, index) => {
       const sourceVideo = videoById.get(String(item?.sourceVideoId || ''));
+      // 后处理：availableIngredients 严格只保留用户真实拥有的食材
+      let available = (Array.isArray(item?.availableIngredients) ? item.availableIngredients : [])
+        .map(String).map((name) => name.trim()).filter(Boolean)
+        .filter((name) => userIngredientNames.has(name));
+      // 如果 AI 没填或填错了，从视频标题/简介中尝试匹配用户食材
+      if (available.length === 0 && sourceVideo && userIngredientNames.size > 0) {
+        const haystack = `${sourceVideo.title || ''} ${sourceVideo.description || ''}`;
+        available = [...userIngredientNames].filter((name) => haystack.includes(name));
+      }
+      // 如果仍为空且用户食材很少，标记为 explore 而非 existing
+      const pantryLevel = (['existing', 'topup', 'explore'].includes(item?.pantryLevel) ? item.pantryLevel : 'topup');
+      const adjustedLevel = (available.length === 0 && pantryLevel === 'existing') ? 'explore' : pantryLevel;
       return {
         id: `candidate-${index + 1}`,
         name: String(item?.name || '').trim().slice(0, 40),
         coverEmoji: String(item?.coverEmoji || '🍽️').slice(0, 4),
         category: String(item?.category || '家常菜').trim().slice(0, 16),
-        pantryLevel: ['existing', 'topup', 'explore'].includes(item?.pantryLevel) ? item.pantryLevel : 'topup',
+        pantryLevel: adjustedLevel,
         description: String(item?.description || '').trim().slice(0, 120),
         reason: String(item?.reason || '').trim().slice(0, 120),
-        availableIngredients: (Array.isArray(item?.availableIngredients) ? item.availableIngredients : [])
-          .map(String).map((name) => name.trim()).filter(Boolean).slice(0, 12),
-        missingIngredients: (Array.isArray(item?.missingIngredients) ? item.missingIngredients : [])
-          .map(String).map((name) => name.trim()).filter(Boolean).slice(0, 10),
+        availableIngredients: available.slice(0, 12),
+        missingIngredients: filterCondimentNames(item?.missingIngredients),
         cookTime: Math.max(5, Math.min(120, Number(item?.cookTime) || params.cookTime || 20)),
         difficulty: ['简单', '中等', '困难'].includes(item?.difficulty) ? item.difficulty : '简单',
         estimatedCalories: Math.max(100, Math.min(1200, Number(item?.estimatedCalories) || 400)),
@@ -217,7 +253,25 @@ function normalizeRecipeRecommendations(value, params) {
         } : null,
       };
     })
-    .filter((item) => item.name && item.sourceVideo && !seen.has(item.name) && seen.add(item.name))
+    .filter((item) => {
+      if (!item.name || !item.sourceVideo) return false;
+      if (seen.has(item.name)) return false;
+      seen.add(item.name);
+      return true;
+    })
+    // 排序：已有食材匹配多的排前面 → 缺少食材少的排前面 → existing > topup > explore
+    .sort((a, b) => {
+      const aMatch = a.availableIngredients.length;
+      const bMatch = b.availableIngredients.length;
+      if (bMatch !== aMatch) return bMatch - aMatch;
+      // 同匹配数时，缺料少的优先
+      const aMiss = a.missingIngredients.length;
+      const bMiss = b.missingIngredients.length;
+      if (aMiss !== bMiss) return aMiss - bMiss;
+      // 同匹配数+缺料数时，existing > topup > explore
+      const levelOrder = { existing: 0, topup: 1, explore: 2 };
+      return (levelOrder[a.pantryLevel] || 1) - (levelOrder[b.pantryLevel] || 1);
+    })
     .slice(0, 8);
 }
 
@@ -232,30 +286,31 @@ async function recommendRecipes(params) {
   const content = await chat({
     model: config.ai.textModel,
     maxTokens: 4096,
-    temperature: 0.65,
+    temperature: 0.3,
+    provider: getTextProvider(),
     responseFormat: { type: 'json_object' },
     messages: [
       {
         role: 'system',
-        content: `你是懂营养搭配的全品类食物推荐师。系统已经先从网上检索到真实制作视频。你只能从给定 videoCandidates 中提取视频明确支持的常见菜品，再结合用户数据推荐。严格只输出 JSON：
-{"recommendations":[{"name":"视频明确支持的常见菜名或食物名","sourceVideoId":"必须原样引用候选 BV id","coverEmoji":"emoji","category":"快手主菜/汤羹/主食组合/早餐/甜品/烘焙/饮品/加餐等","pantryLevel":"existing/topup/explore","description":"一句话介绍","reason":"结合用户数据的推荐理由","availableIngredients":["用户已有且这道食物会用到的食材"],"missingIngredients":["还需购买的常见食材"],"cookTime":20,"difficulty":"简单/中等/困难","estimatedCalories":420}]}
+        content: `你是懂营养搭配的全品类食物推荐师。系统已经先从B站检索到真实制作视频，并对每个视频做了食材匹配和质量筛选（只保留烹饪步骤教程，已过滤探店/吃播/测评类视频）。每个 videoCandidate 的 matchedDishes 字段是代码从该视频中识别出的、能用上用户现有食材的菜名。你必须优先从 matchedDishes 非空的视频中选菜，直接推荐 matchedDishes 里的菜名。严格只输出 JSON：
+{"recommendations":[{"name":"菜名（必须从matchedDishes或视频标题中直接取）","sourceVideoId":"必须原样引用候选 BV id","coverEmoji":"emoji","category":"快手主菜/汤羹/主食组合/早餐/甜品/烘焙/饮品/加餐等","pantryLevel":"existing/topup/explore","description":"一句话介绍","reason":"结合用户数据的推荐理由","availableIngredients":["用户已有且这道食物会用到的食材"],"missingIngredients":["还需购买的常见食材"],"cookTime":20,"difficulty":"简单/中等/困难","estimatedCalories":420}]}
 规则：
-1. 必须返回 8 道，每道绑定不同 sourceVideoId；菜名必须能从对应视频标题或简介直接判断，不准创造生僻新菜名；
-2. 至少覆盖 5 种不同制作形式或食物类别，任何同一 category 最多出现 2 道；优先包含炒、煎/烤、蒸/炖、汤羹、主食组合、早餐/轻食等明显不同方向，不能只是同一道菜更换调味；
-3. 其中约 3 道 pantryLevel=existing（补 0~2 样），3 道 topup（补 2~5 样），2 道 explore（现有食材可只做配料并补 3~8 样），让用户能真正换一种吃法；
-4. 若有牛奶、水果、坚果等合适食材，应自然加入有真实视频支持的甜品、早餐、饮品或加餐候选；
-5. availableIngredients 只能来自用户现有食材，missingIngredients 不能与现有食材重复；盐、油、水等基础调料无需列为缺料；
-6. 结合用户目标、身体数据、目标热量、人数和限时，推荐理由要具体；
-7. 严禁使用过敏源；名称之间不得重复；不得为了凑数量把不相容的食材硬拼在一起。`,
+0. 【最重要】每道推荐菜必须绑定到一个能真正展示这道菜制作步骤的视频！不能绑定到仅展示成品/探店/吃播/测评的视频。菜名必须能从该视频标题或 matchedDishes 中直接找到，视频必须是教人怎么做这道菜的步骤教程；
+1. 必须返回 8 道，每道绑定不同 sourceVideoId；菜名尽量从 matchedDishes 或视频标题/描述中直接取，不准创造生僻新菜名；
+2. 至少覆盖 5 种不同制作形式或食物类别，任何同一 category 最多出现 2 道；
+3. 尽可能让用户用已有食材就能做。能用现有食材独立成菜的标 pantryLevel=existing（缺 0~2 样主食材），需补 2~5 样关键食材的标 topup，现有食材完全用不到或只做配料的标 explore；
+4. availableIngredients 尽量从用户现有食材中选取；missingIngredients 不得与现有食材重复。盐、糖、油、酱油、生抽、老抽、醋、料酒、蚝油、鸡精、味精、胡椒粉、花椒、辣椒、姜、蒜、葱、淀粉、香油等所有基础调味品一律不得列为 missingIngredients；
+5. 结合用户目标、身体数据、目标热量、人数和限时，推荐理由要具体；
+6. 严禁使用过敏源；名称之间不得重复。`,
       },
       {
         role: 'user',
-        content: `用户选择的用餐场景是“${recommendationContext.mealTypeLabel}”。除“不限”外，8 个候选都必须适合该场景；仍需保持做法和菜品差异。\n${JSON.stringify(recommendationContext)}`,
+        content: `用户手头已有这些食材：${(params.ingredients || []).map((i) => i.name).join('、')}。请优先推荐能用上这些食材的菜！例如：如果用户有鸡蛋+番茄，首选番茄炒蛋、番茄蛋汤；有猪肉+青椒，首选青椒炒肉。仔细检查每道菜是否能用到现有食材，能用到的一定要在 availableIngredients 里写出来。用户选择的用餐场景是”${recommendationContext.mealTypeLabel}”。\n${JSON.stringify(recommendationContext)}`,
       },
     ],
   });
   const normalized = normalizeRecipeRecommendations(parseJson(content), params);
-  if (normalized.length < 7) throw new Error(`候选菜数量不足: ${normalized.length}`);
+  if (normalized.length < 3) throw new Error(`候选菜数量不足: ${normalized.length}`);
   return normalized;
 }
 
@@ -283,10 +338,11 @@ async function generateRecipe(params) {
       maxTokens: 4096,
       temperature: 0.3,
       responseFormat: { type: 'json_object' },
+      provider: getTextProvider(),
       messages: [
         {
           role: 'system',
-          content: `你是健身营养师兼大厨。根据用户食材与要求生成健康菜谱，严格只输出 JSON：
+          content: `你是健身营养师兼大厨。根据用户手头已有食材生成健康菜谱，严格只输出 JSON：
 {
   "name": "菜名",
   "coverEmoji": "emoji",
@@ -303,7 +359,11 @@ async function generateRecipe(params) {
   "difficulty": "简单/中等/困难",
   "tips": ["提示1","提示2"]
 }
-数值要合理，确保总热量在目标热量 ±10% 范围内。食材不超过 16 项，步骤为 4~8 条，每条不超过 60 字，小贴士不超过 3 条。`,
+核心要求：
+- 优先基于用户已有食材设计菜谱，尽量用现有食材，减少额外购买；
+- 若现有食材能独立成菜（如鸡蛋+番茄→番茄炒蛋），直接用它们做主料；若现有食材不足以成菜，可适量补充关键主食材（肉类、蔬菜等），补充不超过 4 样；
+- 盐、糖、油、酱油、醋、料酒、蚝油、鸡精、胡椒粉、花椒、辣椒、姜、蒜、葱、淀粉、香油等所有调味品都是每家厨房标配，无需列入 ingredients 也无需提醒购买；
+- 数值要合理，确保总热量在目标热量 ±10% 范围内。食材不超过 14 项，步骤为 4~8 条，每条不超过 60 字，小贴士不超过 3 条。`,
         },
         {
           role: 'user',
@@ -343,6 +403,7 @@ async function recommendWorkout(params) {
     const content = await chat({
       model: config.ai.textModel,
       maxTokens: 2000,
+      provider: getTextProvider(),
       temperature: 0.7,
       responseFormat: { type: 'json_object' },
       messages: [
@@ -398,19 +459,28 @@ async function recommendWorkout(params) {
 /** 只在真实检索结果中排序菜谱视频，模型不得编造链接或视频。 */
 async function rankRecipeVideos({ recipe, candidates }) {
   if (isMockMode() || !isTextLlmReady()) return [];
+  // 精简候选信息，只发给AI必要字段，避免JSON过大被截断
+  const slimCandidates = candidates.slice(0, 8).map((v) => ({
+    id: v.id, title: v.title, duration: v.duration, author: v.author,
+  }));
   const content = await chat({
     model: config.ai.textModel,
-    maxTokens: 1000,
+    provider: getTextProvider(),
+    maxTokens: 2000,
     temperature: 0.2,
     responseFormat: { type: 'json_object' },
     messages: [
       {
         role: 'system',
         content: `你是菜谱视频匹配助手。只能从候选列表选择视频，不得新增、改写 ID 或编造链接。
-根据菜名、食材和步骤选出最多 3 个最匹配的制作教程。优先完整做法、标题与菜名一致、食材相近的视频。
+根据菜名、食材和步骤选出最匹配的烹饪步骤教程（1~3个即可，宁缺毋滥）。必须优先选择：
+1. 视频标题包含"做法""教程""怎么做""教你"等关键词的步骤教学视频
+2. 视频标题与菜名高度一致、食材相近的
+3. 时长在 3-20 分钟之间的完整制作教程
+严禁选择探店、吃播、测评、美食展示等非教程类视频。如果没有合适的教程视频，返回空数组。
 严格只输出 JSON：{"recommendations":[{"id":"候选视频ID","reason":"一句具体匹配理由"}]}`,
       },
-      { role: 'user', content: JSON.stringify({ recipe, candidates }) },
+      { role: 'user', content: JSON.stringify({ recipe: { name: recipe.name, ingredients: (recipe.ingredients||[]).slice(0,8), steps: (recipe.steps||[]).slice(0,6) }, candidates: slimCandidates }) },
     ],
   });
   const parsed = parseJson(content);
@@ -424,8 +494,7 @@ async function rankRecipeVideos({ recipe, candidates }) {
         reason: String(item.reason || '').trim().slice(0, 120),
       };
     })
-    .filter(Boolean)
-    .slice(0, 3);
+    .filter(Boolean);
 }
 
 function mockWorkoutPlan(params) {
@@ -480,6 +549,7 @@ async function generateWorkoutPlan(params) {
     model: config.ai.textModel,
     maxTokens: 4096,
     temperature: 0.35,
+    provider: getTextProvider(),
     responseFormat: { type: 'json_object' },
     messages: [
       {
@@ -494,4 +564,4 @@ weeklySchedule \u5929\u6570\u5fc5\u987b\u7b49\u4e8e weeklyFrequency\uff1b\u5355\
   return parseJson(content);
 }
 
-module.exports = { recognizeFood, recommendRecipes, generateRecipe, recommendWorkout, generateWorkoutPlan, rankRecipeVideos, normalizeVisionImage };
+module.exports = { recognizeFood, recommendRecipes, generateRecipe, recommendWorkout, generateWorkoutPlan, rankRecipeVideos, normalizeVisionImage, filterCondimentNames };
