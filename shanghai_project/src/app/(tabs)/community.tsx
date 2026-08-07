@@ -242,14 +242,15 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', gap: Spacing.two, paddingVertical: Spacing.five },
   emptyDesc: { textAlign: 'center' },
   tip: { textAlign: 'center', marginTop: Spacing.two },
-  // 添加记忆弹层
-  memBackdrop: { flex: 1, justifyContent: 'center', padding: Spacing.four },
+  // 添加记忆弹层（Web 端横向居中并限制为手机框宽度）
+  memBackdrop: { flex: 1, justifyContent: 'center', padding: Spacing.four, alignItems: 'center' },
   dim: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.35)' },
   memSheet: {
     borderRadius: Radius.card,
     padding: Spacing.three,
     gap: Spacing.three,
     width: '100%',
+    maxWidth: 480,
   },
   memPhotoPick: {
     height: 150,

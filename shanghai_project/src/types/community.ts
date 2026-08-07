@@ -19,6 +19,20 @@ export interface CommunityPost {
   comments: number;
 }
 
+/** 帖子评论 */
+export interface Comment {
+  id: string;
+  postId: string;
+  author: {
+    name: string;
+    /** 头像 emoji（本地无真实头像） */
+    avatar: string;
+  };
+  /** 相对时间文案，如「2小时前」；新评论为「刚刚」 */
+  timeLabel: string;
+  content: string;
+}
+
 /** 时光阁条目（按时间记录的锻炼记忆） */
 export interface TimelineEntry {
   id: string;
