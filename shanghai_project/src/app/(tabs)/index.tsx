@@ -351,8 +351,8 @@ const styles = StyleSheet.create({
   feedMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   feedEmpty: {},
   tip: { textAlign: 'center', marginTop: Spacing.two, paddingHorizontal: Spacing.four },
-  // 断食番茄钟弹窗
-  modalBackdrop: { flex: 1, justifyContent: 'center', padding: Spacing.four },
-  modalCard: { borderRadius: Radius.card, padding: Spacing.three, gap: Spacing.one },
+  // 断食番茄钟弹窗（Web 端横向居中并限制为手机框宽度）
+  modalBackdrop: { flex: 1, justifyContent: 'center', padding: Spacing.four, alignItems: 'center' },
+  modalCard: { width: '100%', maxWidth: 480, borderRadius: Radius.card, padding: Spacing.three, gap: Spacing.one },
   modalClose: { alignItems: 'flex-end' },
 });

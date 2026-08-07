@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { FollowFeed } from '@/components/community/FollowFeed';
 import { PostCard } from '@/components/community/PostCard';
 import { PostComposer } from '@/components/community/PostComposer';
 import { TimelineWall } from '@/components/community/TimelineWall';
@@ -27,7 +28,7 @@ import { useCommunityStore } from '@/store/communityStore';
 import { useUserStore } from '@/store/userStore';
 import type { TimelineEntry } from '@/types/community';
 
-type TabKey = 'feed' | 'wall';
+type TabKey = 'feed' | 'follow' | 'wall';
 
 const DEMO_COLORS = ['#FDF0DC', '#E7F0FA', '#E4F3ED', '#FCE9E4', '#F0EDFA'];
 const DEMO_EMOJIS = ['🌱', '🏃', '🧘', '💪', '✨', '🏋️', '🥗'];
@@ -97,6 +98,7 @@ export default function CommunityTab() {
             {(
               [
                 { key: 'feed', label: '动态' },
+                { key: 'follow', label: '关注' },
                 { key: 'wall', label: '照片墙' },
               ] as { key: TabKey; label: string }[]
             ).map((s) => {
@@ -135,6 +137,8 @@ export default function CommunityTab() {
               社区内容为演示数据，仅供展示
             </ThemedText>
           </ScrollView>
+        ) : tab === 'follow' ? (
+          <FollowFeed />
         ) : (
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             {photos.length > 0 ? (
@@ -242,14 +246,15 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', gap: Spacing.two, paddingVertical: Spacing.five },
   emptyDesc: { textAlign: 'center' },
   tip: { textAlign: 'center', marginTop: Spacing.two },
-  // 添加记忆弹层
-  memBackdrop: { flex: 1, justifyContent: 'center', padding: Spacing.four },
+  // 添加记忆弹层（Web 端横向居中并限制为手机框宽度）
+  memBackdrop: { flex: 1, justifyContent: 'center', padding: Spacing.four, alignItems: 'center' },
   dim: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.35)' },
   memSheet: {
     borderRadius: Radius.card,
     padding: Spacing.three,
     gap: Spacing.three,
     width: '100%',
+    maxWidth: 480,
   },
   memPhotoPick: {
     height: 150,

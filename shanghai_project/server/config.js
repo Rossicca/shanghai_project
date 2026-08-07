@@ -53,9 +53,29 @@ if (!process.env.JWT_SECRET && !localSecrets.server?.jwtSecret) {
   console.warn('[config] 未显式配置 JWT_SECRET，正在使用本机持久化随机密钥。');
 }
 
-/** 文本 LLM（菜谱生成 / 运动推荐）是否已配置 OpenAI 兼容的密钥与模型 */
+/** 文本 LLM（菜谱生成 / 运动推荐）是否已配置可用模型 */
 function isTextLlmReady() {
-  return Boolean(config.ai.apiKey && config.ai.textModel && config.ai.baseURL);
+  const textKey = config.ai.textApiKey || config.ai.apiKey;
+  const textUrl = config.ai.textBaseURL || config.ai.baseURL;
+  return Boolean(textKey && config.ai.textModel && textUrl);
+}
+
+/** 获取文本模型专用的 API Key / Base URL（独立于视觉通道） */
+function getTextProvider() {
+  return {
+    apiKey: config.ai.textApiKey || config.ai.apiKey,
+    baseURL: config.ai.textBaseURL || config.ai.baseURL,
+    model: config.ai.textModel,
+  };
+}
+
+/** 获取视觉模型的专用配置 */
+function getVisionProvider() {
+  return {
+    apiKey: config.ai.apiKey,
+    baseURL: config.ai.baseURL,
+    model: config.ai.visionModel,
+  };
 }
 
 function isMockMode() {
@@ -64,7 +84,15 @@ function isMockMode() {
   if (config.ai.provider === 'baidu') {
     return !config.ai.baidu?.apiKey || !config.ai.baidu?.secretKey;
   }
-  return !config.ai.apiKey || !config.ai.visionModel || !config.ai.textModel;
+  // 至少有一种AI可用（视觉或文本），否则进演示模式
+  const visionReady = Boolean(config.ai.apiKey && config.ai.visionModel);
+  const textReady = isTextLlmReady();
+  return !visionReady && !textReady;
 }
 
-module.exports = { config, isMockMode, isTextLlmReady };
+/** 仅视觉模型是否可用 */
+function isVisionReady() {
+  return Boolean(config.ai.enabled && config.ai.apiKey && config.ai.visionModel);
+}
+
+module.exports = { config, isMockMode, isTextLlmReady, isVisionReady, getTextProvider, getVisionProvider };

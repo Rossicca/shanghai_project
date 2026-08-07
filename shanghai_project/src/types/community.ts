@@ -1,13 +1,16 @@
+/** 社区作者 */
+export interface CommunityAuthor {
+  name: string;
+  /** 头像 emoji（本地无真实头像） */
+  avatar: string;
+  /** 标签，如「减脂第 30 天」 */
+  tag?: string;
+}
+
 /** 社区动态 */
 export interface CommunityPost {
   id: string;
-  author: {
-    name: string;
-    /** 头像 emoji（本地无真实头像） */
-    avatar: string;
-    /** 标签，如「减脂第 30 天」 */
-    tag?: string;
-  };
+  author: CommunityAuthor;
   /** 相对时间文案，如「2小时前」 */
   timeLabel: string;
   category: '打卡' | '食谱' | '提问' | '晒变化';
@@ -17,6 +20,20 @@ export interface CommunityPost {
   likes: number;
   liked: boolean;
   comments: number;
+}
+
+/** 帖子评论 */
+export interface Comment {
+  id: string;
+  postId: string;
+  author: {
+    name: string;
+    /** 头像 emoji（本地无真实头像） */
+    avatar: string;
+  };
+  /** 相对时间文案，如「2小时前」；新评论为「刚刚」 */
+  timeLabel: string;
+  content: string;
 }
 
 /** 时光阁条目（按时间记录的锻炼记忆） */

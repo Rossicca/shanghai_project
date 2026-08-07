@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import * as Linking from 'expo-linking';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -10,6 +9,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { recipeCoverUrl } from '@/services/media';
 import { fetchRecipeVideos } from '@/services/recipe';
 import type { Recipe, RecipeVideoRecommendation } from '@/types/recipe';
+import { openExternalLink } from '@/utils/externalLink';
 
 function formatDuration(seconds: number) {
   if (!seconds) return '';
@@ -45,7 +45,7 @@ export function RecipeVideoSection({ recipe }: { recipe: Recipe }) {
   async function openUrl(url: string) {
     setError('');
     try {
-      await Linking.openURL(url);
+      await openExternalLink(url);
     } catch {
       setError('无法打开视频链接，请稍后重试');
     }

@@ -69,7 +69,9 @@ async function recommendRecipeVideos(recipe) {
     const selected = preferredVideo
       ? [preferredVideo, ...ordered.filter((video) => video.id !== preferredVideo.id)]
       : ordered;
-    result.videos = selected.slice(0, 3).map((video) => ({
+    // AI 排过序就只保留 AI 选中的（宁缺毋滥）；搜索排序则最多取 3 条
+    const maxVideos = ranked.length > 0 ? ranked.length : 3;
+    result.videos = selected.slice(0, maxVideos).map((video) => ({
       ...video,
       reason: video.id === preferredVideo?.id
         ? '这是你选择菜谱时参考的原教程，菜名、步骤与视频来源保持一致。'

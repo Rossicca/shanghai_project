@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { VideoPlayer } from '@/components/workout/VideoPlayer';
 import { ThemedText } from '@/components/themed-text';
@@ -13,6 +13,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { getToken } from '@/services/api';
 import { fetchWorkoutDetail } from '@/services/workout';
 import { useWorkoutStore } from '@/store/workoutStore';
+import { openExternalLink } from '@/utils/externalLink';
 
 export default function WorkoutDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -129,13 +130,9 @@ export default function WorkoutDetail() {
               variant="primary"
               icon="logo-youtube"
               onPress={() => {
-                if (Platform.OS === 'web') {
-                  window.open(video.sourceUrl!, '_blank');
-                } else {
-                  Linking.openURL(video.sourceUrl!).catch(() => {
-                    Alert.alert('提示', '无法打开链接');
-                  });
-                }
+                openExternalLink(video.sourceUrl!).catch(() => {
+                  Alert.alert('提示', '无法打开链接');
+                });
               }}
               style={{ flex: 1 }}
             />

@@ -14,6 +14,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { getToken } from '@/services/api';
 import { fetchAdminStats } from '@/services/admin';
 import { fetchDashboard } from '@/services/workout';
+import { useCommunityStore } from '@/store/communityStore';
 import { useRecipeStore } from '@/store/recipeStore';
 import { useUserStore } from '@/store/userStore';
 import { useWorkoutStore } from '@/store/workoutStore';
@@ -31,19 +32,23 @@ export default function ProfileTab() {
     loadLocal: loadWorkouts,
     selectVideo,
   } = useWorkoutStore();
+  const { following, followers, load: loadCommunity } = useCommunityStore();
   const [dashboard, setDashboard] = useState<any>(null);
   const [dashboardError, setDashboardError] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
+
+  const friendCount = following.filter((n) => followers.includes(n)).length;
 
   useEffect(() => {
     load();
     loadRecipes();
     loadWorkouts();
+    loadCommunity();
     if (getToken()) {
       fetchDashboard().then(setDashboard).catch((error) => setDashboardError(error.message));
       fetchAdminStats().then(() => setIsAdmin(true)).catch(() => setIsAdmin(false));
     }
-  }, [load, loadRecipes, loadWorkouts]);
+  }, [load, loadRecipes, loadWorkouts, loadCommunity]);
 
   const bmi = calcBMI(bodyData);
   const bmiLabel = bmi ? (bmi < 18.5 ? '偏瘦' : bmi < 24 ? '正常' : bmi < 28 ? '偏胖' : '肥胖') : '';
@@ -58,6 +63,12 @@ export default function ProfileTab() {
   );
   // 游客也有本地 user，但只有持有 Token 才是已登录账号。
   const loggedIn = Boolean(user && getToken());
+  // 我的收藏：预览最多展示 3 项，超过 3 项在右上角给「更多」入口进完整页
+  const favTotal = savedRecipes.length + savedVideos.length;
+  const favoritesPreview = [
+    ...savedRecipes.map((r) => ({ kind: 'recipe' as const, r })),
+    ...savedVideos.map((v) => ({ kind: 'video' as const, v })),
+  ].slice(0, 3);
 
   function openRecipe(r: Recipe) {
     selectRecipe(r);
@@ -90,6 +101,9 @@ export default function ProfileTab() {
                   </ThemedText>
                 </Pressable>
               )}
+              <ThemedText type="small" themeColor="textSecondary" style={styles.followCount}>
+                关注 {following.length} · 好友 {friendCount}
+              </ThemedText>
             </View>
           </View>
 
@@ -155,36 +169,38 @@ export default function ProfileTab() {
             </Card>
           ) : null}
 
-          {/* 我的收藏 */}
-          {(savedRecipes.length > 0 || savedVideos.length > 0) ? (
+          {/* 我的收藏：预览前 3 项，超过 3 项右上角给「更多」入口 */}
+          {favTotal > 0 ? (
             <Card style={styles.section}>
-              <ThemedText type="smallBold">我的收藏</ThemedText>
-              {savedRecipes.length > 0 ? (
-                <View style={styles.listSnippet}>
-                  {savedRecipes.slice(0, 3).map((r) => (
-                    <Pressable key={r.id} onPress={() => openRecipe(r)} style={styles.snippet}>
-                      <Text style={styles.snippetEmoji}>{r.coverEmoji}</Text>
+              <View style={styles.favHead}>
+                <ThemedText type="smallBold">我的收藏</ThemedText>
+                {favTotal > 3 ? (
+                  <Pressable hitSlop={8} onPress={() => router.push('/favorites')}>
+                    <Text style={[styles.more, { color: colors.primary }]}>更多 ›</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+              <View style={styles.listSnippet}>
+                {favoritesPreview.map((item) =>
+                  item.kind === 'recipe' ? (
+                    <Pressable key={`r${item.r.id}`} onPress={() => openRecipe(item.r)} style={styles.snippet}>
+                      <Text style={styles.snippetEmoji}>{item.r.coverEmoji}</Text>
                       <ThemedText type="small" style={{ flex: 1 }} numberOfLines={1}>
-                        {r.name}
+                        {item.r.name}
                       </ThemedText>
                       <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
                     </Pressable>
-                  ))}
-                </View>
-              ) : null}
-              {savedVideos.length > 0 ? (
-                <View style={styles.listSnippet}>
-                  {savedVideos.slice(0, 3).map((v) => (
-                    <Pressable key={v.id} onPress={() => openVideo(v)} style={styles.snippet}>
-                      <View style={[styles.snippetDot, { backgroundColor: v.coverColor }]} />
+                  ) : (
+                    <Pressable key={`v${item.v.id}`} onPress={() => openVideo(item.v)} style={styles.snippet}>
+                      <View style={[styles.snippetDot, { backgroundColor: item.v.coverColor }]} />
                       <ThemedText type="small" style={{ flex: 1 }} numberOfLines={1}>
-                        {v.title}
+                        {item.v.title}
                       </ThemedText>
                       <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
                     </Pressable>
-                  ))}
-                </View>
-              ) : null}
+                  )
+                )}
+              </View>
             </Card>
           ) : null}
 
@@ -262,6 +278,7 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   content: { padding: Spacing.three, gap: Spacing.three },
   header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
+  followCount: { marginTop: 2 },
   avatar: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center' },
   statsRow: { flexDirection: 'row', gap: Spacing.two },
   rows: { gap: Spacing.two },
@@ -269,6 +286,8 @@ const styles = StyleSheet.create({
   rowIcon: { width: 40, height: 40, borderRadius: Radius.card, alignItems: 'center', justifyContent: 'center' },
   trendCard: { gap: Spacing.three, alignItems: 'center' },
   section: { gap: Spacing.two },
+  favHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  more: { fontSize: 12, fontWeight: '600' },
   listSnippet: { gap: Spacing.one },
   snippet: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingVertical: 6 },
   snippetEmoji: { fontSize: 18 },

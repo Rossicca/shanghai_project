@@ -1,14 +1,19 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import type { CommunityPost, TimelineEntry } from '@/types/community';
+import type { Comment, CommunityPost, TimelineEntry } from '@/types/community';
 
 /**
  * 社区/照片墙本地存取（demo 阶段，无真实后端）。
- * 首次加载注入演示种子数据，用户发帖/点赞/加照片后持久化。
+ * 首次加载注入演示种子数据，用户发帖/点赞/评论/加照片后持久化。
  */
 
 const KEY_POSTS = 'community:posts';
 const KEY_PHOTOS = 'community:photos';
+const KEY_COMMENTS = 'community:comments';
+const KEY_FOLLOWING = 'community:following';
+
+/** 评论表：postId -> 评论数组 */
+export type CommentMap = Record<string, Comment[]>;
 
 /** 演示种子动态 */
 const SEED_POSTS: CommunityPost[] = [
@@ -121,6 +126,37 @@ const SEED_PHOTOS: TimelineEntry[] = [
   },
 ];
 
+/** 演示种子评论（按帖子归类，计数以数组长度为准） */
+const SEED_COMMENTS: CommentMap = {
+  p_seed_1: [
+    { id: 'c_seed_1a', postId: 'p_seed_1', author: { name: '阿哲', avatar: '🦁' }, timeLabel: '1小时前', content: '环形进度达标太有成就感了，继续加油！' },
+    { id: 'c_seed_1b', postId: 'p_seed_1', author: { name: '小满', avatar: '🐰' }, timeLabel: '40分钟前', content: '沙拉里加个溏心蛋，蛋白质更够～' },
+    { id: 'c_seed_1c', postId: 'p_seed_1', author: { name: 'Kevin', avatar: '🐻' }, timeLabel: '20分钟前', content: '求沙拉酱的配方，我用的都是油醋汁' },
+  ],
+  p_seed_2: [
+    { id: 'c_seed_2a', postId: 'p_seed_2', author: { name: '晓雯', avatar: '🦩' }, timeLabel: '4小时前', content: '这也太明显了！锁骨都出来了' },
+    { id: 'c_seed_2b', postId: 'p_seed_2', author: { name: '沐沐', avatar: '🐬' }, timeLabel: '3小时前', content: '照片墙这个坚持方式太适合我了，已用上' },
+    { id: 'c_seed_2c', postId: 'p_seed_2', author: { name: '小满', avatar: '🐰' }, timeLabel: '2小时前', content: '体脂 17%！求问增肌期怎么兼顾有氧' },
+    { id: 'c_seed_2d', postId: 'p_seed_2', author: { name: 'Kevin', avatar: '🐻' }, timeLabel: '1小时前', content: '同一个角度拍真的能看出差别，学到了' },
+  ],
+  p_seed_3: [
+    { id: 'c_seed_3a', postId: 'p_seed_3', author: { name: '晓雯', avatar: '🦩' }, timeLabel: '昨天', content: '宿舍党来答：番茄鸡蛋汤 + 玉米，热量低又顶饱' },
+    { id: 'c_seed_3b', postId: 'p_seed_3', author: { name: '阿哲', avatar: '🦁' }, timeLabel: '昨天', content: '小煮锅可以煮荞麦面，配上水煮虾仁，绝了' },
+    { id: 'c_seed_3c', postId: 'p_seed_3', author: { name: '沐沐', avatar: '🐬' }, timeLabel: '昨天', content: '提前备好食材，晚上饿了就不想点外卖了' },
+  ],
+  p_seed_4: [
+    { id: 'c_seed_4a', postId: 'p_seed_4', author: { name: '小满', avatar: '🐰' }, timeLabel: '昨天', content: '我之前也一样，把重量降一档，先找对膝盖位置' },
+    { id: 'c_seed_4b', postId: 'p_seed_4', author: { name: '沐沐', avatar: '🐬' }, timeLabel: '昨天', content: '对着镜子做，脚趾朝前，想象屁股往后坐' },
+    { id: 'c_seed_4c', postId: 'p_seed_4', author: { name: '晓雯', avatar: '🦩' }, timeLabel: '昨天', content: '热身开髋+踝，深蹲前一定要做' },
+  ],
+  p_seed_5: [
+    { id: 'c_seed_5a', postId: 'p_seed_5', author: { name: '阿哲', avatar: '🦁' }, timeLabel: '昨天', content: '跟着练睡眠真的变好了，睡前拉伸太香' },
+    { id: 'c_seed_5b', postId: 'p_seed_5', author: { name: '小满', avatar: '🐰' }, timeLabel: '昨天', content: '我也坚持一周了，现在到点就困 😂' },
+    { id: 'c_seed_5c', postId: 'p_seed_5', author: { name: 'Kevin', avatar: '🐻' }, timeLabel: '昨天', content: '晚饭后跟练会不会太兴奋影响入睡？' },
+    { id: 'c_seed_5d', postId: 'p_seed_5', author: { name: '晓雯', avatar: '🦩' }, timeLabel: '昨天', content: '控制在睡前 1 小时结束，亲测有效' },
+  ],
+};
+
 async function getJSON<T>(key: string): Promise<T | null> {
   const raw = await AsyncStorage.getItem(key);
   if (!raw) return null;
@@ -156,4 +192,34 @@ export async function loadPhotos(): Promise<TimelineEntry[]> {
 
 export async function savePhotos(photos: TimelineEntry[]): Promise<void> {
   await setJSON(KEY_PHOTOS, photos);
+}
+
+export async function loadComments(): Promise<CommentMap> {
+  const stored = await getJSON<CommentMap>(KEY_COMMENTS);
+  if (stored) return stored;
+  // 首次：注入种子评论
+  await setJSON(KEY_COMMENTS, SEED_COMMENTS);
+  return SEED_COMMENTS;
+}
+
+export async function saveComments(comments: CommentMap): Promise<void> {
+  await setJSON(KEY_COMMENTS, comments);
+}
+
+/** 我关注的用户（真实持久化；seed 让「关注」页签开箱有内容） */
+const SEED_FOLLOWING: string[] = ['晓雯', '阿哲'];
+
+/** 关注我的用户（演示种子数据，用于计算互关好友：following ∩ followers） */
+export const SEED_FOLLOWERS: string[] = ['晓雯', '沐沐', 'Kevin'];
+
+export async function loadFollowing(): Promise<string[]> {
+  const stored = await getJSON<string[]>(KEY_FOLLOWING);
+  if (stored) return stored;
+  // 首次：注入种子关注
+  await setJSON(KEY_FOLLOWING, SEED_FOLLOWING);
+  return SEED_FOLLOWING;
+}
+
+export async function saveFollowing(names: string[]): Promise<void> {
+  await setJSON(KEY_FOLLOWING, names);
 }

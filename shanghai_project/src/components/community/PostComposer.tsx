@@ -3,6 +3,7 @@ import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-nativ
 
 import { Button } from '@/components/ui/Button';
 import { Radius, Spacing } from '@/constants/theme';
+import { useTabBarInset } from '@/hooks/use-tab-bar-inset';
 import { useTheme } from '@/hooks/use-theme';
 import type { CommunityPost } from '@/types/community';
 
@@ -22,6 +23,7 @@ type Props = {
 /** 发动态底部弹层 */
 export function PostComposer({ visible, onClose, onSubmit }: Props) {
   const colors = useTheme();
+  const tabBarInset = useTabBarInset();
   const [content, setContent] = useState('');
   const [category, setCategory] = useState<CommunityPost['category']>('打卡');
 
@@ -39,8 +41,8 @@ export function PostComposer({ visible, onClose, onSubmit }: Props) {
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.backdrop}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={[styles.backdrop, { paddingBottom: tabBarInset }]}>
         <Pressable style={styles.dim} onPress={onClose} />
         <View style={[styles.sheet, { backgroundColor: colors.card }]}>
           <View style={styles.handle} />
@@ -86,9 +88,12 @@ export function PostComposer({ visible, onClose, onSubmit }: Props) {
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, justifyContent: 'flex-end' },
-  dim: { flex: 1 },
+  // Web 端 Modal 渲染在 body 层，横向居中并限制为手机框宽度（#root max-width:480px）
+  backdrop: { flex: 1, justifyContent: 'flex-end', alignItems: 'center' },
+  dim: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.35)' },
   sheet: {
+    width: '100%',
+    maxWidth: 480,
     borderTopLeftRadius: Radius.card,
     borderTopRightRadius: Radius.card,
     padding: Spacing.three,

@@ -22,10 +22,13 @@ export default function RootLayout() {
         <Stack.Screen name="profile/body" options={{ title: '身体数据' }} />
         <Stack.Screen name="profile/goal" options={{ title: '健身目标' }} />
         <Stack.Screen name="notifications" options={{ title: '通知' }} />
+        <Stack.Screen name="favorites" options={{ title: '我的收藏' }} />
         <Stack.Screen name="more" options={{ title: '更多' }} />
         <Stack.Screen name="camera/scan" options={{ title: '拍照识别', headerShown: false }} />
         <Stack.Screen name="recipe/generate" options={{ title: 'AI 生成菜谱' }} />
         <Stack.Screen name="recipe/[id]" options={{ title: '菜谱详情' }} />
+        <Stack.Screen name="community/[id]" options={{ title: '动态详情' }} />
+        <Stack.Screen name="community/user/[name]" options={{ title: '个人主页' }} />
         <Stack.Screen name="workout/[id]" options={{ title: '视频详情' }} />
         <Stack.Screen name="workout/plan" options={{ headerShown: false }} />
         <Stack.Screen name="workout/category/[slug]" options={{ title: '分类视频' }} />

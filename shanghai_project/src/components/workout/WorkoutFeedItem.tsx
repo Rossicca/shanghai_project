@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Alert, Linking, Pressable, Share, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Platform, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 
 import { VideoPlayer } from '@/components/workout/VideoPlayer';
 import { Radius } from '@/constants/theme';
 import type { WorkoutVideo } from '@/types/workout';
+import { openExternalLink } from '@/utils/externalLink';
 
 type Props = {
   video: WorkoutVideo;
@@ -32,6 +33,11 @@ export function WorkoutFeedItem({ video, active, saved, onToggleSave, onOpen }: 
 
   async function handleOpen() {
     if (video.sourceUrl) {
+      // Web：同步开新标签页，避免 await 后弹窗被拦 + 保持当前页面不被覆盖
+      if (Platform.OS === 'web') {
+        openExternalLink(video.sourceUrl);
+        return;
+      }
       const supported = await Linking.canOpenURL(video.sourceUrl).catch(() => false);
       if (supported) {
         await Linking.openURL(video.sourceUrl);
