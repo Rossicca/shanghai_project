@@ -280,12 +280,13 @@ app.get('/api/workout/categories', (req, res) => {
   res.json({ data: cats });
 });
 
-// GET /api/cover — 代理 B站封面图，绕过 Referer 防盗链
-// 仅允许 B站图床 / picsum 兜底图，防 SSRF
+// GET /api/cover — 代理 B站/抖音封面图，绕过 Referer 防盗链
+// 仅允许 B站图床 / 抖音图床 / picsum 兜底图，防 SSRF
 app.get('/api/cover', (req, res) => {
   const url = String(req.query.url || '');
   const allowed =
     /^https:\/\/[a-z0-9-]+\.hdslb\.com\/bfs\//.test(url) ||
+    /^https:\/\/[a-z0-9-]+\.douyinpic\.com\//.test(url) ||
     /^https:\/\/picsum\.photos\//.test(url);
   if (!allowed) {
     return res.status(400).json({ error: { code: 'INVALID_COVER_URL' } });

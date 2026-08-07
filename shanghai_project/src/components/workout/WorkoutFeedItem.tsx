@@ -86,7 +86,7 @@ export function WorkoutFeedItem({ video, active, saved, onToggleSave, onOpen }: 
           <Text style={styles.coach}>@{video.coach}</Text>
           {video.platform ? (
             <Text style={styles.platformTag}>
-              {video.platform === 'bilibili' ? '📺 B站' : '▶️ YouTube'}
+              {video.platform === 'bilibili' ? '📺 B站' : video.platform === 'douyin' ? '🎵 抖音' : '▶️ YouTube'}
             </Text>
           ) : null}
           <View style={styles.reason}>

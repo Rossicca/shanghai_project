@@ -86,7 +86,9 @@ export async function searchWorkouts(q: string, page = 1) {
 /** 获取视频详情（新 API） */
 export async function fetchWorkoutDetail(id: string) {
   const res = await api.get(`/api/v1/workouts/${id}`);
-  return res.data.data;
+  // 与列表/推荐共用同一套字段清洗：接口返回的 source 是 'external' 标记，
+  // 不是可播放的 URL，直接透传给 VideoPlayer 会走 RealVideo 导致播放器异常。
+  return mapWorkoutVideo(res.data.data);
 }
 
 /** 收藏视频（新 API） */

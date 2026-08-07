@@ -53,6 +53,9 @@ export default function WorkoutDetail() {
   }
 
   const saved = savedVideos.some((v) => v.id === video.id);
+  const externalLabel =
+    video.platform === 'bilibili' ? '去B站观看' : video.platform === 'douyin' ? '去抖音观看' : '跳转观看';
+  const externalIcon = video.platform === 'douyin' ? 'musical-notes' : 'logo-youtube';
 
   return (
     <ThemedView style={styles.container}>
@@ -119,16 +122,16 @@ export default function WorkoutDetail() {
         <Card>
           <ThemedText type="smallBold">跟练提示</ThemedText>
           <ThemedText type="small" themeColor="textSecondary" style={styles.tips}>
-            · 运动前充分热身，根据自身情况量力而行。\n· 感到不适请立即停止。\n· 点击“去B站观看”跳转到真实视频页面。
+            · 运动前充分热身，根据自身情况量力而行。\n· 感到不适请立即停止。\n· 点击“{externalLabel}”跳转到真实视频页面。
           </ThemedText>
         </Card>
 
         <View style={styles.actions}>
           {video.sourceUrl ? (
             <Button
-              title={video.platform === 'bilibili' ? '去B站观看' : '跳转观看'}
+              title={externalLabel}
               variant="primary"
-              icon="logo-youtube"
+              icon={externalIcon}
               onPress={() => {
                 openExternalLink(video.sourceUrl!).catch(() => {
                   Alert.alert('提示', '无法打开链接');

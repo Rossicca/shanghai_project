@@ -116,9 +116,9 @@ export function VideoPlayer({ video, playing = true, onEnd, showControls }: Prop
           </View>
         ) : null}
         <Pressable style={styles.watchBtn} onPress={openExternal}>
-          <Ionicons name="logo-youtube" size={20} color="#fff" />
+          <Ionicons name={video.platform === 'douyin' ? 'musical-notes' : 'logo-youtube'} size={20} color="#fff" />
           <Text style={styles.watchBtnText}>
-            {video.platform === 'bilibili' ? '去B站观看 ›' : '跳转观看 ›'}
+            {video.platform === 'bilibili' ? '去B站观看 ›' : video.platform === 'douyin' ? '去抖音观看 ›' : '跳转观看 ›'}
           </Text>
         </Pressable>
       </View>

@@ -1,6 +1,6 @@
 /**
  * 健身视频路由 — 推荐流 / 分类 / 搜索 / 互动
- * 视频数据来自 B站爬虫种子脚本（seed-workout-videos.js）
+ * 视频数据来自 B站爬虫（seed-workout-videos.js）+ 抖音精选（seed-douyin-videos.js）
  */
 
 const express = require('express');
@@ -47,7 +47,7 @@ function safeExternalUrl(value) {
   if (!value) return null;
   try {
     const url = new URL(value);
-    const allowed = ['bilibili.com', 'www.bilibili.com', 'search.bilibili.com'];
+    const allowed = ['bilibili.com', 'www.bilibili.com', 'search.bilibili.com', 'douyin.com', 'www.douyin.com'];
     return url.protocol === 'https:' && allowed.includes(url.hostname) ? url.toString() : null;
   } catch {
     return null;
@@ -118,7 +118,8 @@ router.get('/feed', async (req, res) => {
         items: items.map((v) => ({
           id: v.id,
           title: v.title,
-          coverUrl: v.coverUrl || `https://picsum.photos/seed/${v.id}/400/600`,
+          coverUrl: v.coverUrl || null,
+          coverColor: v.coverColor || null,
           videoUrl: safeExternalUrl(v.sourceUrl),
           sourceUrl: safeExternalUrl(v.sourceUrl),
           platform: v.platform || 'bilibili',
@@ -209,7 +210,8 @@ router.get('/category/:slug', (req, res) => {
         items: videos.slice(start, start + ps).map((v) => ({
           id: v.id,
           title: v.title,
-          coverUrl: v.coverUrl || `https://picsum.photos/seed/${v.id}/400/600`,
+          coverUrl: v.coverUrl || null,
+          coverColor: v.coverColor || null,
           sourceUrl: safeExternalUrl(v.sourceUrl),
           platform: v.platform || 'bilibili',
           duration: v.duration,
@@ -253,6 +255,11 @@ router.get('/search', (req, res) => {
         (v.category && v.category.includes(keyword)) ||
         (v.tags && v.tags.some((t) => t.includes(keyword)))
     );
+    // 按播放量排序：与推荐流/分类保持一致，也让抖音等不同来源的内容能混排进前页
+    videos.sort(
+      (a, b) =>
+        (b.playCount || 0) - (a.playCount || 0) || String(a.id).localeCompare(String(b.id))
+    );
 
     const p = parseInt(page) || 1;
     const ps = Math.min(parseInt(pageSize) || 10, 20);
@@ -263,7 +270,8 @@ router.get('/search', (req, res) => {
         items: videos.slice(start, start + ps).map((v) => ({
           id: v.id,
           title: v.title,
-          coverUrl: v.coverUrl || `https://picsum.photos/seed/${v.id}/400/600`,
+          coverUrl: v.coverUrl || null,
+          coverColor: v.coverColor || null,
           sourceUrl: safeExternalUrl(v.sourceUrl),
           platform: v.platform || 'bilibili',
           duration: v.duration,
@@ -303,7 +311,8 @@ router.get('/:id', (req, res) => {
       data: {
         id: video.id,
         title: video.title,
-        coverUrl: video.coverUrl || `https://picsum.photos/seed/${video.id}/400/600`,
+        coverUrl: video.coverUrl || null,
+        coverColor: video.coverColor || null,
         sourceUrl: safeExternalUrl(video.sourceUrl),
         platform: video.platform || 'bilibili',
         videoUrl: safeExternalUrl(video.sourceUrl),
@@ -443,7 +452,8 @@ router.get('/saved/list', (req, res) => {
       .map(({ savedItem, video }) => ({
         id: video.id,
         title: video.title,
-        coverUrl: video.coverUrl || `https://picsum.photos/seed/${video.id}/400/600`,
+        coverUrl: video.coverUrl || null,
+        coverColor: video.coverColor || null,
         sourceUrl: safeExternalUrl(video.sourceUrl),
         platform: video.platform || 'bilibili',
         duration: video.duration,
