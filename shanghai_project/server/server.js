@@ -8,6 +8,8 @@
 
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
+const fs = require('fs');
 const { randomUUID } = require('crypto');
 const https = require('https');
 const { authMiddleware, adminMiddleware } = require('./auth');
@@ -41,6 +43,13 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
+
+// 本地封面图（抖音视频真实封面由 seed-douyin-videos.js 下载到 data/covers/，
+// 签名 URL 有 14 天有效期，落地为本地文件后由这里静态提供，永不裂图）
+const COVERS_DIR = path.join(__dirname, 'data', 'covers');
+if (fs.existsSync(COVERS_DIR)) {
+  app.use('/covers', express.static(COVERS_DIR, { maxAge: '30d', immutable: true }));
+}
 
 // 请求链路 ID：优先透传前端值，否则由后端生成。
 app.use((req, res, next) => {

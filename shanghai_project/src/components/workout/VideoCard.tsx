@@ -1,8 +1,11 @@
+import { useState } from 'react';
+
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Card } from '@/components/ui/Card';
+import { API_BASE_URL } from '@/constants/config';
 import { CATEGORY_ICONS } from '@/constants/fitness';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -22,12 +25,30 @@ function fmtDuration(sec: number) {
 /** 视频卡片 */
 export function VideoCard({ video, onPress }: Props) {
   const colors = useTheme();
+  const [coverFailed, setCoverFailed] = useState(false);
+
+  // 本地封面（/covers/）直接走静态目录；远程封面走 /api/cover 代理
+  const coverUri = video.coverUrl
+    ? video.coverUrl.startsWith('/covers/')
+      ? `${API_BASE_URL}${video.coverUrl}`
+      : `${API_BASE_URL}/api/cover?url=${encodeURIComponent(video.coverUrl)}`
+    : null;
+  const showCover = !!coverUri && !coverFailed;
 
   return (
     <Pressable onPress={onPress}>
       <Card style={styles.card} padded={false}>
         <View style={[styles.cover, { backgroundColor: video.coverColor }]}>
-          <Text style={styles.coverEmoji}>{CATEGORY_ICONS[video.category] ?? '💪'}</Text>
+          {showCover ? (
+            <Image
+              source={{ uri: coverUri! }}
+              style={StyleSheet.absoluteFill}
+              resizeMode="cover"
+              onError={() => setCoverFailed(true)}
+            />
+          ) : (
+            <Text style={styles.coverEmoji}>{CATEGORY_ICONS[video.category] ?? '💪'}</Text>
+          )}
           <View style={styles.durationBadge}>
             <Text style={styles.durationText}>{fmtDuration(video.duration)}</Text>
           </View>
@@ -58,7 +79,7 @@ export function VideoCard({ video, onPress }: Props) {
 
 const styles = StyleSheet.create({
   card: { overflow: 'hidden' },
-  cover: { height: 120, alignItems: 'center', justifyContent: 'center' },
+  cover: { height: 120, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   coverEmoji: { fontSize: 52 },
   durationBadge: { position: 'absolute', bottom: 6, right: 6, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 },
   durationText: { color: '#fff', fontSize: 11, fontWeight: '700' },

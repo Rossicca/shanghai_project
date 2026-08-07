@@ -20,8 +20,112 @@ const db = require('./db');
 
 const SEED_PATH = path.join(__dirname, 'data', 'douyin_seed.json');
 const OUTPUT_PATH = path.join(__dirname, 'data', 'workout_videos.json');
+const COVERS_DIR = path.join(__dirname, 'data', 'covers');
 
 const PLATFORM = 'douyin';
+
+// ─── 封面抓取 ─────────────────────────────────────────────
+// 抖音封面在网页端需要 JS 签名才可取到，但移动分享页 m.douyin.com/share/video/{id}
+// 会把封面 SSR 进 HTML（<img class="poster">），curl 直接可读。页面带
+// byted_acrawler WAF 反爬：请求过密或 UA 太生会被弹「Please wait」挑战页，
+// 这里用 iPhone UA + ttwid cookie + 随机延迟 + 失败重试来绕过。
+const COVER_UA =
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
+
+/** 生成一个新鲜的 ttwid cookie（值不校验，仅用于给 WAF 一个合法指纹） */
+function makeTtwid() {
+  const ts = Date.now();
+  const rand = Math.random().toString(36).slice(2, 10);
+  return `ttwid=1%7C${ts}x${rand}%7C${ts}`;
+}
+
+/**
+ * 从移动分享页解析出真实封面图 URL。
+ * 解析成功后应立即下载，因为签名的 x-expires 通常只有 14 天。
+ */
+async function fetchCoverUrl(awemeId, { maxAttempts = 4 } = {}) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const { body } = await httpGet(`https://m.douyin.com/share/video/${awemeId}`, {
+        headers: {
+          'User-Agent': COVER_UA,
+          'Accept': 'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'zh-CN,zh;q=0.9',
+          'Referer': 'https://www.douyin.com/',
+          'Cookie': makeTtwid(),
+        },
+      });
+      const m = body.match(/src="(https:\/\/[^"]*sign\.douyinpic\.com\/[^"]*)"/);
+      if (m) {
+        // HTML src 属性里签名参数用 &amp; 转义，直接请求会 403，必须还原成 &
+        return m[1].replace(/&amp;/g, '&');
+      }
+      // 被 WAF 弹挑战页时 body 会非常小（"Please wait..."），冷却后重试
+      if (body.length < 4000 || body.includes('Please wait')) {
+        const delay = 1500 * attempt + Math.floor(Math.random() * 1200);
+        console.log(`    ↳ 命中 WAF 挑战页，${Math.round(delay / 1000)}s 后重试（${attempt}/${maxAttempts}）`);
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+      return null; // 页面正常但无封面（视频可能已删除）
+    } catch {
+      const delay = 1000 * attempt;
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  return null;
+}
+
+/**
+ * 确保 awemeId 有本地封面。已存在则直接返回路径；否则抓取签名 URL 并下载。
+ * 返回本地相对路径 /covers/{id}.{ext}，抓取失败返回 null（前端回退颜色块）。
+ */
+async function ensureLocalCover(awemeId) {
+  if (!fs.existsSync(COVERS_DIR)) fs.mkdirSync(COVERS_DIR, { recursive: true });
+  const existing = fs.readdirSync(COVERS_DIR).find((f) => f.startsWith(`${awemeId}.`));
+  if (existing) return `/covers/${existing}`;
+
+  const remoteUrl = await fetchCoverUrl(awemeId);
+  if (!remoteUrl) {
+    console.log(`    ↳ 未获取到封面，前端将用颜色块兜底`);
+    return null;
+  }
+  const local = await downloadCover(awemeId, remoteUrl);
+  if (local) console.log(`    ↳ 封面已下载: ${local}`);
+  else console.log(`    ↳ 封面下载失败，前端将用颜色块兜底`);
+  return local;
+}
+
+/**
+ * 下载封面到本地 data/covers/{awemeId}.webp，返回本地相对路径。
+ * 本地化原因：签名 URL x-expires 约 14 天即失效，直接存远程地址会裂图；
+ * 下载后由 server 静态目录 /covers/ 提供，永久有效且随仓库分发。
+ */
+async function downloadCover(awemeId, remoteUrl) {
+  if (!remoteUrl) return null;
+  try {
+    const mod = remoteUrl.startsWith('https') ? https : http;
+    const buf = await new Promise((resolve, reject) => {
+      mod.get(remoteUrl, { headers: { 'User-Agent': COVER_UA, 'Referer': 'https://www.douyin.com/' } }, (res) => {
+        if (res.statusCode !== 200) {
+          res.resume();
+          return reject(new Error(`HTTP ${res.statusCode}`));
+        }
+        const chunks = [];
+        res.on('data', (c) => chunks.push(c));
+        res.on('end', () => resolve(Buffer.concat(chunks)));
+      }).on('error', reject);
+    });
+    if (!fs.existsSync(COVERS_DIR)) fs.mkdirSync(COVERS_DIR, { recursive: true });
+    const ext = /\.(jpe?g|png|webp)(?:[?]|$)/i.test(remoteUrl) ? remoteUrl.match(/\.(jpe?g|png|webp)/i)[1].toLowerCase() : 'webp';
+    const outPath = path.join(COVERS_DIR, `${awemeId}.${ext}`);
+    fs.writeFileSync(outPath, buf);
+    return `/covers/${awemeId}.${ext}`;
+  } catch (err) {
+    console.warn(`  ⚠️ 封面下载失败 ${awemeId}: ${err.message}`);
+    return null;
+  }
+}
 
 // ─── 分类 → 封面主题色 / 每分类消耗（与 B站种子保持一致）──────────
 const COVER_COLORS = {
@@ -49,7 +153,7 @@ function stablePlayCount(id) {
 }
 
 // ─── HTTP 请求封装（支持跟随 302 跳转）────────────────────────
-function httpGet(url, { maxHops = 3, hop = 0 } = {}) {
+function httpGet(url, { maxHops = 3, hop = 0, headers = {} } = {}) {
   return new Promise((resolve, reject) => {
     const mod = url.startsWith('https') ? https : http;
     mod.get(url, { headers: {
@@ -57,6 +161,7 @@ function httpGet(url, { maxHops = 3, hop = 0 } = {}) {
       'Referer': 'https://www.douyin.com/',
       'Accept': 'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8',
       'Accept-Language': 'zh-CN,zh;q=0.9',
+      ...headers,
     }}, (res) => {
       const status = res.statusCode;
       const loc = res.headers.location;
@@ -124,7 +229,7 @@ function buildVideo(entry, awemeId) {
     coverColor: COVER_COLORS[category] || '#FF6B35',
     sourceUrl: `https://www.douyin.com/video/${awemeId}`,
     platform: PLATFORM,
-    coverUrl: null, // 抖音封面需签名接口才能取到，用 coverColor + 分类 emoji 兜底
+    coverUrl: null, // 由封面抓取流程下载后填充本地路径（无封面时前端回退颜色块）
     reason: `${coach} 的「${title}」跟练视频，${difficulty}级别，适合${category}训练，来自抖音热门健身内容。`,
     tags: Array.isArray(entry.tags) ? entry.tags.slice(0, 5) : [],
     playCount: stablePlayCount(awemeId),
@@ -180,14 +285,20 @@ async function main() {
         console.warn(`  ⚠️ 无法解析出视频 ID，已跳过: ${entry.url || '(空链接)'}`);
         continue;
       }
+      // 封面：从移动分享页抓真实封面并下载到本地（已有本地封面则跳过抓取）
+      const localCover = await ensureLocalCover(awemeId);
+
       if (seen.has(awemeId)) {
         // 已存在：仍重建一次（douyin_seed.json 是抖音条目的唯一来源，重跑脚本可刷新
         // 伪播放量等字段），但不计入新增数
-        seen.set(awemeId, buildVideo(e, awemeId));
+        const video = buildVideo(e, awemeId);
+        if (localCover) video.coverUrl = localCover;
+        seen.set(awemeId, video);
         console.log(`  ↻ 已存在，已刷新: ${awemeId}（${e.title || '无标题'}）`);
         continue;
       }
       const video = buildVideo(e, awemeId);
+      if (localCover) video.coverUrl = localCover;
       seen.set(awemeId, video);
       added++;
       console.log(`  ✅ ${e.category || '全身燃脂'}: ${awemeId} — ${video.title}`);

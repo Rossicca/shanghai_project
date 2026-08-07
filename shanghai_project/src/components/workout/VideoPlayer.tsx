@@ -76,11 +76,15 @@ export function VideoPlayer({ video, playing = true, onEnd, showControls }: Prop
     return <RealVideo source={video.source} playing={playing} />;
   }
 
-  // 有外部链接（B站/YouTube）的推荐视频
+  // 有外部链接（B站/抖音/YouTube）的推荐视频
   if (video.sourceUrl) {
-    // 封面走后端代理：B站图床按 Referer 防盗链，直连浏览器加载会被 403 拒绝
+    // 封面分两类：
+    // - 本地封面（抖音 seed 下载到 server/data/covers，coverUrl 以 /covers/ 开头）→ 直接走静态目录
+    // - 远程封面（B站图床按 Referer 防盗链）→ 走后端 /api/cover 代理，绕开直连 403
     const coverUri = video.coverUrl
-      ? `${API_BASE_URL}/api/cover?url=${encodeURIComponent(video.coverUrl)}`
+      ? video.coverUrl.startsWith('/covers/')
+        ? `${API_BASE_URL}${video.coverUrl}`
+        : `${API_BASE_URL}/api/cover?url=${encodeURIComponent(video.coverUrl)}`
       : null;
     const showCover = !!coverUri && !coverFailed;
     return (
