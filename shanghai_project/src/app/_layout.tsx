@@ -22,6 +22,7 @@ export default function RootLayout() {
         <Stack.Screen name="profile/body" options={{ title: '身体数据' }} />
         <Stack.Screen name="profile/goal" options={{ title: '健身目标' }} />
         <Stack.Screen name="notifications" options={{ title: '通知' }} />
+        <Stack.Screen name="favorites" options={{ title: '我的收藏' }} />
         <Stack.Screen name="more" options={{ title: '更多' }} />
         <Stack.Screen name="camera/scan" options={{ title: '拍照识别', headerShown: false }} />
         <Stack.Screen name="recipe/generate" options={{ title: 'AI 生成菜谱' }} />

@@ -1,7 +1,7 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 
 import { getToken } from '@/services/api';
+import { getScopedItem, setScopedItem } from '@/services/scopedStorage';
 import * as workoutService from '@/services/workout';
 import type { WorkoutRecommendParams, WorkoutVideo } from '@/types/workout';
 
@@ -112,7 +112,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
       ? get().savedVideos.filter((item) => item.id !== video.id)
       : [video, ...get().savedVideos];
     set({ savedVideos });
-    await AsyncStorage.setItem(KEY_SAVED, JSON.stringify(savedVideos));
+    await setScopedItem(KEY_SAVED, JSON.stringify(savedVideos));
   },
 
   addHistory: async (video) => {
@@ -120,7 +120,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
       ? get().history
       : [video, ...get().history].slice(0, 20);
     set({ history });
-    await AsyncStorage.setItem(KEY_HISTORY, JSON.stringify(history));
+    await setScopedItem(KEY_HISTORY, JSON.stringify(history));
   },
 
   loadCategories: async () => {
@@ -136,7 +136,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
   loadLocal: async () => {
     try {
       const [saved, history] = await Promise.all([
-        AsyncStorage.getItem(KEY_SAVED), AsyncStorage.getItem(KEY_HISTORY),
+        getScopedItem(KEY_SAVED), getScopedItem(KEY_HISTORY),
       ]);
       set({ savedVideos: saved ? JSON.parse(saved) : [], history: history ? JSON.parse(history) : [] });
     } catch {
