@@ -28,13 +28,13 @@ function mapWorkoutVideo(item: any): WorkoutVideo {
 /** 按身体数据推荐运动视频（旧 API） */
 export async function recommendWorkout(params: WorkoutRecommendParams): Promise<WorkoutVideo[]> {
   const res = await api.post<{ videos: WorkoutVideo[] }>('/api/workout/recommend', params);
-  return res.data.videos;
+  return res.data.videos.map(mapWorkoutVideo);
 }
 
 /** 按分类获取视频列表（旧 API，静态兜底） */
 export async function fetchWorkoutByCategory(category: string): Promise<WorkoutVideo[]> {
   const res = await api.post<{ videos: WorkoutVideo[] }>('/api/workout/list', { category });
-  return res.data.videos;
+  return res.data.videos.map(mapWorkoutVideo);
 }
 
 /** 获取推荐视频流（新 API） */
