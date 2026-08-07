@@ -133,6 +133,18 @@ function normalizeVisionImage(value) {
     .replace(/\s+/g, '');
 }
 
+/**
+ * 从 base64 首字节判断图片类型。
+ * 网页相机产出 PNG，相册选图多为 JPEG；写死 jpeg 会让声明与内容不符。
+ */
+function detectImageMime(imageBase64) {
+  if (typeof imageBase64 !== 'string') return 'image/jpeg';
+  if (imageBase64.startsWith('iVBOR')) return 'image/png';
+  if (imageBase64.startsWith('R0lGOD')) return 'image/gif';
+  if (imageBase64.startsWith('UklGR')) return 'image/webp';
+  return 'image/jpeg';
+}
+
 /** 1. 识别食物 */
 async function recognizeFood(imageBase64) {
   const normalizedImage = normalizeVisionImage(imageBase64);
@@ -158,7 +170,7 @@ async function recognizeFood(imageBase64) {
           role: 'user',
           content: [
             { type: 'text', text: '识别这张图片里的食物，给出名称、估算重量和置信度。' },
-            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${normalizedImage}` } },
+            { type: 'image_url', image_url: { url: `data:${detectImageMime(normalizedImage)};base64,${normalizedImage}` } },
           ],
         },
       ],
@@ -482,4 +494,4 @@ weeklySchedule \u5929\u6570\u5fc5\u987b\u7b49\u4e8e weeklyFrequency\uff1b\u5355\
   return parseJson(content);
 }
 
-module.exports = { recognizeFood, recommendRecipes, generateRecipe, recommendWorkout, generateWorkoutPlan, rankRecipeVideos };
+module.exports = { recognizeFood, recommendRecipes, generateRecipe, recommendWorkout, generateWorkoutPlan, rankRecipeVideos, normalizeVisionImage };

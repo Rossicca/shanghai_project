@@ -1,5 +1,6 @@
 # 数据库文件（自动生成，不提交）
 /data/*.json
+/data/*.db
 # 但保留种子数据
 !/data/workout_videos.json
 

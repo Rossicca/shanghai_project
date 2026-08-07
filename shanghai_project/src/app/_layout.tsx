@@ -1,27 +1,17 @@
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useThemeStore } from '@/store/themeStore';
 import { useUserStore } from '@/store/userStore';
 
-SplashScreen.preventAutoHideAsync().catch(() => {});
-
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-  const userLoaded = useUserStore((state) => state.loaded);
 
   useEffect(() => {
     useThemeStore.getState().load();
     useUserStore.getState().load();
   }, []);
-
-  useEffect(() => {
-    if (userLoaded) SplashScreen.hideAsync().catch(() => {});
-  }, [userLoaded]);
-
-  if (!userLoaded) return null;
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
@@ -39,6 +29,8 @@ export default function RootLayout() {
         <Stack.Screen name="workout/[id]" options={{ title: '视频详情' }} />
         <Stack.Screen name="workout/plan" options={{ headerShown: false }} />
         <Stack.Screen name="workout/category/[slug]" options={{ title: '分类视频' }} />
+        {/* admin/ 有自己的 _layout，整段作为一个嵌套路由挂载 */}
+        <Stack.Screen name="admin" options={{ headerShown: false }} />
       </Stack>
     </ThemeProvider>
   );

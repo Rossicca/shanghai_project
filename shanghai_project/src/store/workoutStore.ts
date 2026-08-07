@@ -1,8 +1,8 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 
 import { getToken } from '@/services/api';
 import * as workoutService from '@/services/workout';
-import { getScopedItem, setScopedItem } from '@/services/scopedStorage';
 import type { WorkoutRecommendParams, WorkoutVideo } from '@/types/workout';
 
 const KEY_SAVED = 'workout:saved';
@@ -32,7 +32,6 @@ interface WorkoutState {
   addHistory: (video: WorkoutVideo) => Promise<void>;
   loadLocal: () => Promise<void>;
   loadCategories: () => Promise<void>;
-  refreshSaved: () => Promise<void>;
   clearLocalData: () => void;
 }
 
@@ -113,23 +112,15 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
       ? get().savedVideos.filter((item) => item.id !== video.id)
       : [video, ...get().savedVideos];
     set({ savedVideos });
-    await setScopedItem(KEY_SAVED, JSON.stringify(savedVideos));
+    await AsyncStorage.setItem(KEY_SAVED, JSON.stringify(savedVideos));
   },
 
   addHistory: async (video) => {
-    try {
-      if (getToken()) await workoutService.completeWorkout(video.id);
-    } catch (error) {
-      set({ error: (error as Error).message || '训练记录保存失败' });
-      throw error;
-    }
-    const completedAt = Date.now();
-    const history = [
-      { ...video, historyId: `${video.id}:${completedAt}`, completedAt },
-      ...get().history,
-    ].slice(0, 20);
+    const history = get().history.some((item) => item.id === video.id)
+      ? get().history
+      : [video, ...get().history].slice(0, 20);
     set({ history });
-    await setScopedItem(KEY_HISTORY, JSON.stringify(history));
+    await AsyncStorage.setItem(KEY_HISTORY, JSON.stringify(history));
   },
 
   loadCategories: async () => {
@@ -142,27 +133,10 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
     }
   },
 
-  refreshSaved: async () => {
-    if (!getToken()) return;
-    try {
-      const [savedVideos, history] = await Promise.all([
-        workoutService.fetchSavedWorkouts(),
-        workoutService.fetchWorkoutHistory(),
-      ]);
-      set({ savedVideos, history, error: '' });
-      await Promise.all([
-        setScopedItem(KEY_SAVED, JSON.stringify(savedVideos)),
-        setScopedItem(KEY_HISTORY, JSON.stringify(history)),
-      ]);
-    } catch (error) {
-      set({ error: (error as Error).message || '视频收藏同步失败' });
-    }
-  },
-
   loadLocal: async () => {
     try {
       const [saved, history] = await Promise.all([
-        getScopedItem(KEY_SAVED), getScopedItem(KEY_HISTORY),
+        AsyncStorage.getItem(KEY_SAVED), AsyncStorage.getItem(KEY_HISTORY),
       ]);
       set({ savedVideos: saved ? JSON.parse(saved) : [], history: history ? JSON.parse(history) : [] });
     } catch {
@@ -170,8 +144,9 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
     }
   },
 
+  /** 登出时清空内存态，避免下一个账号看到上一个账号的数据 */
   clearLocalData: () => set({
-    feed: [], categories: [], currentCategory: '\u4e3a\u4f60\u63a8\u8350', selectedVideo: null,
+    feed: [], categories: [], currentCategory: '为你推荐', selectedVideo: null,
     savedVideos: [], history: [], isLoading: false, isLoadingMore: false,
     hasMore: false, page: 1, error: '',
   }),

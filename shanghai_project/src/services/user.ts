@@ -4,7 +4,6 @@ import type { BodyData, FitnessGoal } from '@/types/workout';
 import type { User } from '@/types/user';
 
 import { api, clearTokens, loadTokens, saveTokens } from './api';
-import { getScopedItem, removeCurrentUserScopedData, setScopedItem } from './scopedStorage';
 
 /**
  * 用户数据服务
@@ -20,7 +19,7 @@ const KEY_BODY_HISTORY = 'user:bodyHistory';
 // ─── 本地存储工具 ───
 
 async function getJSON<T>(key: string): Promise<T | null> {
-  const raw = await getScopedItem(key);
+  const raw = await AsyncStorage.getItem(key);
   if (!raw) return null;
   try {
     return JSON.parse(raw) as T;
@@ -30,7 +29,7 @@ async function getJSON<T>(key: string): Promise<T | null> {
 }
 
 async function setJSON(key: string, value: unknown): Promise<void> {
-  await setScopedItem(key, JSON.stringify(value));
+  await AsyncStorage.setItem(key, JSON.stringify(value));
 }
 
 // ─── Token 管理 ───
@@ -70,17 +69,11 @@ export async function login(email: string, password: string): Promise<User> {
 // ─── 用户信息 ───
 
 export async function loadUser(): Promise<User | null> {
-  const raw = await AsyncStorage.getItem(KEY_USER);
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw) as User;
-  } catch {
-    return null;
-  }
+  return getJSON<User>(KEY_USER);
 }
 
 export async function saveUser(user: User): Promise<void> {
-  await AsyncStorage.setItem(KEY_USER, JSON.stringify(user));
+  await setJSON(KEY_USER, user);
 }
 
 // ─── 身体数据 ───
@@ -90,10 +83,14 @@ export async function loadBodyData(): Promise<BodyData | null> {
 }
 
 export async function saveBodyData(data: BodyData): Promise<void> {
-  if (await loadToken()) {
-    await api.post('/api/v1/users/me/body-data', data);
-  }
+  // 本地保存
   await setJSON(KEY_BODY, data);
+  // 尝试同步到后端
+  try {
+    await api.post('/api/v1/users/me/body-data', data);
+  } catch {
+    // 后端不可用时仅本地保存
+  }
 }
 
 export async function loadGoal(): Promise<FitnessGoal | null> {
@@ -101,15 +98,17 @@ export async function loadGoal(): Promise<FitnessGoal | null> {
 }
 
 export async function saveGoal(goal: FitnessGoal): Promise<void> {
-  if (await loadToken()) {
+  await setJSON(KEY_GOAL, goal);
+  try {
     await api.put('/api/v1/users/me/goal', {
       goalType: goal.type,
       targetWeight: goal.targetWeight,
       targetDate: goal.deadline,
       weeklyFrequency: goal.weeklyFrequency,
     });
+  } catch {
+    // 仅本地保存
   }
-  await setJSON(KEY_GOAL, goal);
 }
 
 function goalLabel(value?: string): FitnessGoal['type'] {
@@ -122,7 +121,7 @@ function goalLabel(value?: string): FitnessGoal['type'] {
   return labels[value || ''] || (value as FitnessGoal['type']) || '保持健康';
 }
 
-/** Restore the signed-in account from the backend and refresh its local cache. */
+/** 已登录时从后端拉取完整账号数据，并刷新本地缓存 */
 export async function fetchCurrentAccount(): Promise<{
   user: User;
   bodyData: BodyData | null;
@@ -157,7 +156,8 @@ export async function fetchCurrentAccount(): Promise<{
   const goal: FitnessGoal | null = profile.fitnessGoal
     ? {
         type: goalLabel(profile.fitnessGoal.goalType),
-        targetWeight: profile.fitnessGoal.targetWeight == null ? undefined : Number(profile.fitnessGoal.targetWeight),
+        targetWeight:
+          profile.fitnessGoal.targetWeight == null ? undefined : Number(profile.fitnessGoal.targetWeight),
         deadline: profile.fitnessGoal.targetDate || undefined,
         weeklyFrequency: Number(profile.fitnessGoal.weeklyFrequency || 3),
       }
@@ -214,7 +214,6 @@ export async function mockLogin(nickname: string): Promise<User> {
 }
 
 export async function clearUser(): Promise<void> {
-  await removeCurrentUserScopedData();
-  await AsyncStorage.removeItem(KEY_USER);
+  await AsyncStorage.multiRemove([KEY_USER, KEY_BODY, KEY_GOAL]);
   await clearToken();
 }

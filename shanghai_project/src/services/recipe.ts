@@ -83,13 +83,17 @@ export async function generateRecipeFromSession(
 export async function reimagineRecipe(recipeId: string, style?: string): Promise<Recipe> {
   const res = await api.post(`/api/v1/recipes/${recipeId}/reimagine`, { style }, { timeout: AI_TIMEOUT });
   const data = res.data.data;
-  return mapRecipe(data);
+  return {
+    ...data,
+    id: data.recipeId || data.id,
+    createdAt: Date.parse(data.createdAt) || Date.now(),
+  };
 }
 
 /** 获取菜谱详情 */
 export async function fetchRecipe(recipeId: string): Promise<Recipe> {
   const res = await api.get(`/api/v1/recipes/${recipeId}`);
-  return mapRecipe(res.data.data);
+  return res.data.data;
 }
 
 /** 收藏菜谱 */
@@ -105,13 +109,13 @@ export async function unsaveRecipe(recipeId: string): Promise<void> {
 /** 获取收藏列表 */
 export async function fetchSavedRecipes() {
   const res = await api.get('/api/v1/recipes/saved/list');
-  return (res.data.data || []).map(mapRecipe);
+  return res.data.data;
 }
 
 /** 获取菜谱历史 */
 export async function fetchRecipeHistory() {
   const res = await api.get('/api/v1/recipes/history/list');
-  return (res.data.data || []).map(mapRecipe);
+  return res.data.data;
 }
 
 /** 先根据食材和用户数据生成 5–8 个候选，再由用户选择最终菜谱。 */

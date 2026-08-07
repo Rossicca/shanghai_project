@@ -285,51 +285,6 @@ router.get('/search', (req, res) => {
   }
 });
 
-/** Record one completed workout session. */
-router.post('/:id/complete', (req, res) => {
-  try {
-    const video = getVideoDB().find((item) => item.id === req.params.id);
-    if (!video) {
-      return res.status(404).json({ error: { code: 'VIDEO_NOT_FOUND', message: '视频不存在' } });
-    }
-    const record = db.insert('workout_history', {
-      userId: req.user.userId,
-      workoutId: video.id,
-      duration: Number(video.duration || 0),
-      calories: Number(video.calories || 0),
-    });
-    res.status(201).json({ data: { historyId: record.id }, message: '训练记录已保存' });
-  } catch (e) {
-    console.error('[workouts] complete error:', e);
-    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: '训练记录保存失败' } });
-  }
-});
-
-/** Return the signed-in user's completed workout sessions. */
-router.get('/history/list', (req, res) => {
-  try {
-    const videos = getVideoDB();
-    const items = db.find('workout_history', { userId: req.user.userId })
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-      .slice(0, 20)
-      .map((record) => {
-        const video = videos.find((item) => item.id === record.workoutId);
-        if (!video) return null;
-        return {
-          ...video,
-          historyId: record.id,
-          completedAt: record.createdAt,
-          calories: Number(record.calories || video.calories || 0),
-        };
-      })
-      .filter(Boolean);
-    res.json({ data: items });
-  } catch (e) {
-    console.error('[workouts] history error:', e);
-    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: '训练记录读取失败' } });
-  }
-});
-
 /**
  * GET /api/v1/workouts/:id — 视频详情
  */
@@ -423,6 +378,55 @@ router.delete('/:id/save', (req, res) => {
 });
 
 /**
+ * POST /api/v1/workouts/:id/complete — 记录一次训练打卡
+ */
+router.post('/:id/complete', (req, res) => {
+  try {
+    const video = getVideoDB().find((item) => item.id === req.params.id);
+    if (!video) {
+      return res.status(404).json({ error: { code: 'VIDEO_NOT_FOUND', message: '视频不存在' } });
+    }
+    const record = db.insert('workout_history', {
+      userId: req.user.userId,
+      workoutId: video.id,
+      duration: Number(video.duration || 0),
+      calories: Number(video.calories || 0),
+    });
+    res.status(201).json({ data: { historyId: record.id }, message: '训练记录已保存' });
+  } catch (e) {
+    console.error('[workouts] complete error:', e);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: '训练记录保存失败' } });
+  }
+});
+
+/**
+ * GET /api/v1/workouts/history/list — 训练打卡记录
+ */
+router.get('/history/list', (req, res) => {
+  try {
+    const videos = getVideoDB();
+    const items = db.find('workout_history', { userId: req.user.userId })
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 20)
+      .map((record) => {
+        const video = videos.find((item) => item.id === record.workoutId);
+        if (!video) return null;
+        return {
+          ...video,
+          historyId: record.id,
+          completedAt: record.createdAt,
+          calories: Number(record.calories || video.calories || 0),
+        };
+      })
+      .filter(Boolean);
+    res.json({ data: items });
+  } catch (e) {
+    console.error('[workouts] history error:', e);
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: '训练记录读取失败' } });
+  }
+});
+
+/**
  * GET /api/v1/workouts/saved/list — 收藏列表
  */
 router.get('/saved/list', (req, res) => {
@@ -446,9 +450,6 @@ router.get('/saved/list', (req, res) => {
         difficulty: video.difficulty,
         category: video.category,
         instructor: video.coach,
-        calories: Number(video.calories || 0),
-        coverColor: video.coverColor,
-        reason: video.reason || '',
         tags: video.tags || [],
         savedAt: savedItem.createdAt,
       }));
