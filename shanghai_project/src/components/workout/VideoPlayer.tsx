@@ -6,6 +6,7 @@ import { VideoView, useVideoPlayer } from 'expo-video';
 import { CATEGORY_ICONS } from '@/constants/fitness';
 import { API_BASE_URL } from '@/constants/config';
 import type { WorkoutVideo } from '@/types/workout';
+import { openExternalLink } from '@/utils/externalLink';
 
 type Props = {
   video: WorkoutVideo;
@@ -60,6 +61,11 @@ export function VideoPlayer({ video, playing = true, onEnd, showControls }: Prop
 
   function openExternal() {
     if (!video.sourceUrl) return;
+    // Web：同步开新标签页（保持当前页不被覆盖 + 避免 await 后弹窗被拦）
+    if (Platform.OS === 'web') {
+      openExternalLink(video.sourceUrl);
+      return;
+    }
     Linking.canOpenURL(video.sourceUrl)
       .then((supported) => supported ? Linking.openURL(video.sourceUrl!) : Promise.reject())
       .catch(() => Alert.alert('视频暂时不可用', '文字动作说明仍可正常使用。'));

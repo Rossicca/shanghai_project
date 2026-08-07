@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -14,6 +14,7 @@ import { getToken } from '@/services/api';
 import { fetchLatestWorkoutPlan, generateWorkoutPlan } from '@/services/workout';
 import { useUserStore } from '@/store/userStore';
 import type { WorkoutPlan, WorkoutPlanInput } from '@/types/workout';
+import { openExternalLink } from '@/utils/externalLink';
 
 const DURATIONS = [20, 30, 45, 60];
 const LOCATIONS: { value: WorkoutPlanInput['workoutLocation']; label: string }[] = [
@@ -71,6 +72,11 @@ export default function WorkoutPlanPage() {
   }
 
   async function openVideo(url: string) {
+    // Web：同步开新标签页，保持当前页不被覆盖
+    if (Platform.OS === 'web') {
+      openExternalLink(url);
+      return;
+    }
     const supported = await Linking.canOpenURL(url).catch(() => false);
     if (supported) await Linking.openURL(url);
     else setError('视频链接暂时不可用，文字动作说明仍可正常跟练。');
