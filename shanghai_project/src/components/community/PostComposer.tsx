@@ -41,7 +41,7 @@ export function PostComposer({ visible, onClose, onSubmit }: Props) {
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={[styles.backdrop, { paddingBottom: tabBarInset }]}>
         <Pressable style={styles.dim} onPress={onClose} />
         <View style={[styles.sheet, { backgroundColor: colors.card }]}>
@@ -90,7 +90,7 @@ export function PostComposer({ visible, onClose, onSubmit }: Props) {
 const styles = StyleSheet.create({
   // Web 端 Modal 渲染在 body 层，横向居中并限制为手机框宽度（#root max-width:480px）
   backdrop: { flex: 1, justifyContent: 'flex-end', alignItems: 'center' },
-  dim: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  dim: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.35)' },
   sheet: {
     width: '100%',
     maxWidth: 480,

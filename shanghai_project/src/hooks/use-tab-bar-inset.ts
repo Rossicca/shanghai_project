@@ -14,10 +14,21 @@ export function useTabBarInset(): number {
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     const measure = () => {
-      const tab = document.querySelector('a[role="tab"]');
-      if (!tab) return;
-      const rect = tab.getBoundingClientRect();
-      setInset(Math.max(0, window.innerHeight - rect.top));
+      // 取最接近视口底部的 tab 元素（真正的底部导航栏），避免 querySelector
+      // 匹配到页内其他 role="tab" 的装饰元素导致测量异常
+      const tabs = document.querySelectorAll('a[role="tab"]');
+      let bestTop = 0;
+      let bestBottom = -Infinity;
+      for (const t of tabs) {
+        const r = t.getBoundingClientRect();
+        if (r.bottom > bestBottom) {
+          bestBottom = r.bottom;
+          bestTop = r.top;
+        }
+      }
+      if (!Number.isFinite(bestBottom)) return;
+      // 底部导航栏高度 = 视口底部到 tab 顶部的距离；钳制在合理范围，防止测量异常把弹层推出屏幕
+      setInset(Math.min(120, Math.max(0, window.innerHeight - bestTop)));
     };
     measure();
     window.addEventListener('resize', measure);
