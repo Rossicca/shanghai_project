@@ -9,6 +9,15 @@ function resolveBaseUrl(): string {
     return process.env.EXPO_PUBLIC_API_BASE_URL.replace(/\/$/, '');
   }
   if (Platform.OS === 'web') {
+    // 部署到非 localhost 域名/IP 时（如 http://8.133.172.55），回落到当前页面主机名，
+    // 保证所有用户（含协作者）的浏览器连到同一个后端，而不是各自身边的 localhost。
+    const hostname =
+      typeof window !== 'undefined' && window.location?.hostname
+        ? window.location.hostname
+        : '';
+    if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      return `http://${hostname}:${DEV_PORT}`;
+    }
     return `http://localhost:${DEV_PORT}`;
   }
   // 开发时通过 Expo hostUri 拿到电脑的局域网 IP，真机也能连到本机后端

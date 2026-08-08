@@ -24,6 +24,7 @@ const workoutRoutes = require('./routes/workouts');
 const workoutPlanRoutes = require('./routes/workout-plans');
 const statsRoutes = require('./routes/stats');
 const adminRoutes = require('./routes/admin');
+const communityRoutes = require('./routes/community');
 
 // 旧版兼容路由（保持前端现有调用可用）
 const { recognizeFood, generateRecipe, recommendWorkout } = require('./ai');
@@ -116,6 +117,8 @@ app.use('/api/v1/workouts', authMiddleware, workoutRoutes);
 app.use('/api/v1/workout-plans', authMiddleware, workoutPlanRoutes);
 app.use('/api/v1/stats', authMiddleware, statsRoutes);
 app.use('/api/v1/admin', authMiddleware, adminMiddleware, adminRoutes);
+// 社区路由不加全局 authMiddleware：读接口对游客开放，写接口在路由内校验登录
+app.use('/api/v1/community', communityRoutes);
 
 // ---- 旧版 API 兼容 (前端现有调用) ----
 

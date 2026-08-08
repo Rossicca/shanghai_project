@@ -1,10 +1,16 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { api } from '@/services/api';
 import type { Comment, CommunityPost, TimelineEntry } from '@/types/community';
 
 /**
- * 社区/照片墙本地存取（demo 阶段，无真实后端）。
- * 首次加载注入演示种子数据，用户发帖/点赞/评论/加照片后持久化。
+ * 社区/照片墙数据服务 — 共享后端优先，失败降级本地 AsyncStorage。
+ *
+ * 背景：社区数据原来只存在各设备本地 AsyncStorage，帖子互不互通（每个账号各存各的）。
+ * 现在默认走后端 /api/v1/community（所有用户读写同一份共享数据）；
+ * 仅在后端不可达（离线 / 后端未启动）时降级到本地缓存，保证不崩、本地开发照常。
+ *
+ * 所有写操作以服务端返回值为准（真实 id、真实作者），不沿用旧「先改本地再整体 save」。
  */
 
 const KEY_POSTS = 'community:posts';
@@ -15,147 +21,8 @@ const KEY_FOLLOWING = 'community:following';
 /** 评论表：postId -> 评论数组 */
 export type CommentMap = Record<string, Comment[]>;
 
-/** 演示种子动态 */
-const SEED_POSTS: CommunityPost[] = [
-  {
-    id: 'p_seed_1',
-    author: { name: '晓雯', avatar: '🦩', tag: '减脂第 21 天' },
-    timeLabel: '2小时前',
-    category: '打卡',
-    content: '今天午餐吃了拍照识别的鸡胸肉沙拉，环形进度刚好达标！坚持真的会看到变化 🌿',
-    image: { emoji: '🥗', color: '#E4F3ED' },
-    likes: 128,
-    liked: false,
-    comments: 16,
-  },
-  {
-    id: 'p_seed_2',
-    author: { name: '阿哲', avatar: '🦁', tag: '增肌第 45 天' },
-    timeLabel: '5小时前',
-    category: '晒变化',
-    content: '同一个角度，第 1 天和今天对比。体脂从 21% 降到 17%，照片墙比体重秤更直观！',
-    image: { emoji: '💪', color: '#FDF0DC' },
-    likes: 342,
-    liked: false,
-    comments: 38,
-  },
-  {
-    id: 'p_seed_3',
-    author: { name: '小满', avatar: '🐰', tag: '保持健康' },
-    timeLabel: '昨天',
-    category: '食谱',
-    content: '求推荐适合宿舍党（只有小煮锅）的低脂晚餐，最近晚上总忍不住点外卖 😭',
-    likes: 56,
-    liked: false,
-    comments: 21,
-  },
-  {
-    id: 'p_seed_4',
-    author: { name: 'Kevin', avatar: '🐻', tag: '减脂第 7 天' },
-    timeLabel: '昨天',
-    category: '提问',
-    content: '深蹲后大腿前侧酸，是不是动作不对？视频里教练说膝盖不要内扣，但我总控制不住。',
-    likes: 89,
-    liked: false,
-    comments: 12,
-  },
-  {
-    id: 'p_seed_5',
-    author: { name: '沐沐', avatar: '🐬', tag: '塑形中' },
-    timeLabel: '2天前',
-    category: '打卡',
-    content: '坚持一周每晚饭后 20 分钟跟练，睡眠变好了，早上也不赖床了，记录一下 🧘',
-    image: { emoji: '🧘', color: '#E7F0FA' },
-    likes: 203,
-    liked: false,
-    comments: 25,
-  },
-];
-
-/** 演示种子时光阁（按时间排列的记忆） */
-const SEED_PHOTOS: TimelineEntry[] = [
-  {
-    id: 'ph_seed_1',
-    date: '2026-06-01',
-    day: 1,
-    weight: 72,
-    bodyFat: 24,
-    note: '第 1 天，拍下现在的自己，给未来的一个承诺',
-    emoji: '🌱',
-    color: '#FDF0DC',
-  },
-  {
-    id: 'ph_seed_2',
-    date: '2026-06-15',
-    day: 15,
-    weight: 70.5,
-    bodyFat: 23.2,
-    note: '两周了，皮带多扣了一格 ✌️',
-    emoji: '🏃',
-    color: '#E7F0FA',
-  },
-  {
-    id: 'ph_seed_3',
-    date: '2026-07-01',
-    day: 30,
-    weight: 69,
-    bodyFat: 22,
-    note: '满月打卡，习惯开始长在身上',
-    emoji: '🧘',
-    color: '#E4F3ED',
-  },
-  {
-    id: 'ph_seed_4',
-    date: '2026-07-20',
-    day: 50,
-    weight: 67.5,
-    bodyFat: 21,
-    note: '能明显摸到锁骨了，坚持有回报',
-    emoji: '💪',
-    color: '#FCE9E4',
-  },
-  {
-    id: 'ph_seed_5',
-    date: '2026-08-01',
-    day: 62,
-    weight: 66,
-    bodyFat: 20,
-    note: '第 62 天。谢谢你，两个月前的自己',
-    emoji: '✨',
-    color: '#E4F3ED',
-  },
-];
-
-/** 演示种子评论（按帖子归类，计数以数组长度为准） */
-const SEED_COMMENTS: CommentMap = {
-  p_seed_1: [
-    { id: 'c_seed_1a', postId: 'p_seed_1', author: { name: '阿哲', avatar: '🦁' }, timeLabel: '1小时前', content: '环形进度达标太有成就感了，继续加油！' },
-    { id: 'c_seed_1b', postId: 'p_seed_1', author: { name: '小满', avatar: '🐰' }, timeLabel: '40分钟前', content: '沙拉里加个溏心蛋，蛋白质更够～' },
-    { id: 'c_seed_1c', postId: 'p_seed_1', author: { name: 'Kevin', avatar: '🐻' }, timeLabel: '20分钟前', content: '求沙拉酱的配方，我用的都是油醋汁' },
-  ],
-  p_seed_2: [
-    { id: 'c_seed_2a', postId: 'p_seed_2', author: { name: '晓雯', avatar: '🦩' }, timeLabel: '4小时前', content: '这也太明显了！锁骨都出来了' },
-    { id: 'c_seed_2b', postId: 'p_seed_2', author: { name: '沐沐', avatar: '🐬' }, timeLabel: '3小时前', content: '照片墙这个坚持方式太适合我了，已用上' },
-    { id: 'c_seed_2c', postId: 'p_seed_2', author: { name: '小满', avatar: '🐰' }, timeLabel: '2小时前', content: '体脂 17%！求问增肌期怎么兼顾有氧' },
-    { id: 'c_seed_2d', postId: 'p_seed_2', author: { name: 'Kevin', avatar: '🐻' }, timeLabel: '1小时前', content: '同一个角度拍真的能看出差别，学到了' },
-  ],
-  p_seed_3: [
-    { id: 'c_seed_3a', postId: 'p_seed_3', author: { name: '晓雯', avatar: '🦩' }, timeLabel: '昨天', content: '宿舍党来答：番茄鸡蛋汤 + 玉米，热量低又顶饱' },
-    { id: 'c_seed_3b', postId: 'p_seed_3', author: { name: '阿哲', avatar: '🦁' }, timeLabel: '昨天', content: '小煮锅可以煮荞麦面，配上水煮虾仁，绝了' },
-    { id: 'c_seed_3c', postId: 'p_seed_3', author: { name: '沐沐', avatar: '🐬' }, timeLabel: '昨天', content: '提前备好食材，晚上饿了就不想点外卖了' },
-  ],
-  p_seed_4: [
-    { id: 'c_seed_4a', postId: 'p_seed_4', author: { name: '小满', avatar: '🐰' }, timeLabel: '昨天', content: '我之前也一样，把重量降一档，先找对膝盖位置' },
-    { id: 'c_seed_4b', postId: 'p_seed_4', author: { name: '沐沐', avatar: '🐬' }, timeLabel: '昨天', content: '对着镜子做，脚趾朝前，想象屁股往后坐' },
-    { id: 'c_seed_4c', postId: 'p_seed_4', author: { name: '晓雯', avatar: '🦩' }, timeLabel: '昨天', content: '热身开髋+踝，深蹲前一定要做' },
-  ],
-  p_seed_5: [
-    { id: 'c_seed_5a', postId: 'p_seed_5', author: { name: '阿哲', avatar: '🦁' }, timeLabel: '昨天', content: '跟着练睡眠真的变好了，睡前拉伸太香' },
-    { id: 'c_seed_5b', postId: 'p_seed_5', author: { name: '小满', avatar: '🐰' }, timeLabel: '昨天', content: '我也坚持一周了，现在到点就困 😂' },
-    { id: 'c_seed_5c', postId: 'p_seed_5', author: { name: 'Kevin', avatar: '🐻' }, timeLabel: '昨天', content: '晚饭后跟练会不会太兴奋影响入睡？' },
-    { id: 'c_seed_5d', postId: 'p_seed_5', author: { name: '晓雯', avatar: '🦩' }, timeLabel: '昨天', content: '控制在睡前 1 小时结束，亲测有效' },
-  ],
-};
+/** 关注我的用户（演示种子数据，用于计算互关好友：following ∩ followers） */
+export const SEED_FOLLOWERS: string[] = ['晓雯', '沐沐', 'Kevin'];
 
 async function getJSON<T>(key: string): Promise<T | null> {
   const raw = await AsyncStorage.getItem(key);
@@ -171,55 +38,112 @@ async function setJSON(key: string, value: unknown): Promise<void> {
   await AsyncStorage.setItem(key, JSON.stringify(value));
 }
 
-export async function loadPosts(): Promise<CommunityPost[]> {
-  const stored = await getJSON<CommunityPost[]>(KEY_POSTS);
-  if (stored) return stored;
-  // 首次：注入种子
-  await setJSON(KEY_POSTS, SEED_POSTS);
-  return SEED_POSTS;
+/** 后端优先：成功则缓存到本地；失败则回退本地缓存 */
+async function withLocalFallback<T>(request: () => Promise<T>, localKey: string): Promise<T> {
+  try {
+    const data = await request();
+    await setJSON(localKey, data);
+    return data;
+  } catch {
+    const cached = await getJSON<T>(localKey);
+    return cached as T;
+  }
 }
 
-export async function savePosts(posts: CommunityPost[]): Promise<void> {
-  await setJSON(KEY_POSTS, posts);
+// ─── 读取（后端优先，失败降级本地） ───
+
+export async function loadPosts(): Promise<CommunityPost[]> {
+  return withLocalFallback(
+    async () => {
+      const res = await api.get('/api/v1/community/posts');
+      const posts = res.data?.data?.posts as CommunityPost[];
+      if (!Array.isArray(posts)) throw new Error('bad posts response');
+      return posts;
+    },
+    KEY_POSTS
+  );
 }
 
 export async function loadPhotos(): Promise<TimelineEntry[]> {
-  const stored = await getJSON<TimelineEntry[]>(KEY_PHOTOS);
-  if (stored) return stored;
-  await setJSON(KEY_PHOTOS, SEED_PHOTOS);
-  return SEED_PHOTOS;
-}
-
-export async function savePhotos(photos: TimelineEntry[]): Promise<void> {
-  await setJSON(KEY_PHOTOS, photos);
+  return withLocalFallback(
+    async () => {
+      const res = await api.get('/api/v1/community/photos');
+      const photos = res.data?.data?.photos as TimelineEntry[];
+      if (!Array.isArray(photos)) throw new Error('bad photos response');
+      return photos;
+    },
+    KEY_PHOTOS
+  );
 }
 
 export async function loadComments(): Promise<CommentMap> {
-  const stored = await getJSON<CommentMap>(KEY_COMMENTS);
-  if (stored) return stored;
-  // 首次：注入种子评论
-  await setJSON(KEY_COMMENTS, SEED_COMMENTS);
-  return SEED_COMMENTS;
+  return withLocalFallback(
+    async () => {
+      const res = await api.get('/api/v1/community/comments');
+      const comments = res.data?.data?.comments as CommentMap;
+      if (!comments || typeof comments !== 'object') throw new Error('bad comments response');
+      return comments;
+    },
+    KEY_COMMENTS
+  );
 }
-
-export async function saveComments(comments: CommentMap): Promise<void> {
-  await setJSON(KEY_COMMENTS, comments);
-}
-
-/** 我关注的用户（真实持久化；seed 让「关注」页签开箱有内容） */
-const SEED_FOLLOWING: string[] = ['晓雯', '阿哲'];
-
-/** 关注我的用户（演示种子数据，用于计算互关好友：following ∩ followers） */
-export const SEED_FOLLOWERS: string[] = ['晓雯', '沐沐', 'Kevin'];
 
 export async function loadFollowing(): Promise<string[]> {
-  const stored = await getJSON<string[]>(KEY_FOLLOWING);
-  if (stored) return stored;
-  // 首次：注入种子关注
-  await setJSON(KEY_FOLLOWING, SEED_FOLLOWING);
-  return SEED_FOLLOWING;
+  return withLocalFallback(
+    async () => {
+      const res = await api.get('/api/v1/community/following');
+      const following = res.data?.data?.following as string[];
+      if (!Array.isArray(following)) throw new Error('bad following response');
+      return following;
+    },
+    KEY_FOLLOWING
+  );
 }
 
-export async function saveFollowing(names: string[]): Promise<void> {
-  await setJSON(KEY_FOLLOWING, names);
+// ─── 写入（以服务端返回值为准） ───
+
+/** 发布动态：作者身份由后端从登录用户取出，返回带真实 id 的帖子 */
+export async function createPost(input: {
+  content: string;
+  category: CommunityPost['category'];
+  /** 可选配图（上传的真实图片 uri 或 emoji+色块占位） */
+  image?: CommunityPost['image'];
+}): Promise<CommunityPost> {
+  const res = await api.post('/api/v1/community/posts', input);
+  const post = res.data?.data as CommunityPost;
+  if (!post?.id) throw new Error('create post failed');
+  return post;
+}
+
+/** 切换点赞：返回最新 { likes, liked } */
+export async function toggleLike(postId: string): Promise<{ id: string; likes: number; liked: boolean }> {
+  const res = await api.post(`/api/v1/community/posts/${encodeURIComponent(postId)}/like`);
+  return res.data?.data;
+}
+
+/** 发表评论：作者身份由后端从登录用户取出，返回创建的评论 */
+export async function createComment(postId: string, content: string): Promise<Comment> {
+  const res = await api.post(`/api/v1/community/posts/${encodeURIComponent(postId)}/comments`, { content });
+  const comment = res.data?.data as Comment;
+  if (!comment?.id) throw new Error('create comment failed');
+  return comment;
+}
+
+/** 切换关注：返回最新关注列表 */
+export async function toggleFollow(name: string): Promise<string[]> {
+  const res = await api.post('/api/v1/community/following/toggle', { name });
+  return res.data?.data?.following ?? [];
+}
+
+/** 新增时光记忆：返回服务端生成 id 的记忆 */
+export async function createPhoto(photo: Omit<TimelineEntry, 'id'>): Promise<TimelineEntry> {
+  const res = await api.post('/api/v1/community/photos', photo);
+  const created = res.data?.data as TimelineEntry;
+  if (!created?.id) throw new Error('create photo failed');
+  return created;
+}
+
+/** 删除时光记忆 */
+export async function deletePhoto(id: string): Promise<void> {
+  await api.delete(`/api/v1/community/photos/${encodeURIComponent(id)}`);
 }

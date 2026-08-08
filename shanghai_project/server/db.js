@@ -202,6 +202,71 @@ function initTables() {
       FOREIGN KEY (userId) REFERENCES users(id)
     )
   `);
+  // 社区动态：只存用户新发的帖子（种子动态作为常量视图，不入库）
+  db.run(`
+    CREATE TABLE IF NOT EXISTS community_posts (
+      id TEXT PRIMARY KEY,
+      authorName TEXT,
+      authorAvatar TEXT,
+      authorTag TEXT,
+      timeLabel TEXT,
+      category TEXT,
+      content TEXT,
+      imageEmoji TEXT,
+      imageColor TEXT,
+      imageUri TEXT,
+      likes INTEGER DEFAULT 0,
+      createdAt TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  // 社区点赞：按 (postId, userId) 记录，避免一个用户点赞让所有人看到 liked
+  db.run(`
+    CREATE TABLE IF NOT EXISTS community_post_likes (
+      id TEXT PRIMARY KEY,
+      postId TEXT NOT NULL,
+      userId TEXT NOT NULL,
+      createdAt TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  // 社区评论：只存用户新发的评论（种子评论作为常量视图）
+  db.run(`
+    CREATE TABLE IF NOT EXISTS community_comments (
+      id TEXT PRIMARY KEY,
+      postId TEXT NOT NULL,
+      authorName TEXT,
+      authorAvatar TEXT,
+      timeLabel TEXT,
+      content TEXT,
+      createdAt TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  // 时光阁照片墙：按用户隔离（自己的记忆只跟自己走）
+  db.run(`
+    CREATE TABLE IF NOT EXISTS community_photos (
+      id TEXT PRIMARY KEY,
+      userId TEXT NOT NULL,
+      date TEXT,
+      day INTEGER,
+      weight REAL,
+      bodyFat REAL,
+      note TEXT,
+      uri TEXT,
+      emoji TEXT,
+      color TEXT,
+      createdAt TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (userId) REFERENCES users(id)
+    )
+  `);
+  // 社区关注：按用户隔离（我关注了谁）
+  db.run(`
+    CREATE TABLE IF NOT EXISTS community_following (
+      id TEXT PRIMARY KEY,
+      userId TEXT NOT NULL,
+      followName TEXT,
+      createdAt TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (userId) REFERENCES users(id)
+    )
+  `);
 
   // 创建索引
   db.run('CREATE INDEX IF NOT EXISTS idx_body_data_userId ON body_data(userId)');
@@ -213,6 +278,10 @@ function initTables() {
   db.run('CREATE INDEX IF NOT EXISTS idx_saved_recipes_userId ON saved_recipes(userId)');
   db.run('CREATE INDEX IF NOT EXISTS idx_workout_history_userId ON workout_history(userId)');
   db.run('CREATE INDEX IF NOT EXISTS idx_workout_plans_userId ON workout_plans(userId)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_community_post_likes_post ON community_post_likes(postId)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_community_comments_post ON community_comments(postId)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_community_photos_user ON community_photos(userId)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_community_following_user ON community_following(userId)');
 
   applyMigrations();
 }
@@ -240,6 +309,13 @@ const COLUMN_MIGRATIONS = [
   { table: 'recognition_sessions', column: 'confirmed', type: 'INTEGER DEFAULT 0' },
   // 「换做法」记录来源菜谱
   { table: 'recipes', column: 'reimaginedFrom', type: 'TEXT' },
+  // 社区数据：update() 会自动写 updatedAt，所有社区表都需要这一列
+  { table: 'community_posts', column: 'updatedAt', type: 'TEXT' },
+  // 社区帖子配图：真实图片 uri（可选，无 uri 时用 emoji+色块占位）
+  { table: 'community_posts', column: 'imageUri', type: 'TEXT' },
+  { table: 'community_comments', column: 'updatedAt', type: 'TEXT' },
+  { table: 'community_photos', column: 'updatedAt', type: 'TEXT' },
+  { table: 'community_following', column: 'updatedAt', type: 'TEXT' },
 ];
 
 function applyMigrations() {
