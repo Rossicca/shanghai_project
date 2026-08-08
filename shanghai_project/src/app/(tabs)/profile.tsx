@@ -111,8 +111,20 @@ export default function ProfileTab() {
           <View style={styles.statsRow}>
             <StatsCard icon="flame" label="训练次数" value={totalWorkouts} tint={colors.primary} />
             <StatsCard icon="fitness" label="消耗热量(千卡)" value={totalCalories} tint={colors.warning} />
-            <StatsCard icon="restaurant" label="生成菜谱" value={totalRecipes} tint={colors.success} />
-            <StatsCard icon="heart" label="收藏" value={totalSaved} tint="#E74C3C" />
+            <StatsCard
+              icon="restaurant"
+              label="生成菜谱"
+              value={totalRecipes}
+              tint={colors.success}
+              onPress={() => router.push('/recipe/generate')}
+            />
+            <StatsCard
+              icon="heart"
+              label="收藏"
+              value={totalSaved}
+              tint="#E74C3C"
+              onPress={() => router.push('/favorites')}
+            />
           </View>
           {dashboardError ? (
             <ThemedText type="small" themeColor="textSecondary">
