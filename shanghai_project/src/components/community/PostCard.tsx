@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Platform, Pressable, Share, StyleSheet, Text, View } from 'react-native';
@@ -119,11 +120,15 @@ export function PostCard({ post, onToggleLike, showFollow = true }: Props) {
       {/* 正文 */}
       <ThemedText style={styles.content}>{post.content}</ThemedText>
 
-      {/* 演示图片占位 */}
+      {/* 配图：真实图片优先，无 uri 时用演示占位 */}
       {post.image ? (
-        <View style={[styles.image, { backgroundColor: post.image.color }]}>
-          <Text style={styles.imageEmoji}>{post.image.emoji}</Text>
-        </View>
+        post.image.uri ? (
+          <Image source={{ uri: post.image.uri }} style={styles.image} contentFit="cover" />
+        ) : (
+          <View style={[styles.image, { backgroundColor: post.image.color }]}>
+            <Text style={styles.imageEmoji}>{post.image.emoji}</Text>
+          </View>
+        )
       ) : null}
 
       {/* 互动条 */}

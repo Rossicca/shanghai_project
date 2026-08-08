@@ -14,7 +14,11 @@ interface CommunityState {
   followers: string[];
   loaded: boolean;
   load: () => Promise<void>;
-  addPost: (input: { content: string; category: CommunityPost['category'] }) => Promise<void>;
+  addPost: (input: {
+    content: string;
+    category: CommunityPost['category'];
+    image?: CommunityPost['image'];
+  }) => Promise<void>;
   toggleLike: (id: string) => Promise<void>;
   addComment: (postId: string, content: string) => Promise<void>;
   toggleFollow: (name: string) => Promise<void>;
@@ -45,7 +49,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     set({ posts: syncedPosts, photos, commentsByPost, following, followers: communityService.SEED_FOLLOWERS, loaded: true });
   },
 
-  addPost: async ({ content, category }) => {
+  addPost: async ({ content, category, image }) => {
     const post: CommunityPost = {
       id: 'p_' + Date.now(),
       author: {
@@ -56,6 +60,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       timeLabel: '刚刚',
       category,
       content,
+      image,
       likes: 0,
       liked: false,
       comments: 0,

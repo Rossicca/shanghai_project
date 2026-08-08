@@ -150,6 +150,7 @@ export default function CommunityTab() {
                 <ThemedText type="small" themeColor="textSecondary" style={styles.emptyDesc}>
                   收一张今天的记忆，见证自己的变化
                 </ThemedText>
+                <Button title="上传第一张照片" onPress={openMemory} size="medium" />
               </Card>
             )}
             <ThemedText type="small" themeColor="textSecondary" style={styles.tip}>

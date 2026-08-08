@@ -112,6 +112,12 @@ export function TimelineWall({ entries, onAdd, onRemove }: Props) {
         </View>
       </View>
 
+      {/* 添加记忆：置于照片上方，随手可收 */}
+      <Pressable style={[styles.addBtn, { borderColor: colors.primary, backgroundColor: colors.primarySoft }]} onPress={onAdd}>
+        <Ionicons name="add" size={20} color={colors.success} />
+        <Text style={[styles.addText, { color: colors.success }]}>收一张今天的记忆</Text>
+      </Pressable>
+
       {/* S 形蜿蜒时间轴 */}
       <View style={{ height }}>
         {/* 蜿蜒的 S 曲线 */}
@@ -184,12 +190,6 @@ export function TimelineWall({ entries, onAdd, onRemove }: Props) {
           );
         })}
       </View>
-
-      {/* 添加记忆 */}
-      <Pressable style={[styles.addBtn, { borderColor: colors.primary, backgroundColor: colors.primarySoft }]} onPress={onAdd}>
-        <Ionicons name="add" size={20} color={colors.success} />
-        <Text style={[styles.addText, { color: colors.success }]}>收一张今天的记忆</Text>
-      </Pressable>
     </View>
   );
 }

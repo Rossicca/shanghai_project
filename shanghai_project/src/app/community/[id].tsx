@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
@@ -91,9 +92,13 @@ export default function CommunityPostDetail() {
             <ThemedText style={styles.contentText}>{post.content}</ThemedText>
 
             {post.image ? (
-              <View style={[styles.image, { backgroundColor: post.image.color }]}>
-                <Text style={styles.imageEmoji}>{post.image.emoji}</Text>
-              </View>
+              post.image.uri ? (
+                <Image source={{ uri: post.image.uri }} style={styles.image} contentFit="cover" />
+              ) : (
+                <View style={[styles.image, { backgroundColor: post.image.color }]}>
+                  <Text style={styles.imageEmoji}>{post.image.emoji}</Text>
+                </View>
+              )
             ) : null}
 
             {/* 点赞（可操作） */}

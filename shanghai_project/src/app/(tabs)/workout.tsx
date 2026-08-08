@@ -8,6 +8,7 @@ import {
   ScrollView,
   StyleSheet,
   View,
+  type DimensionValue,
   type ViewToken,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -144,8 +145,8 @@ export default function WorkoutTab() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   safeArea: { flex: 1 },
-  categoryBar: { gap: Spacing.two, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two },
+  categoryBar: { gap: Spacing.two, paddingHorizontal: Spacing.three, paddingTop: 0, paddingBottom: Spacing.two },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.three },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.two, padding: Spacing.four },
-  feedWrap: { position: 'absolute', top: '6.25%', left: 0, right: 0, bottom: 0 },
+  feedWrap: { position: 'absolute', top: 'calc(6.25% - 17px)' as DimensionValue, left: 0, right: 0, bottom: 0 },
 });

@@ -15,8 +15,8 @@ export interface CommunityPost {
   timeLabel: string;
   category: '打卡' | '食谱' | '提问' | '晒变化';
   content: string;
-  /** 演示图片占位（本地无真实图片时用 emoji+色块） */
-  image?: { emoji: string; color: string };
+  /** 配图：上传的真实图片 uri（可选），无 uri 时用 emoji+色块占位 */
+  image?: { uri?: string; emoji: string; color: string };
   likes: number;
   liked: boolean;
   comments: number;

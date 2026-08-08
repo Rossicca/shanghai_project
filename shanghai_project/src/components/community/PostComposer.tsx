@@ -1,5 +1,8 @@
+import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Button } from '@/components/ui/Button';
 import { Radius, Spacing } from '@/constants/theme';
@@ -17,7 +20,11 @@ const CATEGORIES: { key: CommunityPost['category']; label: string }[] = [
 type Props = {
   visible: boolean;
   onClose: () => void;
-  onSubmit: (input: { content: string; category: CommunityPost['category'] }) => void;
+  onSubmit: (input: {
+    content: string;
+    category: CommunityPost['category'];
+    image?: CommunityPost['image'];
+  }) => void;
 };
 
 /** 发动态底部弹层 */
@@ -26,18 +33,35 @@ export function PostComposer({ visible, onClose, onSubmit }: Props) {
   const tabBarInset = useTabBarInset();
   const [content, setContent] = useState('');
   const [category, setCategory] = useState<CommunityPost['category']>('打卡');
+  const [image, setImage] = useState<CommunityPost['image'] | undefined>();
 
   function reset() {
     setContent('');
     setCategory('打卡');
+    setImage(undefined);
   }
 
   function submit() {
     const text = content.trim();
     if (!text) return;
-    onSubmit({ content: text, category });
+    onSubmit({ content: text, category, image });
     reset();
     onClose();
+  }
+
+  /** 从相册选一张配图（web 端为文件选择器） */
+  async function pickPhoto() {
+    try {
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 0.7,
+      });
+      if (res.canceled || !res.assets?.[0]?.uri) return;
+      setImage({ uri: res.assets[0].uri, emoji: '📸', color: '#E4F3ED' });
+    } catch {
+      Alert.alert('选择照片失败', '请换个方式试试');
+    }
   }
 
   return (
@@ -59,6 +83,30 @@ export function PostComposer({ visible, onClose, onSubmit }: Props) {
             maxLength={200}
             style={[styles.input, { color: colors.text }]}
           />
+
+          {/* 配图区：点选相册 / 换图 / 删除 */}
+          <Pressable onPress={pickPhoto} style={[styles.photoPick, { backgroundColor: colors.backgroundElement }]}>
+            {image?.uri ? (
+              <Image source={{ uri: image.uri }} style={styles.photoPreview} contentFit="cover" />
+            ) : (
+              <View style={{ alignItems: 'center', gap: Spacing.one }}>
+                <Ionicons name="image-outline" size={26} color={colors.textSecondary} />
+                <Text style={{ color: colors.textSecondary, fontSize: 12 }}>添加照片（可选）</Text>
+              </View>
+            )}
+            {image?.uri ? (
+              <Pressable
+                hitSlop={8}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  setImage(undefined);
+                }}
+                style={[styles.removeBtn, { backgroundColor: 'rgba(0,0,0,0.55)' }]}>
+                <Ionicons name="close" size={14} color="#fff" />
+              </Pressable>
+            ) : null}
+          </Pressable>
+
           <View style={styles.chips}>
             {CATEGORIES.map((c) => {
               const active = c.key === category;
@@ -112,6 +160,24 @@ const styles = StyleSheet.create({
   },
   selfName: { fontSize: 13, fontWeight: '700' },
   input: { minHeight: 96, fontSize: 15, lineHeight: 22, textAlignVertical: 'top' },
+  photoPick: {
+    height: 140,
+    borderRadius: Radius.button,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  photoPreview: { width: '100%', height: '100%' },
+  removeBtn: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
   chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.chip, borderWidth: 1 },
 });
