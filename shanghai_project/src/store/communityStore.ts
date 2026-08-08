@@ -2,13 +2,17 @@ import { create } from 'zustand';
 
 import * as communityService from '@/services/community';
 import type { Comment, CommunityPost, TimelineEntry } from '@/types/community';
-import { useUserStore } from '@/store/userStore';
 
+/**
+ * 社区 store — 数据源为共享后端（见 services/community.ts）。
+ * 所有写操作以服务端返回值为准（真实 id、真实作者），失败时不改动本地状态，
+ * 由服务端负责校验登录（未登录写操作会被引导去登录）。
+ */
 interface CommunityState {
   posts: CommunityPost[];
   photos: TimelineEntry[];
   commentsByPost: Record<string, Comment[]>;
-  /** 我关注的作者名（真实持久化） */
+  /** 我关注的作者名 */
   following: string[];
   /** 关注我的作者名（演示种子数据，用于互关好友） */
   followers: string[];
@@ -46,82 +50,80 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       ...p,
       comments: commentsByPost[p.id]?.length ?? p.comments,
     }));
-    set({ posts: syncedPosts, photos, commentsByPost, following, followers: communityService.SEED_FOLLOWERS, loaded: true });
+    set({
+      posts: syncedPosts,
+      photos,
+      commentsByPost,
+      following,
+      followers: communityService.SEED_FOLLOWERS,
+      loaded: true,
+    });
   },
 
   addPost: async ({ content, category, image }) => {
-    const post: CommunityPost = {
-      id: 'p_' + Date.now(),
-      author: {
-        name: '我',
-        avatar: '🌱',
-        tag: '芽芽健康',
-      },
-      timeLabel: '刚刚',
-      category,
-      content,
-      image,
-      likes: 0,
-      liked: false,
-      comments: 0,
-    };
-    const next = [post, ...get().posts];
-    set({ posts: next });
-    await communityService.savePosts(next);
+    try {
+      // 作者身份由后端从登录用户取出，返回的帖子带真实 id；配图一并上传
+      const post = await communityService.createPost({ content, category, image });
+      set((s) => ({ posts: [post, ...s.posts] }));
+    } catch (error) {
+      console.warn('[community] 发布失败:', error);
+    }
   },
 
   toggleLike: async (id) => {
-    const next = get().posts.map((p) =>
-      p.id === id ? { ...p, liked: !p.liked, likes: p.likes + (p.liked ? -1 : 1) } : p
-    );
-    set({ posts: next });
-    await communityService.savePosts(next);
+    try {
+      const result = await communityService.toggleLike(id);
+      if (!result) return;
+      set((s) => ({
+        posts: s.posts.map((p) => (p.id === id ? { ...p, liked: result.liked, likes: result.likes } : p)),
+      }));
+    } catch (error) {
+      console.warn('[community] 点赞失败:', error);
+    }
   },
 
   addComment: async (postId, content) => {
     const text = content.trim();
     if (!text) return;
-    const user = useUserStore.getState().user;
-    const comment: Comment = {
-      id: 'c_' + Date.now(),
-      postId,
-      author: {
-        name: user?.nickname ?? '健身新人',
-        avatar: user?.avatar ?? '🌱',
-      },
-      timeLabel: '刚刚',
-      content: text,
-    };
-    const nextComments = {
-      ...get().commentsByPost,
-      [postId]: [...(get().commentsByPost[postId] ?? []), comment],
-    };
-    const nextPosts = get().posts.map((p) =>
-      p.id === postId ? { ...p, comments: nextComments[postId].length } : p
-    );
-    set({ commentsByPost: nextComments, posts: nextPosts });
-    await Promise.all([
-      communityService.saveComments(nextComments),
-      communityService.savePosts(nextPosts),
-    ]);
+    try {
+      const comment = await communityService.createComment(postId, text);
+      const nextComments = [...(get().commentsByPost[postId] ?? []), comment];
+      set({
+        commentsByPost: { ...get().commentsByPost, [postId]: nextComments },
+        posts: get().posts.map((p) =>
+          p.id === postId ? { ...p, comments: nextComments.length } : p
+        ),
+      });
+    } catch (error) {
+      console.warn('[community] 评论失败:', error);
+    }
   },
 
   toggleFollow: async (name) => {
-    const cur = get().following;
-    const next = cur.includes(name) ? cur.filter((n) => n !== name) : [...cur, name];
-    set({ following: next });
-    await communityService.saveFollowing(next);
+    try {
+      const following = await communityService.toggleFollow(name);
+      set({ following });
+    } catch (error) {
+      console.warn('[community] 关注失败:', error);
+    }
   },
 
   addPhoto: async (photo) => {
-    const next = [photo, ...get().photos];
-    set({ photos: next });
-    await communityService.savePhotos(next);
+    try {
+      // 服务端生成 id，以服务端返回为准
+      const created = await communityService.createPhoto(photo);
+      set((s) => ({ photos: [created, ...s.photos] }));
+    } catch (error) {
+      console.warn('[community] 添加记忆失败:', error);
+    }
   },
 
   removePhoto: async (id) => {
-    const next = get().photos.filter((p) => p.id !== id);
-    set({ photos: next });
-    await communityService.savePhotos(next);
+    try {
+      await communityService.deletePhoto(id);
+      set((s) => ({ photos: s.photos.filter((p) => p.id !== id) }));
+    } catch (error) {
+      console.warn('[community] 删除记忆失败:', error);
+    }
   },
 }));
