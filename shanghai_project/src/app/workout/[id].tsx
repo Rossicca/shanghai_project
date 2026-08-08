@@ -18,7 +18,7 @@ import { openExternalLink } from '@/utils/externalLink';
 export default function WorkoutDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useTheme();
-  const { selectedVideo, savedVideos, toggleSave, addHistory, selectVideo, error: storeError } = useWorkoutStore();
+  const { selectedVideo, savedVideos, toggleSave, selectVideo, error: storeError } = useWorkoutStore();
   const [playing, setPlaying] = useState(true);
   const [detailVideo, setDetailVideo] = useState(selectedVideo?.id === id ? selectedVideo : null);
   const [loading, setLoading] = useState(Boolean(id && selectedVideo?.id !== id && getToken()));
@@ -93,10 +93,6 @@ export default function WorkoutDetail() {
             <Ionicons name="time-outline" size={18} color={colors.primary} />
             <ThemedText type="small">{Math.round(video.duration / 60)} 分钟</ThemedText>
           </View>
-          <View style={[styles.metaItem, { backgroundColor: colors.backgroundElement }]}>
-            <Ionicons name="flame-outline" size={18} color={colors.danger} />
-            <ThemedText type="small">约 {video.calories} 千卡</ThemedText>
-          </View>
         </View>
 
         <Card style={styles.reasonCard}>
@@ -146,21 +142,6 @@ export default function WorkoutDetail() {
             variant="outline"
             icon={saved ? 'bookmark' : 'bookmark-outline'}
             onPress={() => toggleSave(video)}
-          />
-          <View style={{ width: Spacing.two }} />
-          <Button
-            title={playing ? '开始跟练' : '重新跟练'}
-            icon="play"
-            onPress={async () => {
-              setActionError('');
-              try {
-                await addHistory(video);
-                setPlaying(true);
-              } catch (error) {
-                setActionError((error as Error).message || '训练记录保存失败，请重试');
-              }
-            }}
-            style={{ flex: 1 }}
           />
         </View>
 
