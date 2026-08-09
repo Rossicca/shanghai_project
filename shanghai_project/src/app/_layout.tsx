@@ -40,7 +40,7 @@ export default function RootLayout() {
         <Stack.Screen name="community/user/[name]" options={{ title: '个人主页' }} />
         <Stack.Screen name="workout/[id]" options={{ title: '视频详情' }} />
         <Stack.Screen name="workout/plan" options={{ headerShown: false }} />
-        <Stack.Screen name="workout/plan-result" options={{ title: '我的训练与饮食计划' }} />
+        <Stack.Screen name="workout/plan-result" options={{ headerShown: false }} />
         <Stack.Screen name="workout/plans" options={{ title: '已保存的计划' }} />
         <Stack.Screen name="workout/category/[slug]" options={{ title: '分类视频' }} />
         {/* admin/ 有自己的 _layout，整段作为一个嵌套路由挂载 */}

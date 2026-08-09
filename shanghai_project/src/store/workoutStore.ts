@@ -52,7 +52,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
       if (getToken()) {
         const slug = CATEGORY_SLUGS[get().currentCategory] || 'recommended';
         const result = await workoutService.refreshWorkoutFeed({ category: slug, limit: 6 });
-        set({ feed: result.items, hasMore: false, page: 1 });
+        set({ feed: result.items, hasMore: result.items.length >= 6, page: 1 });
       } else if (get().currentCategory === '\u4e3a\u4f60\u63a8\u8350') {
         const videos = await workoutService.recommendWorkout({
           bodyData: params?.bodyData ?? undefined,
@@ -86,7 +86,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
         set({
           feed: result.items,
           page: 1,
-          hasMore: false,
+          hasMore: result.items.length >= 6,
           refreshNotice: result.generationMode === 'ai'
             ? '\u5df2\u6839\u636e\u4f60\u7684\u8d44\u6599\u6362\u4e86\u4e00\u7ec4'
             : (result.generationWarning || '\u5df2\u4ece\u5b89\u5168\u89c6\u9891\u5e93\u6362\u4e86\u4e00\u7ec4'),
@@ -113,14 +113,17 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
     set({ isLoadingMore: true });
     try {
       const slug = CATEGORY_SLUGS[get().currentCategory] || 'recommended';
-      const result = slug === 'recommended'
-        ? await workoutService.fetchFeed({ category: slug, page: nextPage, pageSize: 6 })
-        : await workoutService.fetchWorkoutsByCategory(slug, { page: nextPage, pageSize: 6 });
+      const result = await workoutService.refreshWorkoutFeed({
+        category: slug,
+        excludeIds: get().feed.map((video) => video.id),
+        limit: 6,
+      });
       const existingIds = new Set(get().feed.map((video) => video.id));
+      const newItems = result.items.filter((video: WorkoutVideo) => !existingIds.has(video.id));
       set({
-        feed: [...get().feed, ...result.items.filter((video: WorkoutVideo) => !existingIds.has(video.id))],
+        feed: [...get().feed, ...newItems],
         page: nextPage,
-        hasMore: result.hasMore,
+        hasMore: newItems.length >= 3,
       });
     } catch (error) {
       set({ error: (error as Error).message || '\u52a0\u8f7d\u66f4\u591a\u5931\u8d25' });

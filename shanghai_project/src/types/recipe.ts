@@ -45,7 +45,7 @@ export interface RecipeSourceVideo {
   coverUrl?: string | null;
   sourceUrl: string;
   description?: string;
-  platform: 'bilibili';
+  platform: 'bilibili' | 'douyin';
 }
 
 export interface RecipeVideo {
@@ -57,14 +57,14 @@ export interface RecipeVideo {
   sourceUrl: string;
   playCount?: number;
   reason: string;
-  platform: 'bilibili';
+  platform: 'bilibili' | 'douyin';
 }
 
 export interface RecipeVideoRecommendation {
   query: string;
   searchUrl: string;
   platformSearches: {
-    platform: 'bilibili' | 'douyin' | 'xiaohongshu' | 'youtube';
+    platform: 'bilibili' | 'douyin';
     label: string;
     url: string;
     resultType: 'video' | 'search';

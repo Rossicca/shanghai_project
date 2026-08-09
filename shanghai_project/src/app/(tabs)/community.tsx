@@ -30,6 +30,7 @@ import { useUserStore } from '@/store/userStore';
 import type { TimelineEntry } from '@/types/community';
 
 type TabKey = 'feed' | 'follow' | 'wall';
+type FeedFilter = '全部' | '打卡' | '食谱' | '提问' | '晒变化';
 
 const DEMO_COLORS = ['#FDF0DC', '#E7F0FA', '#E4F3ED', '#FCE9E4', '#F0EDFA'];
 
@@ -48,6 +49,7 @@ export default function CommunityTab() {
   } = useCommunityStore();
   const { bodyData } = useUserStore();
   const [tab, setTab] = useState<TabKey>('feed');
+  const [feedFilter, setFeedFilter] = useState<FeedFilter>('全部');
   const [composerOpen, setComposerOpen] = useState(false);
   const [memoryOpen, setMemoryOpen] = useState(false);
 
@@ -108,6 +110,7 @@ export default function CommunityTab() {
   }
 
   const dayCount = photos[0]?.day ?? photos.length;
+  const visiblePosts = feedFilter === '全部' ? posts : posts.filter((post) => post.category === feedFilter);
 
   return (
     <ThemedView style={styles.container}>
@@ -119,12 +122,13 @@ export default function CommunityTab() {
               <ThemedText style={styles.title}>健康社区</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">分享训练、饮食和每一次小进步</ThemedText>
             </View>
-            <View style={[styles.communityCount, { backgroundColor: colors.primarySoft }]}>
+            <Pressable onPress={() => syncFeed().catch(() => undefined)} style={[styles.communityCount, { backgroundColor: colors.primarySoft }]}>
               <View style={[styles.liveDot, { backgroundColor: colors.primary }]} />
               <Text style={[styles.communityCountText, { color: colors.primary }]}>
                 {isSyncing ? '同步中' : '自动同步'}
               </Text>
-            </View>
+              <Ionicons name="refresh" size={13} color={colors.primary} />
+            </Pressable>
           </View>
           <View style={[styles.segment, { backgroundColor: colors.backgroundElement }]}>
             {(
@@ -168,9 +172,29 @@ export default function CommunityTab() {
               <Ionicons name="chevron-forward" size={18} color={colors.primary} />
             </Pressable>
 
-            {posts.map((post) => (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.feedFilters}>
+              {(['全部', '打卡', '食谱', '提问', '晒变化'] as FeedFilter[]).map((filter) => {
+                const active = feedFilter === filter;
+                const count = filter === '全部' ? posts.length : posts.filter((post) => post.category === filter).length;
+                return (
+                  <Pressable key={filter} onPress={() => setFeedFilter(filter)} style={[styles.feedFilter, { backgroundColor: active ? colors.primary : colors.backgroundElement }]}>
+                    <Text style={[styles.feedFilterText, { color: active ? '#fff' : colors.text }]}>{filter}</Text>
+                    <Text style={[styles.feedFilterCount, { color: active ? 'rgba(255,255,255,0.78)' : colors.textSecondary }]}>{count}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            {visiblePosts.map((post) => (
               <PostCard key={post.id} post={post} onToggleLike={toggleLike} />
             ))}
+            {visiblePosts.length === 0 ? (
+              <Card style={styles.feedEmpty}>
+                <Ionicons name="chatbubbles-outline" size={30} color={colors.textSecondary} />
+                <ThemedText type="smallBold">这个分类还没有动态</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">你可以发布第一条，也可以切换其他分类看看。</ThemedText>
+              </Card>
+            ) : null}
             <ThemedText type="small" themeColor="textSecondary" style={styles.tip}>
               每 6 秒自动同步 · 你和朋友发布的内容会出现在同一条动态流
             </ThemedText>
@@ -287,6 +311,11 @@ const styles = StyleSheet.create({
   composeIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   composeText: { fontSize: 14, fontWeight: '700' },
   composeHint: { fontSize: 11, marginTop: 2 },
+  feedFilters: { gap: Spacing.two, paddingRight: Spacing.three },
+  feedFilter: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, borderRadius: Radius.chip },
+  feedFilterText: { fontSize: 12, fontWeight: '800' },
+  feedFilterCount: { fontSize: 10, fontWeight: '700' },
+  feedEmpty: { alignItems: 'center', gap: Spacing.one, paddingVertical: Spacing.four },
   empty: { alignItems: 'center', gap: Spacing.two, paddingVertical: Spacing.five },
   emptyDesc: { textAlign: 'center' },
   tip: { textAlign: 'center', marginTop: Spacing.two },

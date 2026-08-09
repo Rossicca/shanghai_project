@@ -39,7 +39,10 @@ const EQUIPMENT_GROUPS = [
   { title: '有氧与固定器械', items: ['跑步机', '动感单车', '划船机', '椭圆机', '拉力器', '史密斯机', '综合训练器'] },
 ] as const;
 const TRAINING_PREFERENCES = ['力量训练', '低冲击有氧', 'HIIT', '瑜伽', '普拉提', '跑步', '骑行', '灵活性与拉伸'];
-const DIETARY_PREFERENCES = ['家常中餐', '清淡少油', '高蛋白', '简单快手', '素食友好', '低乳糖', '少精制糖'];
+const DIETARY_PREFERENCES = ['家常中餐', '高蛋白', '简单快手', '清淡少油', '均衡饮食', '蛋奶素', '鱼素友好', '植物性食物优先', '低乳糖', '无乳糖', '无麸质', '低盐', '少精制糖', '地中海风格'];
+const KITCHEN_TOOLS = ['炒锅', '蒸锅', '电饭煲', '空气炸锅', '烤箱', '微波炉', '料理机', '无明火条件'];
+const FLAVOR_PREFERENCES = ['清淡', '家常咸鲜', '微辣', '酸甜', '咖喱风味', '不吃辣'];
+const STAPLE_PREFERENCES = ['米饭', '杂粮饭', '面食', '薯类', '燕麦', '玉米', '不固定'];
 const MEALS_PER_DAY = [3, 4, 5];
 
 function goalCode(value?: string): WorkoutPlanInput['goalType'] {
@@ -68,6 +71,12 @@ export default function WorkoutPlanPage() {
   const [preferredTraining, setPreferredTraining] = useState<string[]>([]);
   const [dietaryPreferences, setDietaryPreferences] = useState<string[]>(['家常中餐', '简单快手']);
   const [mealsPerDay, setMealsPerDay] = useState(4);
+  const [mealPrepTime, setMealPrepTime] = useState(30);
+  const [foodBudget, setFoodBudget] = useState<WorkoutPlanInput['foodBudget']>('balanced');
+  const [cookingFrequency, setCookingFrequency] = useState<WorkoutPlanInput['cookingFrequency']>('sometimes');
+  const [kitchenTools, setKitchenTools] = useState<string[]>(['炒锅', '电饭煲']);
+  const [flavorPreferences, setFlavorPreferences] = useState<string[]>(['家常咸鲜']);
+  const [staplePreferences, setStaplePreferences] = useState<string[]>(['米饭', '薯类']);
   const [allergies, setAllergies] = useState('');
   const [limitations, setLimitations] = useState('');
   const [plan, setPlan] = useState<WorkoutPlan | null>(null);
@@ -114,6 +123,12 @@ export default function WorkoutPlanPage() {
         dietaryPreferences,
         allergies: allergies.split(/[，,；;\n]/).map((item) => item.trim()).filter(Boolean),
         mealsPerDay,
+        mealPrepTime,
+        foodBudget,
+        cookingFrequency,
+        kitchenTools,
+        flavorPreferences,
+        staplePreferences,
       });
       setPlan(result);
       router.push({ pathname: '/workout/plan-result', params: { planId: result.planId } });
@@ -306,6 +321,22 @@ export default function WorkoutPlanPage() {
               onToggle={(item) => toggleListValue(item, setDietaryPreferences)}
             />
             <OptionRow label="每日进餐次数" options={MEALS_PER_DAY.map((value) => ({ value, label: `${value} 餐` }))} value={mealsPerDay} onChange={setMealsPerDay} />
+            <OptionRow label="单餐可用准备时间" options={[15, 30, 45, 60].map((value) => ({ value, label: `${value} 分钟` }))} value={mealPrepTime} onChange={setMealPrepTime} />
+            <OptionRow
+              label="日常食材预算"
+              options={[{ value: 'economy' as const, label: '经济实用' }, { value: 'balanced' as const, label: '均衡适中' }, { value: 'flexible' as const, label: '食材灵活' }]}
+              value={foodBudget}
+              onChange={setFoodBudget}
+            />
+            <OptionRow
+              label="下厨频率"
+              options={[{ value: 'rare' as const, label: '很少下厨' }, { value: 'sometimes' as const, label: '每周几次' }, { value: 'often' as const, label: '经常备餐' }]}
+              value={cookingFrequency}
+              onChange={setCookingFrequency}
+            />
+            <MultiChoice label="可用厨具（可多选）" options={KITCHEN_TOOLS} values={kitchenTools} onToggle={(item) => toggleListValue(item, setKitchenTools)} />
+            <MultiChoice label="口味偏好（可多选）" options={FLAVOR_PREFERENCES} values={flavorPreferences} onToggle={(item) => toggleListValue(item, setFlavorPreferences)} />
+            <MultiChoice label="常吃主食（可多选）" options={STAPLE_PREFERENCES} values={staplePreferences} onToggle={(item) => toggleListValue(item, setStaplePreferences)} />
             <View style={styles.optionGroup}>
               <ThemedText type="smallBold">过敏或明确不吃的食物（可选）</ThemedText>
               <TextInput

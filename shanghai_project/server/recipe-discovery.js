@@ -1,5 +1,6 @@
 const { recommendRecipes, filterCondimentNames } = require('./ai');
-const { searchBilibiliVideos, validateBilibiliVideo } = require('./bilibili-search');
+const { searchBilibiliVideos } = require('./bilibili-search');
+const { findCuratedRecipeVideos, validateRecipeVideo } = require('./curated-recipe-videos');
 const { isMockMode, isTextLlmReady } = require('./config');
 const { mockRecipeRecommendations } = require('./demo-data');
 
@@ -108,11 +109,12 @@ function buildQueries(ingredients, mealType = 'any') {
 async function collectVideoEvidence(ingredients, mealType = 'any') {
   const queries = buildQueries(ingredients, mealType);
   if (queries.length === 0) return [];
-  const first = await searchBilibiliVideos(queries[0], 15);
+  const first = await searchBilibiliVideos(queries[0], 15).catch(() => []);
   const remaining = await Promise.allSettled(
     queries.slice(1).map((query) => searchBilibiliVideos(query, 12))
   );
-  const groups = [first, ...remaining.filter((item) => item.status === 'fulfilled').map((item) => item.value)];
+  const curated = findCuratedRecipeVideos({ ingredients });
+  const groups = [curated, first, ...remaining.filter((item) => item.status === 'fulfilled').map((item) => item.value)];
   const all = [];
   for (let index = 0; index < 15; index += 1) {
     groups.forEach((group) => {
@@ -158,6 +160,7 @@ async function discoverRecipeRecommendations(params) {
       duration: video.duration,
       coverUrl: video.coverUrl,
       sourceUrl: video.sourceUrl,
+      platform: video.platform === 'douyin' ? 'douyin' : 'bilibili',
       description: video.description,
       playCount: video.playCount,
       // 代码已从视频中识别出这些菜用到了用户食材，AI 应优先选这些菜
@@ -175,7 +178,7 @@ function sanitizeSelectedDish(value) {
     name,
     pantryLevel: ['existing', 'topup', 'explore'].includes(value?.pantryLevel) ? value.pantryLevel : 'topup',
     missingIngredients: filterCondimentNames(value?.missingIngredients),
-    sourceVideo: validateBilibiliVideo(value?.sourceVideo),
+    sourceVideo: validateRecipeVideo(value?.sourceVideo),
   };
 }
 

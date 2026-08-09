@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -45,11 +46,15 @@ export default function WorkoutTab() {
   } = useWorkoutStore();
   const bodyData = useUserStore((s) => s.bodyData);
   const goal = useUserStore((s) => s.goal);
+  const userLoaded = useUserStore((s) => s.loaded);
+  const isLoggedIn = useUserStore((s) => s.isLoggedIn);
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [listHeight, setListHeight] = useState(0);
   const [showRefreshNotice, setShowRefreshNotice] = useState(false);
   const lastCategoryTapRef = useRef<{ category: string; time: number } | null>(null);
+  const listRef = useRef<FlatList<(typeof feed)[number]>>(null);
+  const wheelLockRef = useRef(0);
   const savedIds = new Set(savedVideos.map((v) => v.id));
 
   const [onViewableItemsChanged] = useState(
@@ -63,8 +68,9 @@ export default function WorkoutTab() {
   useWebHorizontalDrag(catScrollRef, { panOnWheel: true });
 
   useEffect(() => {
+    if (!userLoaded) return;
     fetchFeed({ bodyData: bodyData ?? undefined, goal: goal ?? undefined });
-  }, [fetchFeed, bodyData, goal]);
+  }, [fetchFeed, bodyData, goal, userLoaded, isLoggedIn]);
 
   function handleSwitch(cat: string) {
     switchCategory(cat, { bodyData: bodyData ?? undefined, goal: goal ?? undefined });
@@ -92,6 +98,21 @@ export default function WorkoutTab() {
     addHistory(video);
     selectVideo(video);
     router.push({ pathname: '/workout/[id]', params: { id: video.id } });
+  }
+
+  function handleWheel(event: any) {
+    if (Platform.OS !== 'web' || !listHeight || Math.abs(Number(event?.nativeEvent?.deltaY ?? event?.deltaY ?? 0)) < 12) return;
+    event.preventDefault?.();
+    const now = Date.now();
+    if (now - wheelLockRef.current < 460) return;
+    wheelLockRef.current = now;
+    const delta = Number(event?.nativeEvent?.deltaY ?? event?.deltaY ?? 0);
+    const nextIndex = Math.max(0, Math.min(feed.length - 1, activeIndex + (delta > 0 ? 1 : -1)));
+    if (nextIndex !== activeIndex) {
+      listRef.current?.scrollToOffset({ offset: nextIndex * listHeight, animated: true });
+      setActiveIndex(nextIndex);
+    }
+    if (delta > 0 && nextIndex >= feed.length - 2 && hasMore) void loadMore();
   }
 
   return (
@@ -153,16 +174,22 @@ export default function WorkoutTab() {
             </View>
           ) : (
             <FlatList
+              ref={listRef}
               data={feed}
               keyExtractor={(v) => v.id}
               pagingEnabled
+              snapToInterval={listHeight || undefined}
+              snapToAlignment="start"
+              decelerationRate="fast"
+              disableIntervalMomentum
               showsVerticalScrollIndicator={false}
               onViewableItemsChanged={onViewableItemsChanged}
               viewabilityConfig={viewabilityConfig}
               onEndReached={() => { if (hasMore) loadMore(); }}
               onEndReachedThreshold={0.6}
-              ListFooterComponent={isLoadingMore ? <ActivityIndicator color={colors.primary} /> : null}
-              style={{ flex: 1 }}
+              getItemLayout={(_, index) => ({ length: listHeight || 600, offset: (listHeight || 600) * index, index })}
+              {...(Platform.OS === 'web' ? ({ onWheel: handleWheel } as any) : {})}
+              style={[styles.feedList, Platform.OS === 'web' ? ({ overflowY: 'hidden' } as any) : null]}
               renderItem={({ item, index }) => (
                 <View style={{ height: listHeight || 600 }}>
                   <WorkoutFeedItem
@@ -176,6 +203,14 @@ export default function WorkoutTab() {
               )}
             />
           )}
+          {feed.length > 0 ? (
+            <View style={styles.feedProgress} pointerEvents="none">
+              {isLoadingMore ? <ActivityIndicator size="small" color="#FFFFFF" /> : null}
+              <ThemedText style={styles.feedProgressText}>
+                {isLoadingMore ? '正在继续挑选' : `${activeIndex + 1} / ${feed.length}${hasMore ? ' · 上滑继续' : ' · 双击分类换一组'}`}
+              </ThemedText>
+            </View>
+          ) : null}
         </View>
       </SafeAreaView>
     </ThemedView>
@@ -190,6 +225,7 @@ const styles = StyleSheet.create({
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.three },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.two, padding: Spacing.four },
   feedWrap: { flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden', backgroundColor: '#070B09' },
+  feedList: { flex: 1 },
   refreshToast: {
     position: 'absolute',
     zIndex: 30,
@@ -205,4 +241,6 @@ const styles = StyleSheet.create({
     gap: Spacing.one,
   },
   refreshToastText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
+  feedProgress: { position: 'absolute', zIndex: 25, right: 14, top: 68, minHeight: 30, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, borderRadius: 15, backgroundColor: 'rgba(7,20,15,0.62)' },
+  feedProgressText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
 });

@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../db');
 const { generateWorkoutPlan } = require('../ai');
 const { mergeCuratedWorkoutVideos } = require('../workout-video-safety');
+const { matchExerciseVideo } = require('../exercise-video-matcher');
 
 const router = express.Router();
 const ALLOWED_GOALS = new Set(['lose_fat', 'gain_muscle', 'shape', 'maintain']);
@@ -18,7 +19,6 @@ const HIGH_RISK_PATTERN = /\u80f8\u75db|\u5fc3\u810f|\u5fc3\u810f\u75c5|\u5b55\u
 const SAFE_VIDEO_HOSTS = new Set([
   'www.bilibili.com', 'bilibili.com', 'search.bilibili.com',
   'www.douyin.com', 'douyin.com',
-  'www.youtube.com', 'youtube.com', 'youtu.be',
 ]);
 const PLAN_EVIDENCE = [
   { title: '中国居民膳食指南（2022）八项准则', organization: '中国营养学会', url: 'https://www.chinanutri.cn/xwzx_238/xyxw/202204/t20220427_258627.html', note: '用于食物多样、吃动平衡、规律进餐与合理搭配原则。' },
@@ -65,6 +65,12 @@ function normalizeRequest(body) {
       ? body.allergies.map((item) => String(item).trim()).filter(Boolean).slice(0, 12)
       : [],
     mealsPerDay: numberInRange(body.mealsPerDay, 4, 3, 5),
+    mealPrepTime: numberInRange(body.mealPrepTime, 30, 10, 120),
+    foodBudget: ['economy', 'balanced', 'flexible'].includes(body.foodBudget) ? body.foodBudget : 'balanced',
+    cookingFrequency: ['rare', 'sometimes', 'often'].includes(body.cookingFrequency) ? body.cookingFrequency : 'sometimes',
+    kitchenTools: Array.isArray(body.kitchenTools) ? body.kitchenTools.map(String).map((item) => item.trim()).filter(Boolean).slice(0, 12) : [],
+    flavorPreferences: Array.isArray(body.flavorPreferences) ? body.flavorPreferences.map(String).map((item) => item.trim()).filter(Boolean).slice(0, 8) : [],
+    staplePreferences: Array.isArray(body.staplePreferences) ? body.staplePreferences.map(String).map((item) => item.trim()).filter(Boolean).slice(0, 8) : [],
   };
 }
 
@@ -76,12 +82,6 @@ function safeVideoUrl(value) {
   } catch {
     return null;
   }
-}
-
-function findVideo(exercise, videos) {
-  const category = String(exercise.category || '');
-  return videos.find((video) => video.category === category) ||
-    videos.find((video) => (video.tags || []).some((tag) => exercise.name?.includes(tag))) || null;
 }
 
 function buildProfileAnalysis(bodyData, input) {
@@ -118,6 +118,8 @@ function buildProfileAnalysis(bodyData, input) {
   else insights.push('当前按徒手训练设计，不把器械作为完成计划的前提。');
   if (input.preferredTraining.length) insights.push(`偏好的运动方式：${input.preferredTraining.join('、')}，会在安全和目标允许时优先安排。`);
   if (input.limitations.length) insights.push(`需要避开的情况：${input.limitations.join('、')}。`);
+  insights.push(`饮食按单餐约 ${input.mealPrepTime} 分钟、${input.foodBudget === 'economy' ? '经济实用' : input.foodBudget === 'flexible' ? '食材灵活' : '均衡适中'}预算设计。`);
+  if (input.kitchenTools.length) insights.push(`菜谱优先使用现有厨具：${input.kitchenTools.join('、')}。`);
 
   const filledMetrics = bodyData
     ? ['height', 'weight', 'age', 'gender', 'bodyFat', 'chest', 'waist', 'hip', 'upperArm', 'thigh', 'calf']
@@ -178,14 +180,17 @@ function normalizeActivities(rawItems, videos, fallback, category) {
       return true;
     })
     .slice(0, Math.max(3, Math.min(4, incoming.length || 3)));
-  return source.map((activity) => {
-    const video = findVideo({ ...activity, category: activity.category || category }, videos);
+  return source.map((activity, index) => {
+    const matched = matchExerciseVideo(activity, videos, { category, index });
+    const video = matched.video;
     return {
-      name: String(activity.name || fallback).slice(0, 80),
+      name: String(matched.displayName || fallback).slice(0, 80),
       durationSeconds: numberInRange(activity.durationSeconds, 60, 20, 300),
-      notes: String(activity.notes || '保持自然呼吸，不追求疼痛幅度').slice(0, 180),
+      notes: String(matched.notes || '保持自然呼吸，不追求疼痛幅度').slice(0, 180),
       videoId: video?.id || null,
       videoUrl: safeVideoUrl(video?.sourceUrl),
+      videoTitle: video?.title || null,
+      videoPlatform: video?.platform || null,
     };
   });
 }
@@ -207,7 +212,10 @@ const DEFAULT_MEALS = [
 
 function normalizeMealSuggestions(rawMeals, input) {
   const allergies = input.allergies.map((item) => item.toLowerCase());
-  const isVegetarian = input.dietaryPreferences.some((item) => /素食/.test(item));
+  const isPescatarian = input.dietaryPreferences.some((item) => /鱼素/.test(item));
+  const isVegetarian = !isPescatarian && input.dietaryPreferences.some((item) => /蛋奶素|素食|植物性/.test(item));
+  const avoidDairy = input.dietaryPreferences.some((item) => /无乳糖/.test(item));
+  const avoidGluten = input.dietaryPreferences.some((item) => /无麸质/.test(item));
   const all = [...(Array.isArray(rawMeals) ? rawMeals : []), ...DEFAULT_MEALS];
   const seen = new Set();
   return all
@@ -223,6 +231,9 @@ function normalizeMealSuggestions(rawMeals, input) {
       const text = `${meal.name} ${meal.ingredients.join(' ')}`.toLowerCase();
       if (allergies.some((allergy) => allergy && text.includes(allergy))) return false;
       if (isVegetarian && /鸡|牛|猪|鱼|虾|肉/.test(text)) return false;
+      if (isPescatarian && /鸡|牛|猪|肉/.test(text)) return false;
+      if (avoidDairy && /牛奶|酸奶|奶酪|乳酪|奶油/.test(text)) return false;
+      if (avoidGluten && /面包|全麦饼|面条|小麦/.test(text)) return false;
       if (seen.has(meal.name)) return false;
       seen.add(meal.name);
       return true;
@@ -266,8 +277,8 @@ function buildDietPlan(mealSuggestions, input) {
       day,
       trainingDay,
       focus: trainingDay
-        ? '训练日：主食和蛋白质围绕训练安排，避免空腹高强度训练'
-        : '恢复日：保持规律三餐和蔬菜量，不用极端减少主食',
+        ? `训练日：主食和蛋白质围绕训练安排；单餐尽量控制在 ${input.mealPrepTime} 分钟内`
+        : `恢复日：保持规律进餐和蔬菜量；优先使用${input.kitchenTools.join('、') || '现有厨具'}完成`,
       meals,
     };
   });
@@ -278,26 +289,38 @@ function normalizePlan(raw, input, bodyData) {
   const rawDays = Array.isArray(raw.weeklySchedule) ? raw.weeklySchedule : [];
   const days = Array.from({ length: input.weeklyFrequency }, (_, index) => {
     const day = rawDays[index] || rawDays[index % Math.max(rawDays.length, 1)] || {};
-    const exercises = (Array.isArray(day.exercises) ? day.exercises : []).slice(0, 8).map((exercise) => {
-      const video = findVideo(exercise, videos);
+    const exercises = (Array.isArray(day.exercises) ? day.exercises : []).slice(0, 8).map((exercise, exerciseIndex) => {
+      const matched = matchExerciseVideo(exercise, videos, { category: exercise.category, index: index * 8 + exerciseIndex });
+      const video = matched.video;
       return {
-        name: String(exercise.name || '\u4f4e\u51b2\u51fb\u539f\u5730\u8e0f\u6b65').slice(0, 80),
+        name: String(matched.displayName || '\u4f4e\u51b2\u51fb\u539f\u5730\u8e0f\u6b65').slice(0, 80),
         sets: numberInRange(exercise.sets, 3, 1, 8),
         reps: String(exercise.reps || '10-12').slice(0, 30),
         restSeconds: numberInRange(exercise.restSeconds, 45, 15, 180),
-        notes: String(exercise.notes || '\u4fdd\u6301\u547c\u5438\u5e73\u7a33\uff0c\u4e0d\u9002\u65f6\u7acb\u5373\u505c\u6b62').slice(0, 180),
+        notes: String(matched.notes || '\u4fdd\u6301\u547c\u5438\u5e73\u7a33\uff0c\u4e0d\u9002\u65f6\u7acb\u5373\u505c\u6b62').slice(0, 180),
         videoId: video?.id || null,
         videoUrl: safeVideoUrl(video?.sourceUrl),
+        videoTitle: video?.title || null,
+        videoPlatform: video?.platform || null,
       };
     });
+    const fallbackExerciseMatch = matchExerciseVideo(
+      { name: '低冲击原地踏步', category: '有氧', notes: '保持呼吸平稳，按体感调整速度' },
+      videos,
+      { category: '有氧', index }
+    );
     return {
       day: index + 1,
       title: String(day.title || `\u7b2c ${index + 1} \u5929\u8bad\u7ec3`).slice(0, 80),
       durationMinutes: numberInRange(day.durationMinutes, input.sessionDurationMinutes, 10, 90),
       warmup: normalizeActivities(day.warmup, videos, '动态热身与关节活动', '全身燃脂'),
       exercises: exercises.length ? exercises : [{
-        name: '\u4f4e\u51b2\u51fb\u539f\u5730\u8e0f\u6b65', sets: 3, reps: '40\u79d2', restSeconds: 40,
-        notes: '\u4fdd\u6301\u547c\u5438\u5e73\u7a33\uff0c\u4e0d\u9002\u65f6\u7acb\u5373\u505c\u6b62', videoId: null, videoUrl: null,
+        name: fallbackExerciseMatch.displayName, sets: 3, reps: '40\u79d2', restSeconds: 40,
+        notes: fallbackExerciseMatch.notes,
+        videoId: fallbackExerciseMatch.video?.id || null,
+        videoUrl: safeVideoUrl(fallbackExerciseMatch.video?.sourceUrl),
+        videoTitle: fallbackExerciseMatch.video?.title || null,
+        videoPlatform: fallbackExerciseMatch.video?.platform || null,
       }],
       cooldown: normalizeActivities(day.cooldown, videos, '低强度走动与全身拉伸', '拉伸'),
     };
@@ -380,6 +403,12 @@ router.post('/generate', async (req, res) => {
         dietaryPreferences: effectiveInput.dietaryPreferences,
         allergies: effectiveInput.allergies,
         mealsPerDay: effectiveInput.mealsPerDay,
+        mealPrepTime: effectiveInput.mealPrepTime,
+        foodBudget: effectiveInput.foodBudget,
+        cookingFrequency: effectiveInput.cookingFrequency,
+        kitchenTools: effectiveInput.kitchenTools,
+        flavorPreferences: effectiveInput.flavorPreferences,
+        staplePreferences: effectiveInput.staplePreferences,
       },
       profileAnalysis: personalizationAnalysis,
       isSaved: 0,

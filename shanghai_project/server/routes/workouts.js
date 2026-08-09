@@ -76,7 +76,8 @@ function diversifyPlatforms(videos) {
 /** 获取视频库 */
 function getVideoDB() {
   const videos = db.readCollection('workout_videos');
-  if (videos.length > 0) return mergeCuratedWorkoutVideos(videos);
+  if (videos.length > 0) return mergeCuratedWorkoutVideos(videos)
+    .filter((video) => ['bilibili', 'douyin'].includes(video.platform || 'bilibili'));
   // 如果还没有爬取数据，返回空数组
   return [];
 }
@@ -88,7 +89,6 @@ function safeExternalUrl(value) {
     const allowed = [
       'bilibili.com', 'www.bilibili.com', 'search.bilibili.com',
       'douyin.com', 'www.douyin.com',
-      'youtube.com', 'www.youtube.com', 'youtu.be',
     ];
     return url.protocol === 'https:' && allowed.includes(url.hostname) ? url.toString() : null;
   } catch {

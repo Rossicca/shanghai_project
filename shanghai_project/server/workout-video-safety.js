@@ -10,16 +10,17 @@ const BLOCKED_TERMS = /丰胸|乳沟|升杯|大胸|胸变大|性感|诱惑|私�
 const SAFE_HOSTS = new Set([
   'www.bilibili.com', 'bilibili.com', 'search.bilibili.com',
   'www.douyin.com', 'douyin.com',
-  'www.youtube.com', 'youtube.com', 'youtu.be',
 ]);
+const DOMESTIC_PLATFORMS = new Set(['bilibili', 'douyin']);
 
 function isSafeWorkoutVideo(video) {
   if (!video || !FITNESS_CATEGORIES.has(String(video.category || ''))) return false;
+  if (!DOMESTIC_PLATFORMS.has(String(video.platform || 'bilibili'))) return false;
   const haystack = [video.title, ...(Array.isArray(video.tags) ? video.tags : [])]
     .filter(Boolean).join(' ');
   if (!FITNESS_TERMS.test(haystack) || BLOCKED_TERMS.test(haystack)) return false;
   const duration = Number(video.duration || 0);
-  if (duration && (duration < 45 || duration > 7200)) return false;
+  if (duration && (duration < 10 || duration > 7200)) return false;
   try {
     const url = new URL(video.sourceUrl);
     return url.protocol === 'https:' && SAFE_HOSTS.has(url.hostname);

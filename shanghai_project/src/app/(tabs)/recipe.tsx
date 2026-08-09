@@ -85,7 +85,7 @@ export default function RecipeTab() {
           <View style={styles.sectionHeading}>
             <View>
               <ThemedText type="subtitle">健康饮食灵感</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">点击后可继续增删食材，再让 AI 生成不同做法</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">当前 {healthPicks.length} 个灵感，点击先看搭配思路和食材</ThemedText>
             </View>
             {goal ? (
               <View style={[styles.goalTag, { backgroundColor: colors.primarySoft }]}>
@@ -105,7 +105,7 @@ export default function RecipeTab() {
             })}
           </ScrollView>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pickList}>
+          <View style={styles.pickGrid}>
             {healthPicks.map((pick) => (
               <Pressable key={pick.id} onPress={() => openHealthPick(pick)} style={[styles.pickCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <View style={[styles.pickImageWrap, { backgroundColor: colors.backgroundElement }]}>
@@ -122,7 +122,7 @@ export default function RecipeTab() {
                 </View>
               </Pressable>
             ))}
-          </ScrollView>
+          </View>
 
           <View style={[styles.balanceGuide, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <ThemedText type="smallBold">一餐的简单搭配思路</ThemedText>
@@ -188,14 +188,14 @@ const styles = StyleSheet.create({
   filterList: { gap: Spacing.two, paddingRight: Spacing.three },
   filterChip: { minHeight: 40, justifyContent: 'center', paddingHorizontal: 14, borderRadius: Radius.chip },
   filterText: { fontSize: 12, fontWeight: '800' },
-  pickList: { gap: Spacing.three, paddingRight: Spacing.three },
-  pickCard: { width: 220, borderRadius: Radius.card, borderWidth: 1, overflow: 'hidden' },
-  pickImageWrap: { height: 126, position: 'relative' },
+  pickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
+  pickCard: { flexGrow: 1, flexBasis: '47%', maxWidth: '49%', minWidth: 148, borderRadius: Radius.card, borderWidth: 1, overflow: 'hidden' },
+  pickImageWrap: { height: 106, position: 'relative' },
   pickImage: { width: '100%', height: '100%' },
   imageShade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(0,0,0,0.12)' },
   mealBadge: { position: 'absolute', top: Spacing.two, left: Spacing.two, backgroundColor: 'rgba(0,0,0,0.56)', borderRadius: Radius.chip, paddingHorizontal: 9, paddingVertical: 4 },
   mealBadgeText: { color: '#fff', fontSize: 10, fontWeight: '800' },
-  pickBody: { padding: Spacing.three, gap: 5 },
+  pickBody: { padding: Spacing.two, gap: 5 },
   pickMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   balanceGuide: { borderWidth: 1, borderRadius: Radius.card, padding: Spacing.three, gap: Spacing.three },
   guideRows: { gap: Spacing.three },

@@ -94,6 +94,12 @@ export interface WorkoutPlanInput {
   dietaryPreferences: string[];
   allergies: string[];
   mealsPerDay: number;
+  mealPrepTime: number;
+  foodBudget: 'economy' | 'balanced' | 'flexible';
+  cookingFrequency: 'rare' | 'sometimes' | 'often';
+  kitchenTools: string[];
+  flavorPreferences: string[];
+  staplePreferences: string[];
 }
 
 export interface WorkoutPlanExercise {
@@ -104,6 +110,8 @@ export interface WorkoutPlanExercise {
   notes: string;
   videoId: string | null;
   videoUrl: string | null;
+  videoTitle?: string | null;
+  videoPlatform?: 'bilibili' | 'douyin' | null;
 }
 
 export interface WorkoutPlanActivity {
@@ -112,6 +120,8 @@ export interface WorkoutPlanActivity {
   notes: string;
   videoId: string | null;
   videoUrl: string | null;
+  videoTitle?: string | null;
+  videoPlatform?: 'bilibili' | 'douyin' | null;
 }
 
 export interface WorkoutPlan {
@@ -173,6 +183,12 @@ export interface WorkoutPlan {
     dietaryPreferences?: string[];
     allergies?: string[];
     mealsPerDay?: number;
+    mealPrepTime?: number;
+    foodBudget?: WorkoutPlanInput['foodBudget'];
+    cookingFrequency?: WorkoutPlanInput['cookingFrequency'];
+    kitchenTools?: string[];
+    flavorPreferences?: string[];
+    staplePreferences?: string[];
   };
   isSaved?: boolean;
   isFavorite?: boolean;

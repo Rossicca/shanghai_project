@@ -29,6 +29,13 @@ assert.equal(selected.sourceVideo.sourceUrl, 'https://www.bilibili.com/video/BV1
 assert.equal(selected.sourceVideo.coverUrl, null);
 assert.equal(selected.pantryLevel, 'explore');
 
+const douyinSelected = sanitizeSelectedDish({
+  name: '番茄炒蛋',
+  sourceVideo: { id: '7575053309933800713', platform: 'douyin' },
+});
+assert.equal(douyinSelected.sourceVideo.platform, 'douyin');
+assert.equal(douyinSelected.sourceVideo.sourceUrl, 'https://www.douyin.com/video/7575053309933800713');
+
 const expandedIngredients = sanitizeSelectedDish({
   name: '丰富配料测试',
   missingIngredients: Array.from({ length: 12 }, (_, index) => `食材${index + 1}`),

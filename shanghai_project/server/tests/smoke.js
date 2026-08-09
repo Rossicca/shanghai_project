@@ -93,7 +93,7 @@ async function run() {
     const mixedFeed = await request('/api/v1/workouts/feed?pageSize=6', { token });
     assert.ok(mixedFeed.data.data.items.some((video) => video.platform === 'douyin'));
     assert.ok(mixedFeed.data.data.items.some((video) => video.platform === 'bilibili'));
-    assert.ok(mixedFeed.data.data.items.some((video) => video.platform === 'youtube'));
+    assert.ok(mixedFeed.data.data.items.every((video) => ['douyin', 'bilibili'].includes(video.platform)));
     assert.ok(mixedFeed.data.data.items.every((video) => !/丰胸|乳沟|升杯|性感|私密|擦边/.test(video.title)));
 
     await request('/api/v1/auth/refresh', {
@@ -151,8 +151,9 @@ async function run() {
     assert.equal(workoutPlan.data.data.goalTypes.length, 2);
     assert.ok(workoutPlan.data.data.profileAnalysis.insights.length >= 3);
     assert.ok(workoutPlan.data.data.evidence?.length >= 5);
-    assert.ok(workoutPlan.data.data.weeklySchedule.flatMap((day) => day.exercises)
-      .every((exercise) => exercise.videoUrl === null || /^https:\/\/(www\.|search\.)?(bilibili|douyin|youtube)\.com\//.test(exercise.videoUrl) || /^https:\/\/youtu\.be\//.test(exercise.videoUrl)));
+    const planActions = workoutPlan.data.data.weeklySchedule.flatMap((day) => [...day.warmup, ...day.exercises, ...day.cooldown]);
+    assert.ok(planActions.every((action) => /^https:\/\/(www\.|search\.)?(bilibili|douyin)\.com\//.test(action.videoUrl)));
+    assert.ok(planActions.every((action) => action.videoTitle && ['douyin', 'bilibili'].includes(action.videoPlatform)));
     const latestPlan = await request('/api/v1/workout-plans/latest', { token });
     assert.equal(latestPlan.data.data.planId, workoutPlan.data.data.planId);
     const savedPlan = await request(`/api/v1/workout-plans/${workoutPlan.data.data.planId}/save`, { method: 'POST', token });
