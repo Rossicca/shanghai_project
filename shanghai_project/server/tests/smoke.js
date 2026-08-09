@@ -62,6 +62,13 @@ async function run() {
     assert.equal(health.data.ok, true);
     assert.equal(health.data.mode, 'demo', '没有本地 AI 密钥时必须明确标记为 demo');
     assert.ok(health.headers.get('x-request-id'), '响应必须包含 X-Request-ID');
+    const generatedCover = await fetch(`${BASE_URL}/api/video-cover?title=${encodeURIComponent('带你拉伸放松全身')}&category=${encodeURIComponent('拉伸')}&platform=${encodeURIComponent('B站精选')}&orientation=landscape`);
+    assert.equal(generatedCover.status, 200);
+    assert.match(generatedCover.headers.get('content-type') || '', /image\/svg\+xml/);
+    assert.match(await generatedCover.text(), /带你拉伸放松全身/);
+    const invalidRemoteCover = await fetch(`${BASE_URL}/api/cover?url=${encodeURIComponent('https://evil.example.com/cover.jpg')}&title=${encodeURIComponent('安全兜底封面')}`);
+    assert.equal(invalidRemoteCover.status, 200);
+    assert.equal(invalidRemoteCover.headers.get('x-cover-fallback'), 'generated');
     await request('/api/media/bilibili-cover?url=https%3A%2F%2Fevil.example.com%2Fcover.jpg', { status: 400 });
 
     const unauthenticated = await request('/api/v1/recognition/history', { status: 401 });

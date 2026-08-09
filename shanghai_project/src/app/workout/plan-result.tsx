@@ -32,8 +32,10 @@ export default function WorkoutPlanResultPage() {
   const [loading, setLoading] = useState(true);
   const [action, setAction] = useState('');
   const [error, setError] = useState('');
+  const [trainingDay, setTrainingDay] = useState(1);
   const [dietDay, setDietDay] = useState(1);
   const [activeSection, setActiveSection] = useState<'training' | 'diet'>('training');
+  const [showEvidence, setShowEvidence] = useState(false);
 
   useEffect(() => {
     const request = params.planId ? fetchWorkoutPlan(params.planId) : fetchLatestWorkoutPlan();
@@ -99,6 +101,7 @@ export default function WorkoutPlanResultPage() {
 
   const conditions = plan.planConditions;
   const targets = plan.nutritionTargets;
+  const activeTrainingDay = plan.weeklySchedule.find((day) => day.day === trainingDay) || plan.weeklySchedule[0];
   const activeDietDay = plan.dietPlan?.find((day) => day.day === dietDay) || plan.dietPlan?.[0];
   const goalSummary = (plan.goalTypes?.length ? plan.goalTypes : [plan.goalType])
     .map((goal) => GOAL_LABELS[goal]).join(' + ');
@@ -119,15 +122,44 @@ export default function WorkoutPlanResultPage() {
           </Pressable>
         </View>
 
+        <View style={[styles.planNavigator, { backgroundColor: colors.background }]}>
+          <View style={[styles.planSwitch, { backgroundColor: colors.backgroundElement }]}>
+            <PlanSwitchButton
+              active={activeSection === 'training'}
+              icon="barbell-outline"
+              title="训练计划"
+              summary={`${plan.weeklySchedule.length} 天 · 热身/训练/拉伸`}
+              onPress={() => setActiveSection('training')}
+            />
+            <PlanSwitchButton
+              active={activeSection === 'diet'}
+              icon="restaurant-outline"
+              title="饮食计划"
+              summary={`${plan.dietPlan?.length || 7} 天 · ${conditions?.mealsPerDay || 4} 餐/天`}
+              onPress={() => setActiveSection('diet')}
+            />
+          </View>
+        </View>
+
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={[styles.hero, { backgroundColor: colors.primary }]}>
-            <View style={styles.heroBadge}><Text style={styles.heroBadgeText}>AI 个性化方案 · {goalSummary}</Text></View>
-            <Text style={styles.heroTitle}>训练与饮食，按你来安排</Text>
-            <Text style={styles.heroSummary}>{plan.summary}</Text>
+            <View style={styles.heroBadge}><Text style={styles.heroBadgeText}>AI {activeSection === 'training' ? '训练' : '饮食'}方案 · {goalSummary}</Text></View>
+            <Text style={styles.heroTitle}>{activeSection === 'training' ? `${plan.weeklySchedule.length} 天训练安排` : `${plan.dietPlan?.length || 7} 天饮食安排`}</Text>
+            <Text style={styles.heroSummary}>{activeSection === 'diet' && plan.nutritionSummary ? plan.nutritionSummary : plan.summary}</Text>
             <View style={styles.heroPills}>
-              <Text style={styles.heroPill}>{conditions ? LOCATION_LABELS[conditions.workoutLocation] : '按条件安排'}</Text>
-              <Text style={styles.heroPill}>{conditions?.sessionDurationMinutes ?? '--'} 分钟/次</Text>
-              <Text style={styles.heroPill}>{conditions?.trainingMode ? MODE_LABELS[conditions.trainingMode] : '均衡训练'}</Text>
+              {activeSection === 'training' ? (
+                <>
+                  <Text style={styles.heroPill}>{conditions ? LOCATION_LABELS[conditions.workoutLocation] : '按条件安排'}</Text>
+                  <Text style={styles.heroPill}>{conditions?.sessionDurationMinutes ?? '--'} 分钟/次</Text>
+                  <Text style={styles.heroPill}>{conditions?.trainingMode ? MODE_LABELS[conditions.trainingMode] : '均衡训练'}</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.heroPill}>{conditions?.mealsPerDay || 4} 餐/天</Text>
+                  <Text style={styles.heroPill}>{conditions?.mealPrepTime || 30} 分钟/餐</Text>
+                  <Text style={styles.heroPill}>{conditions?.foodBudget === 'economy' ? '经济实用' : conditions?.foodBudget === 'flexible' ? '食材灵活' : '均衡预算'}</Text>
+                </>
+              )}
             </View>
           </View>
 
@@ -150,23 +182,6 @@ export default function WorkoutPlanResultPage() {
           </View>
 
           {error ? <ThemedText type="small" themeColor="danger">{error}</ThemedText> : null}
-
-          <View style={[styles.planSwitch, { backgroundColor: colors.backgroundElement }]}>
-            <PlanSwitchButton
-              active={activeSection === 'training'}
-              icon="barbell-outline"
-              title="训练计划"
-              summary={`${plan.weeklySchedule.length} 天 · 含热身与拉伸`}
-              onPress={() => setActiveSection('training')}
-            />
-            <PlanSwitchButton
-              active={activeSection === 'diet'}
-              icon="restaurant-outline"
-              title="饮食计划"
-              summary={`${plan.dietPlan?.length || 7} 天 · ${conditions?.mealsPerDay || 4} 餐/天`}
-              onPress={() => setActiveSection('diet')}
-            />
-          </View>
 
           {activeSection === 'training' && plan.profileAnalysis?.insights?.length ? (
             <Card style={styles.sectionCard}>
@@ -235,29 +250,47 @@ export default function WorkoutPlanResultPage() {
             </Card>
           ) : null}
 
-          {activeSection === 'training' ? <View style={styles.sectionIntro}>
-            <ThemedText type="subtitle">本周训练安排</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">每次都包含热身、主训练和练后拉伸</ThemedText>
-          </View> : null}
+          {activeSection === 'training' ? (
+            <View style={styles.sectionIntro}>
+              <ThemedText type="subtitle">按天查看训练</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">一次只展示一天，点击日期即可切换</ThemedText>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dayTabs}>
+                {plan.weeklySchedule.map((day) => {
+                  const active = day.day === activeTrainingDay?.day;
+                  return (
+                    <Pressable
+                      key={day.day}
+                      accessibilityRole="tab"
+                      accessibilityState={{ selected: active }}
+                      onPress={() => setTrainingDay(day.day)}
+                      style={[styles.dayTab, { backgroundColor: active ? colors.primary : colors.backgroundElement }]}>
+                      <Text style={[styles.dayTabLabel, { color: active ? '#fff' : colors.text }]}>第 {day.day} 天</Text>
+                      <Text style={[styles.dayTabHint, { color: active ? 'rgba(255,255,255,0.80)' : colors.textSecondary }]} numberOfLines={1}>{day.title}</Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          ) : null}
 
-          {activeSection === 'training' ? plan.weeklySchedule.map((day) => (
-            <Card key={day.day} style={styles.dayCard}>
+          {activeSection === 'training' && activeTrainingDay ? (
+            <Card key={activeTrainingDay.day} style={styles.dayCard}>
               <View style={styles.dayHeader}>
-                <View style={[styles.dayNumber, { backgroundColor: colors.primary }]}><Text style={styles.dayNumberText}>{day.day}</Text></View>
+                <View style={[styles.dayNumber, { backgroundColor: colors.primary }]}><Text style={styles.dayNumberText}>{activeTrainingDay.day}</Text></View>
                 <View style={{ flex: 1 }}>
-                  <ThemedText type="subtitle">{day.title}</ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary">约 {day.durationMinutes} 分钟</ThemedText>
+                  <ThemedText type="subtitle">{activeTrainingDay.title}</ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">约 {activeTrainingDay.durationMinutes} 分钟 · 含热身与拉伸</ThemedText>
                 </View>
               </View>
 
               <PlanPhase title="训练前热身" icon="sunny-outline" tint="#E89B32">
-                {(day.warmup || []).map((activity, index) => (
+                {(activeTrainingDay.warmup || []).map((activity, index) => (
                   <ActivityRow key={`warm-${activity.name}-${index}`} activity={activity} onOpen={openLink} />
                 ))}
               </PlanPhase>
 
               <PlanPhase title="主训练" icon="barbell-outline" tint={colors.primary}>
-                {day.exercises.map((exercise, index) => (
+                {activeTrainingDay.exercises.map((exercise, index) => (
                   <View key={`${exercise.name}-${index}`} style={styles.activityRow}>
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <ThemedText type="smallBold">{exercise.name}</ThemedText>
@@ -270,12 +303,12 @@ export default function WorkoutPlanResultPage() {
               </PlanPhase>
 
               <PlanPhase title="练后拉伸" icon="body-outline" tint="#557DB3">
-                {(day.cooldown || []).map((activity, index) => (
+                {(activeTrainingDay.cooldown || []).map((activity, index) => (
                   <ActivityRow key={`cool-${activity.name}-${index}`} activity={activity} onOpen={openLink} />
                 ))}
               </PlanPhase>
             </Card>
-          )) : null}
+          ) : null}
 
           {activeSection === 'diet' && plan.dietPlan?.length && activeDietDay ? (
             <Card style={styles.sectionCard}>
@@ -330,11 +363,23 @@ export default function WorkoutPlanResultPage() {
           ) : null}
 
           {plan.evidence?.length ? (
-            <Card style={styles.sectionCard}>
-              <View style={styles.sectionHeading}>
+            <View style={[styles.evidenceDisclosure, { backgroundColor: colors.backgroundElement }]}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ expanded: showEvidence }}
+                onPress={() => setShowEvidence((value) => !value)}
+                style={styles.evidenceToggle}>
                 <View style={[styles.sectionIcon, { backgroundColor: colors.blueSoft }]}>
                   <Ionicons name="library-outline" size={21} color="#557DB3" />
                 </View>
+                <View style={{ flex: 1 }}>
+                  <ThemedText type="smallBold">科学依据与安全说明</ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">需要时展开查看，不占用计划浏览空间</ThemedText>
+                </View>
+                <Ionicons name={showEvidence ? 'chevron-up' : 'chevron-down'} size={20} color={colors.textSecondary} />
+              </Pressable>
+              {showEvidence ? <View style={styles.evidenceContent}>
+              <View style={styles.sectionHeading}>
                 <View style={{ flex: 1 }}>
                   <ThemedText type="subtitle">方案依据</ThemedText>
                   <ThemedText type="small" themeColor="textSecondary">健康结论采用可核验机构资料</ThemedText>
@@ -350,7 +395,8 @@ export default function WorkoutPlanResultPage() {
                   <Ionicons name="open-outline" size={18} color={colors.primary} />
                 </Pressable>
               ))}
-            </Card>
+              </View> : null}
+            </View>
           ) : null}
 
           {activeSection === 'training' ? <View style={[styles.reminders, { backgroundColor: colors.backgroundElement }]}>
@@ -413,6 +459,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two },
   pageTitle: { fontSize: 24, lineHeight: 30, fontWeight: '900' },
   headerAction: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  planNavigator: { paddingHorizontal: Spacing.three, paddingTop: Spacing.one, paddingBottom: Spacing.two },
   content: { padding: Spacing.three, paddingBottom: Spacing.six, gap: Spacing.three },
   hero: { borderRadius: Radius.card, padding: Spacing.four, gap: Spacing.two },
   heroBadge: { alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.18)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: Radius.chip },
@@ -421,13 +468,15 @@ const styles = StyleSheet.create({
   heroPill: { color: '#fff', fontSize: 11, fontWeight: '700', backgroundColor: 'rgba(0,0,0,0.13)', paddingHorizontal: 9, paddingVertical: 5, borderRadius: Radius.chip },
   planActions: { flexDirection: 'row', gap: Spacing.two }, sectionCard: { gap: Spacing.three },
   planSwitch: { flexDirection: 'row', gap: Spacing.one, padding: 4, borderRadius: Radius.card },
-  planSwitchButton: { flex: 1, minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: Spacing.two, padding: Spacing.two, borderRadius: 15, borderWidth: 1 },
+  planSwitchButton: { flex: 1, minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingHorizontal: Spacing.two, paddingVertical: 10, borderRadius: 15, borderWidth: 1 },
   planSwitchIcon: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   warning: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.two, padding: Spacing.three, borderRadius: Radius.button },
   sectionHeading: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two }, sectionIcon: { width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   targetGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two }, targetMetric: { minWidth: 88, flexGrow: 1, gap: 2 },
   dietConditionCard: { gap: Spacing.three }, conditionChips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two }, conditionChip: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Spacing.two, borderRadius: Radius.chip },
-  sectionIntro: { gap: 2, marginTop: Spacing.one }, dayCard: { gap: Spacing.three }, dayHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  sectionIntro: { gap: Spacing.one, marginTop: Spacing.one }, dayTabs: { gap: Spacing.two, paddingTop: Spacing.two, paddingRight: Spacing.three },
+  dayTab: { width: 112, minHeight: 60, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 9, borderRadius: 14 }, dayTabLabel: { fontSize: 12, fontWeight: '800' }, dayTabHint: { fontSize: 10, marginTop: 3 },
+  dayCard: { gap: Spacing.three }, dayHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   analysisList: { gap: Spacing.two }, analysisRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.two }, analysisDot: { width: 7, height: 7, borderRadius: 4, marginTop: 7 },
   dayNumber: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }, dayNumberText: { color: '#fff', fontSize: 16, fontWeight: '900' },
   phase: { gap: Spacing.two }, phaseTitle: { flexDirection: 'row', alignItems: 'center', gap: 6 }, activityRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingVertical: 6 },
@@ -435,5 +484,6 @@ const styles = StyleSheet.create({
   mealRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingVertical: Spacing.two }, mealType: { minWidth: 48, paddingHorizontal: Spacing.two, paddingVertical: 6, borderRadius: Radius.chip, alignItems: 'center' },
   dietTabs: { gap: Spacing.two, paddingRight: Spacing.two }, dietTab: { minWidth: 66, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 14, alignItems: 'center' }, dietTabLabel: { fontSize: 12, fontWeight: '800' }, dietTabHint: { fontSize: 10, marginTop: 2 },
   dietFocus: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.two, padding: Spacing.three, borderRadius: Radius.button },
+  evidenceDisclosure: { borderRadius: Radius.card, overflow: 'hidden' }, evidenceToggle: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: Spacing.two, padding: Spacing.three }, evidenceContent: { paddingHorizontal: Spacing.three, paddingBottom: Spacing.three, gap: Spacing.two },
   evidenceRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingVertical: Spacing.two }, reminders: { gap: Spacing.two, padding: Spacing.three, borderRadius: Radius.card }, reminderRow: { flexDirection: 'row', gap: Spacing.two, alignItems: 'flex-start' },
 });

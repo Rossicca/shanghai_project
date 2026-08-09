@@ -11,6 +11,7 @@
     "test:recipe-videos": "node tests/recipe-videos.js",
     "test:recipe-discovery": "node tests/recipe-discovery.js",
     "test:workout-video-matching": "node tests/workout-video-matching.js",
+    "test:ai-fallback": "node tests/ai-fallback.js",
     "test:ai-quality": "node tests/ai-quality.js"
   },
   "dependencies": {

@@ -346,23 +346,78 @@ app.get('/api/workout/categories', (req, res) => {
   res.json({ data: cats });
 });
 
-// GET /api/cover — 代理 B站/抖音封面图，绕过 Referer 防盗链
-// 仅允许 B站图床 / 抖音图床 / picsum 兜底图，防 SSRF
+const COVER_THEMES = {
+  '臀腿': ['#245B49', '#55B790'], '全身燃脂': ['#7A3C27', '#F08C61'],
+  '核心': ['#43305F', '#8E6CC4'], '肩背': ['#274A68', '#6094BF'],
+  '手臂': ['#76531E', '#E6A84E'], '有氧': ['#742F3A', '#E36D7D'],
+  '拉伸': ['#17685A', '#47B59D'],
+};
+
+function escapeSvgText(value) {
+  return String(value || '').replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;',
+  })[char]);
+}
+
+function splitCoverTitle(value, maxChars = 11) {
+  const chars = [...String(value || '精选健身内容').replace(/\s+/g, ' ').trim()];
+  const lines = [];
+  while (chars.length && lines.length < 3) lines.push(chars.splice(0, maxChars).join(''));
+  return lines.length ? lines : ['精选健身内容'];
+}
+
+function sendGeneratedCover(req, res) {
+  if (res.headersSent) return;
+  const category = String(req.query.category || '全身燃脂').slice(0, 12);
+  const platform = String(req.query.platform || '国内精选').slice(0, 12);
+  const orientation = req.query.orientation === 'landscape' ? 'landscape' : 'portrait';
+  const [dark, accent] = COVER_THEMES[category] || ['#174F43', '#38AE8C'];
+  const [width, height] = orientation === 'landscape' ? [1600, 900] : [900, 1600];
+  const maxChars = orientation === 'landscape' ? 18 : 11;
+  const titleLines = splitCoverTitle(req.query.title, maxChars);
+  const titleY = orientation === 'landscape' ? 390 : 720;
+  const titleSize = orientation === 'landscape' ? 78 : 72;
+  const lineGap = orientation === 'landscape' ? 92 : 90;
+  const titleSvg = titleLines.map((line, index) =>
+    `<text x="72" y="${titleY + index * lineGap}" fill="#FFFFFF" font-size="${titleSize}" font-weight="800">${escapeSvgText(line)}</text>`
+  ).join('');
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+    <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="${dark}"/><stop offset="1" stop-color="${accent}"/></linearGradient></defs>
+    <rect width="${width}" height="${height}" fill="url(#bg)"/>
+    <circle cx="${width - 80}" cy="120" r="260" fill="#FFFFFF" opacity="0.08"/>
+    <circle cx="${width * 0.72}" cy="${height * 0.78}" r="${orientation === 'landscape' ? 240 : 330}" fill="#071E18" opacity="0.12"/>
+    <path d="M0 ${height * 0.28} L${width} ${height * 0.08} L${width} ${height * 0.18} L0 ${height * 0.38}Z" fill="#FFFFFF" opacity="0.06"/>
+    <rect x="72" y="82" width="${orientation === 'landscape' ? 250 : 230}" height="62" rx="31" fill="#FFFFFF" opacity="0.18"/>
+    <text x="${orientation === 'landscape' ? 197 : 187}" y="123" text-anchor="middle" fill="#FFFFFF" font-size="28" font-weight="700">${escapeSvgText(platform)}</text>
+    <text x="72" y="${titleY - 74}" fill="#FFFFFF" opacity="0.78" font-size="30" font-weight="650">${escapeSvgText(category)} · 安全内容库</text>
+    ${titleSvg}
+    <rect x="72" y="${height - 130}" width="150" height="6" rx="3" fill="#FFFFFF" opacity="0.88"/>
+  </svg>`;
+  res.status(200).set({
+    'Content-Type': 'image/svg+xml; charset=utf-8',
+    'Cache-Control': 'public, max-age=86400',
+    'X-Cover-Fallback': 'generated',
+  }).send(svg);
+}
+
+// 没有远程封面时也返回与分类、标题对应的完整封面，避免纯色空白卡。
+app.get('/api/video-cover', sendGeneratedCover);
+
+// GET /api/cover — 优先代理 B站/抖音真实封面；平台暂时不可达时自动返回生成封面。
+// 仅允许 B站和抖音图床，避免把该接口变成任意 URL 代理。
 app.get('/api/cover', (req, res) => {
   const url = String(req.query.url || '');
   const allowed =
     /^https:\/\/[a-z0-9-]+\.hdslb\.com\/bfs\//.test(url) ||
-    /^https:\/\/[a-z0-9-]+\.douyinpic\.com\//.test(url) ||
-    /^https:\/\/i\.ytimg\.com\/vi\//.test(url) ||
-    /^https:\/\/picsum\.photos\//.test(url);
+    /^https:\/\/[a-z0-9-]+\.douyinpic\.com\//.test(url);
   if (!allowed) {
-    return res.status(400).json({ error: { code: 'INVALID_COVER_URL' } });
+    return sendGeneratedCover(req, res);
   }
 
   let hops = 0;
   const fetch = (target) => {
     https
-      .get(target, { headers: { 'User-Agent': 'Mozilla/5.0', Referer: target.includes('ytimg.com') ? 'https://www.youtube.com/' : 'https://www.bilibili.com/' } }, (upstream) => {
+      .get(target, { headers: { 'User-Agent': 'Mozilla/5.0', Referer: target.includes('douyinpic.com') ? 'https://www.douyin.com/' : 'https://www.bilibili.com/' } }, (upstream) => {
         const loc = upstream.headers.location;
         if (upstream.statusCode >= 300 && upstream.statusCode < 400 && loc && hops < 3) {
           upstream.resume();
@@ -371,13 +426,13 @@ app.get('/api/cover', (req, res) => {
         }
         if (upstream.statusCode !== 200) {
           upstream.resume();
-          return res.status(502).json({ error: { code: 'COVER_FETCH_FAILED', status: upstream.statusCode } });
+          return sendGeneratedCover(req, res);
         }
         res.setHeader('Content-Type', upstream.headers['content-type'] || 'image/jpeg');
         res.setHeader('Cache-Control', 'public, max-age=86400');
         upstream.pipe(res);
       })
-      .on('error', () => res.status(502).json({ error: { code: 'COVER_FETCH_ERROR' } }));
+      .on('error', () => sendGeneratedCover(req, res));
   };
   fetch(url);
 });

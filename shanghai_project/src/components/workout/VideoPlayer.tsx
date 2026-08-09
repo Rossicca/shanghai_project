@@ -31,14 +31,18 @@ export function VideoPlayer({ video, playing = true, onEnd, showControls }: Prop
     aspect: number | null;
     failed: boolean;
   } | null>(null);
-  const isYouTubeCover = video.coverUrl?.startsWith('https://i.ytimg.com/');
-  const coverUri = video.coverUrl
-    ? video.coverUrl.startsWith('/covers/')
+  const [failedPrimaryCover, setFailedPrimaryCover] = useState<string | null>(null);
+  const orientation = video.coverOrientation || (video.platform === 'douyin' ? 'portrait' : 'landscape');
+  const coverMeta = `title=${encodeURIComponent(video.title)}&category=${encodeURIComponent(video.category)}&platform=${encodeURIComponent(video.platform === 'douyin' ? '抖音精选' : 'B站精选')}&orientation=${orientation}`;
+  const fallbackCoverUri = `${API_BASE_URL}/api/video-cover?${coverMeta}`;
+  const primaryCoverUri = video.coverUrl
+    ? video.coverUrl.startsWith('/')
       ? `${API_BASE_URL}${video.coverUrl}`
-      : isYouTubeCover
-        ? video.coverUrl
-        : `${API_BASE_URL}/api/cover?url=${encodeURIComponent(video.coverUrl)}`
+      : `${API_BASE_URL}/api/cover?url=${encodeURIComponent(video.coverUrl)}&${coverMeta}`
     : null;
+  const coverUri = primaryCoverUri && failedPrimaryCover !== primaryCoverUri
+    ? primaryCoverUri
+    : fallbackCoverUri;
   const coverAspect = measuredCover?.uri === coverUri ? measuredCover.aspect : null;
   const coverFailed = measuredCover?.uri === coverUri ? measuredCover.failed : false;
 
@@ -52,10 +56,14 @@ export function VideoPlayer({ video, playing = true, onEnd, showControls }: Prop
           setMeasuredCover({ uri: coverUri, aspect: width / height, failed: false });
         }
       },
-      () => {}
+      () => {
+        if (!active) return;
+        if (coverUri === primaryCoverUri) setFailedPrimaryCover(primaryCoverUri);
+        else setMeasuredCover({ uri: coverUri, aspect: null, failed: true });
+      }
     );
     return () => { active = false; };
-  }, [coverUri]);
+  }, [coverUri, primaryCoverUri]);
 
   useEffect(() => {
     let loop: Animated.CompositeAnimation | null = null;
@@ -124,7 +132,9 @@ export function VideoPlayer({ video, playing = true, onEnd, showControls }: Prop
               source={{ uri: coverUri! }}
               style={[styles.landscapeCover, { aspectRatio: coverAspect || 16 / 9 }]}
               resizeMode="contain"
-              onError={() => setMeasuredCover({ uri: coverUri!, aspect: coverAspect, failed: true })}
+              onError={() => coverUri === primaryCoverUri
+                ? setFailedPrimaryCover(primaryCoverUri)
+                : setMeasuredCover({ uri: coverUri, aspect: coverAspect, failed: true })}
             />
           </>
         ) : showCover ? (
@@ -132,7 +142,9 @@ export function VideoPlayer({ video, playing = true, onEnd, showControls }: Prop
             source={{ uri: coverUri! }}
             style={StyleSheet.absoluteFill}
             resizeMode="cover"
-            onError={() => setMeasuredCover({ uri: coverUri!, aspect: coverAspect, failed: true })}
+            onError={() => coverUri === primaryCoverUri
+              ? setFailedPrimaryCover(primaryCoverUri)
+              : setMeasuredCover({ uri: coverUri, aspect: coverAspect, failed: true })}
           />
         ) : (
           <Animated.View style={[styles.emojiWrap, { transform: [{ scale: pulse }] }]}>

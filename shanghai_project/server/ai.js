@@ -333,19 +333,32 @@ async function recommendRecipes(params) {
 }
 
 function buildSafeRecipeFallback(params, warning) {
-  const recipe = pickMockRecipe(params.ingredients);
-    if (params.selectedDish?.name) {
-      recipe.name = String(params.selectedDish.name).slice(0, 40);
-      recipe.description = `按你选定的“${recipe.name}”生成，现有食材为主，缺少食材可按清单补齐。`;
-      const existing = new Set((recipe.ingredients || []).map((item) => item.name));
-      recipe.ingredients = [
-        ...(recipe.ingredients || []),
-        ...(params.selectedDish.missingIngredients || [])
-          .filter((name) => !existing.has(name))
-          .map((name) => ({ name, amount: '适量' })),
-      ];
-      if (params.selectedDish.sourceVideo) recipe.sourceVideo = params.selectedDish.sourceVideo;
-    }
+  const recipe = pickMockRecipe(params.ingredients || []);
+  const allergies = new Set((params.user?.allergies || []).map((item) => String(item).trim()).filter(Boolean));
+  const inputIngredients = (params.ingredients || [])
+    .map((item) => ({ name: String(item?.name || '').trim(), amount: String(item?.amount || '适量') }))
+    .filter((item) => item.name && !allergies.has(item.name));
+  const selectedMissing = (params.selectedDish?.missingIngredients || [])
+    .map((name) => ({ name: String(name).trim(), amount: '适量' }))
+    .filter((item) => item.name && !allergies.has(item.name));
+  const mergedIngredients = [...inputIngredients, ...selectedMissing]
+    .filter((item, index, items) => items.findIndex((candidate) => candidate.name === item.name) === index)
+    .slice(0, 14);
+  recipe.ingredients = mergedIngredients.length >= 2
+    ? mergedIngredients
+    : DEMO_INGREDIENTS
+      .map((item) => ({ name: item.name, amount: item.amount || '适量' }))
+      .filter((item) => !allergies.has(item.name))
+      .slice(0, 4);
+  recipe.fiber = Math.max(1, Number(recipe.fiber) || 6);
+  recipe.prepTime = Math.max(5, Number(recipe.prepTime) || 10);
+  recipe.cookTime = Math.min(Number(params.cookTime) || 120, Math.max(5, Number(recipe.cookTime) || 20));
+
+  if (params.selectedDish?.name) {
+    recipe.name = String(params.selectedDish.name).slice(0, 40);
+    recipe.description = `按你选定的“${recipe.name}”生成，现有食材为主，缺少食材可按清单补齐。`;
+    if (params.selectedDish.sourceVideo) recipe.sourceVideo = params.selectedDish.sourceVideo;
+  }
   return {
     ...recipe,
     id: 'r' + Date.now(),
