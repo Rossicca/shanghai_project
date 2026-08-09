@@ -51,7 +51,7 @@
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "build:web": "expo export --platform web",
-    "verify": "npm run typecheck && npm run lint && npm run build:web && npm --prefix server run test:smoke && npm --prefix server run test:recipe-videos && npm --prefix server run test:recipe-discovery && npm --prefix server run test:workout-video-matching && npm --prefix server run test:ai-fallback"
+    "verify": "npm run typecheck && npm run lint && npm run build:web && npm --prefix server run test:smoke && npm --prefix server run test:recipe-videos && npm --prefix server run test:recipe-discovery && npm --prefix server run test:workout-video-matching && npm --prefix server run test:ai-fallback && npm --prefix server run test:recognition-error"
   },
   "private": true
 }

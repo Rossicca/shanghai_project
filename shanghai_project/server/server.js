@@ -139,6 +139,11 @@ app.post('/api/recognize', async (req, res) => {
     const allResults = await Promise.allSettled(
       images.filter((img) => img && String(img).trim()).map((img) => recognizeFood(img))
     );
+    const fulfilledResults = allResults.filter((result) => result.status === 'fulfilled');
+    if (allResults.length > 0 && fulfilledResults.length === 0) {
+      const firstFailure = allResults.find((result) => result.status === 'rejected');
+      throw firstFailure?.reason || new Error('AI 图片识别调用失败');
+    }
     const merged = new Map();
     for (const result of allResults) {
       if (result.status !== 'fulfilled' || !Array.isArray(result.value)) continue;
@@ -168,6 +173,7 @@ app.post('/api/recognize', async (req, res) => {
       error: {
         code: 'AI_RECOGNITION_FAILED',
         message: '\u56fe\u7247\u8bc6\u522b\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5',
+        requestId: req.requestId,
       },
     });
   }
