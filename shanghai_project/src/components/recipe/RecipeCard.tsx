@@ -1,10 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Card } from '@/components/ui/Card';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { recipeCoverUrl } from '@/services/media';
 import type { Recipe } from '@/types/recipe';
 
 type Props = {
@@ -21,8 +23,12 @@ export function RecipeCard({ recipe, onPress, onSave, saved }: Props) {
   return (
     <Pressable onPress={onPress}>
       <Card style={styles.card} padded={false}>
-        <View style={[styles.emojiWrap, { backgroundColor: colors.primarySoft }]}>
-          <Text style={styles.emoji}>{recipe.coverEmoji}</Text>
+        <View style={[styles.artwork, { backgroundColor: colors.primarySoft }]}>
+          {recipeCoverUrl(recipe.sourceVideo?.coverUrl) ? (
+            <Image source={{ uri: recipeCoverUrl(recipe.sourceVideo?.coverUrl)! }} style={StyleSheet.absoluteFill} contentFit="cover" />
+          ) : (
+            <Ionicons name="restaurant-outline" size={27} color={colors.primary} />
+          )}
         </View>
         <View style={styles.body}>
           <ThemedText type="smallBold" numberOfLines={1}>
@@ -48,8 +54,7 @@ export function RecipeCard({ recipe, onPress, onSave, saved }: Props) {
 
 const styles = StyleSheet.create({
   card: { flexDirection: 'row', alignItems: 'center', overflow: 'hidden' },
-  emojiWrap: { width: 64, height: 64, alignItems: 'center', justifyContent: 'center' },
-  emoji: { fontSize: 34 },
+  artwork: { width: 68, height: 68, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   body: { flex: 1, gap: Spacing.one, padding: Spacing.two + 2 },
   meta: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
   metaText: { fontSize: 12 },

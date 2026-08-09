@@ -45,7 +45,7 @@ export default function FavoritesPage() {
               {savedRecipes.map((r) => (
                 <Pressable key={r.id} onPress={() => openRecipe(r)} style={styles.item}>
                   <View style={[styles.emojiWrap, { backgroundColor: colors.primarySoft }]}>
-                    <Text style={styles.emoji}>{r.coverEmoji}</Text>
+                    <Ionicons name="restaurant-outline" size={22} color={colors.primary} />
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <ThemedText type="smallBold" numberOfLines={1}>{r.name}</ThemedText>

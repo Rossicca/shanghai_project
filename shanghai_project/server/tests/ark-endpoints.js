@@ -1,29 +1,24 @@
-const fs = require('fs');
 const path = require('path');
-const toml = require('toml');
-
-const configPath = path.join(__dirname, '..', 'config.toml');
-const localConfig = toml.parse(fs.readFileSync(configPath, 'utf8'));
-const ai = localConfig.ai || {};
-const apiUrl = 'https://ark.cn-beijing.volces.com/api/v3/chat/completions';
+const fs = require('fs');
+const { getTextProvider, getVisionProvider } = require('../config');
 
 function loadImageDataUrl() {
   const imagePath = path.join(__dirname, '..', '..', 'assets', 'images', 'icon.png');
   return `data:image/png;base64,${fs.readFileSync(imagePath).toString('base64')}`;
 }
 
-async function chat(model, messages) {
-  const response = await fetch(apiUrl, {
+async function chat(provider, messages) {
+  const response = await fetch(`${provider.baseURL.replace(/\/$/, '')}/chat/completions`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${ai.apiKey}`,
+      Authorization: `Bearer ${provider.apiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ model, messages, max_tokens: 300, temperature: 0.1 }),
+    body: JSON.stringify({ model: provider.model, messages, max_tokens: 300, temperature: 0.1 }),
   });
   const data = await response.json();
   return {
-    endpoint: model,
+    endpoint: provider.model,
     status: response.status,
     actualModel: data.model || null,
     content: data.choices?.[0]?.message?.content || null,
@@ -46,12 +41,10 @@ async function main() {
   ];
 
   const results = [];
-  for (const endpoint of [ai.visionModel, ai.visionModelCandidate].filter(Boolean)) {
-    results.push({ kind: 'vision', ...(await chat(endpoint, visionMessages)) });
-  }
+  results.push({ kind: 'vision', ...(await chat(getVisionProvider(), visionMessages)) });
   results.push({
     kind: 'text',
-    ...(await chat(ai.textModel, [{ role: 'user', content: '\u53ea\u56de\u590d OK' }])),
+    ...(await chat(getTextProvider(), [{ role: 'user', content: '\u53ea\u56de\u590d OK' }])),
   });
 
   for (const result of results) console.log(JSON.stringify(result));

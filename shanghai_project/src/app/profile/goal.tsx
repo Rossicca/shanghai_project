@@ -4,7 +4,6 @@ import { ScrollView } from 'react-native';
 
 import { ThemedView } from '@/components/themed-view';
 import { GoalSelector } from '@/components/GoalSelector';
-import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useUserStore } from '@/store/userStore';
 
@@ -30,8 +29,7 @@ export default function GoalPage() {
   return (
     <ThemedView style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={{ padding: Spacing.three }}>
-        <GoalSelector initial={goal} onSave={handleSave} saving={saving} />
-        {error ? <ThemedText type="small" themeColor="danger">{error}</ThemedText> : null}
+        <GoalSelector initial={goal} onSave={handleSave} saving={saving} error={error} />
       </ScrollView>
     </ThemedView>
   );

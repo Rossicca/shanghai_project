@@ -149,9 +149,19 @@ export default function RecipeDetail() {
               </View>
             </>
           ) : (
-            <Text style={styles.coverEmoji}>{recipe.coverEmoji}</Text>
+            <View style={styles.coverFallback}>
+              <Ionicons name="restaurant-outline" size={52} color={colors.primary} />
+              <ThemedText type="smallBold" themeColor="primary">个性化菜谱</ThemedText>
+            </View>
           )}
         </View>
+
+        {recipe.generationWarning ? (
+          <View style={[styles.generationWarning, { backgroundColor: colors.yellowSoft }]}>
+            <Ionicons name="information-circle-outline" size={18} color={colors.warning} />
+            <ThemedText type="small" style={{ flex: 1 }}>{recipe.generationWarning}</ThemedText>
+          </View>
+        ) : null}
 
         <ThemedText type="title">{recipe.name}</ThemedText>
         <ThemedText themeColor="textSecondary">{recipe.description}</ThemedText>
@@ -283,7 +293,8 @@ const styles = StyleSheet.create({
   coverImage: { width: '100%', height: '100%', borderRadius: 20 },
   coverSource: { position: 'absolute', left: Spacing.two, bottom: Spacing.two, flexDirection: 'row', alignItems: 'center', gap: Spacing.one, backgroundColor: 'rgba(0,0,0,0.68)', borderRadius: 12, paddingHorizontal: Spacing.two, paddingVertical: Spacing.one },
   coverSourceText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
-  coverEmoji: { fontSize: 80 },
+  coverFallback: { alignItems: 'center', gap: Spacing.two },
+  generationWarning: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.two, padding: Spacing.three, borderRadius: 14 },
   metaRow: { flexDirection: 'row', gap: Spacing.two },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two, borderRadius: 12 },
   ingRow: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: Spacing.one },

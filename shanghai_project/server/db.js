@@ -8,8 +8,9 @@ const initSqlJs = require('sql.js');
 const fs = require('fs');
 const path = require('path');
 
-const DATA_DIR = path.join(__dirname, 'data');
-const DB_PATH = path.join(DATA_DIR, 'shanghai.db');
+const DEFAULT_DATA_DIR = path.join(__dirname, 'data');
+const DB_PATH = process.env.DB_PATH ? path.resolve(process.env.DB_PATH) : path.join(DEFAULT_DATA_DIR, 'shanghai.db');
+const DATA_DIR = path.dirname(DB_PATH);
 
 // 确保数据目录存在
 if (!fs.existsSync(DATA_DIR)) {
@@ -30,6 +31,7 @@ async function getDb() {
   }
   initTables();
   autoMigrateFromJson();
+  seedAndSanitizeWorkoutVideos();
   saveDb();
   return db;
 }
@@ -40,6 +42,47 @@ function saveDb() {
   const data = db.export();
   const buffer = Buffer.from(data);
   fs.writeFileSync(DB_PATH, buffer);
+}
+
+/**
+ * 把人工核验的公开视频持久化进 SQLite，并清理旧数据中不符合健身/来源/内容安全规则的条目。
+ * 推荐接口仍会再次过滤，形成“入库一次 + 输出一次”的双层防护。
+ */
+function seedAndSanitizeWorkoutVideos() {
+  const { CURATED_WORKOUT_VIDEOS } = require('./curated-workout-videos');
+  const { isSafeWorkoutVideo } = require('./workout-video-safety');
+  const insertStatement = db.prepare(`
+    INSERT OR IGNORE INTO workout_videos
+      (id, title, category, duration, difficulty, coach, calories, coverColor, sourceUrl,
+       platform, videoUrl, coverUrl, playCount, description, reason, tags, fetchedAt, source)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  for (const video of CURATED_WORKOUT_VIDEOS) {
+    insertStatement.run([
+      video.id, video.title, video.category, video.duration || null, video.difficulty || null,
+      video.coach || null, video.calories || null, video.coverColor || null, video.sourceUrl,
+      video.platform, video.videoUrl || null, video.coverUrl || null, video.playCount || 0,
+      video.description || null, video.reason || null, JSON.stringify(video.tags || []),
+      video.fetchedAt || new Date().toISOString(), video.source || video.platform,
+    ]);
+  }
+  insertStatement.free();
+
+  const rows = [];
+  const selectStatement = db.prepare('SELECT * FROM workout_videos');
+  while (selectStatement.step()) {
+    const row = selectStatement.getAsObject();
+    try { row.tags = JSON.parse(row.tags || '[]'); } catch { row.tags = []; }
+    rows.push(row);
+  }
+  selectStatement.free();
+  const unsafeIds = rows.filter((video) => !isSafeWorkoutVideo(video)).map((video) => video.id);
+  if (unsafeIds.length) {
+    const deleteStatement = db.prepare('DELETE FROM workout_videos WHERE id = ?');
+    for (const id of unsafeIds) deleteStatement.run([id]);
+    deleteStatement.free();
+    console.log(`[db] 已移除 ${unsafeIds.length} 条不符合健身内容安全规则的视频`);
+  }
 }
 
 /** 初始化表结构 */
@@ -66,8 +109,12 @@ function initTables() {
       age INTEGER,
       gender TEXT,
       bodyFat REAL,
+      chest REAL,
       waist REAL,
       hip REAL,
+      upperArm REAL,
+      thigh REAL,
+      calf REAL,
       measuredAt TEXT,
       createdAt TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (userId) REFERENCES users(id)
@@ -76,8 +123,9 @@ function initTables() {
   db.run(`
     CREATE TABLE IF NOT EXISTS fitness_goals (
       id TEXT PRIMARY KEY,
-      userId TEXT NOT NULL,
-      goalType TEXT NOT NULL,
+        userId TEXT NOT NULL,
+        goalType TEXT NOT NULL,
+        goalTypes TEXT DEFAULT '[]',
       targetWeight REAL,
       targetDate TEXT,
       activityLevel TEXT DEFAULT 'moderate',
@@ -144,6 +192,9 @@ function initTables() {
       servings INTEGER DEFAULT 1,
       isSaved INTEGER DEFAULT 0,
       imageUrl TEXT,
+      sourceVideo TEXT,
+      generationMode TEXT DEFAULT 'ai',
+      generationWarning TEXT,
       nutrition TEXT DEFAULT '{}',
       reimaginedFrom TEXT,
       createdAt TEXT DEFAULT (datetime('now'))
@@ -191,13 +242,26 @@ function initTables() {
   `);
   db.run(`
     CREATE TABLE IF NOT EXISTS workout_plans (
-      id TEXT PRIMARY KEY,
-      userId TEXT NOT NULL,
-      goalType TEXT,
-      summary TEXT,
+        id TEXT PRIMARY KEY,
+        userId TEXT NOT NULL,
+        goalType TEXT,
+        goalTypes TEXT DEFAULT '[]',
+        summary TEXT,
       weeklySchedule TEXT DEFAULT '[]',
+      nutritionSummary TEXT,
+      nutritionTargets TEXT,
+        mealSuggestions TEXT DEFAULT '[]',
+        dietPlan TEXT DEFAULT '[]',
+        profileSnapshot TEXT,
+        profileAnalysis TEXT,
+        planConditions TEXT,
+      evidence TEXT DEFAULT '[]',
+      isSaved INTEGER DEFAULT 0,
+      isFavorite INTEGER DEFAULT 0,
       reminders TEXT DEFAULT '[]',
-      disclaimer TEXT,
+        disclaimer TEXT,
+        generationMode TEXT DEFAULT 'ai',
+        generationWarning TEXT,
       createdAt TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (userId) REFERENCES users(id)
     )
@@ -296,15 +360,36 @@ const COLUMN_MIGRATIONS = [
   // update() 会自动写入 updatedAt，所有可更新的表都需要这一列
   { table: 'users', column: 'updatedAt', type: 'TEXT' },
   { table: 'body_data', column: 'updatedAt', type: 'TEXT' },
-  { table: 'fitness_goals', column: 'updatedAt', type: 'TEXT' },
+    { table: 'fitness_goals', column: 'updatedAt', type: 'TEXT' },
+    { table: 'fitness_goals', column: 'goalTypes', type: "TEXT DEFAULT '[]'" },
   { table: 'preferences', column: 'updatedAt', type: 'TEXT' },
   { table: 'workout_videos', column: 'updatedAt', type: 'TEXT' },
   { table: 'recipes', column: 'updatedAt', type: 'TEXT' },
+  { table: 'recipes', column: 'sourceVideo', type: 'TEXT' },
+  { table: 'recipes', column: 'generationMode', type: "TEXT DEFAULT 'ai'" },
+  { table: 'recipes', column: 'generationWarning', type: 'TEXT' },
   { table: 'recognition_sessions', column: 'updatedAt', type: 'TEXT' },
   { table: 'saved_workouts', column: 'updatedAt', type: 'TEXT' },
   { table: 'saved_recipes', column: 'updatedAt', type: 'TEXT' },
   { table: 'workout_history', column: 'updatedAt', type: 'TEXT' },
   { table: 'workout_plans', column: 'updatedAt', type: 'TEXT' },
+    { table: 'workout_plans', column: 'nutritionSummary', type: 'TEXT' },
+    { table: 'workout_plans', column: 'goalTypes', type: "TEXT DEFAULT '[]'" },
+    { table: 'workout_plans', column: 'nutritionTargets', type: 'TEXT' },
+    { table: 'workout_plans', column: 'mealSuggestions', type: "TEXT DEFAULT '[]'" },
+    { table: 'workout_plans', column: 'dietPlan', type: "TEXT DEFAULT '[]'" },
+    { table: 'workout_plans', column: 'profileSnapshot', type: 'TEXT' },
+    { table: 'workout_plans', column: 'profileAnalysis', type: 'TEXT' },
+    { table: 'workout_plans', column: 'planConditions', type: 'TEXT' },
+    { table: 'workout_plans', column: 'generationMode', type: "TEXT DEFAULT 'ai'" },
+    { table: 'workout_plans', column: 'generationWarning', type: 'TEXT' },
+  { table: 'workout_plans', column: 'evidence', type: "TEXT DEFAULT '[]'" },
+  { table: 'workout_plans', column: 'isSaved', type: 'INTEGER DEFAULT 0' },
+  { table: 'workout_plans', column: 'isFavorite', type: 'INTEGER DEFAULT 0' },
+  { table: 'body_data', column: 'chest', type: 'REAL' },
+  { table: 'body_data', column: 'upperArm', type: 'REAL' },
+  { table: 'body_data', column: 'thigh', type: 'REAL' },
+  { table: 'body_data', column: 'calf', type: 'REAL' },
   // 识别流程「确认食材」写入的标记
   { table: 'recognition_sessions', column: 'confirmed', type: 'INTEGER DEFAULT 0' },
   // 「换做法」记录来源菜谱

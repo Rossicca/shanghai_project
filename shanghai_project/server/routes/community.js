@@ -14,9 +14,15 @@
  */
 
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const router = express.Router();
 const db = require('../db');
 const { verifyToken } = require('../auth');
+
+const COMMUNITY_UPLOAD_DIR = path.join(__dirname, '..', 'data', 'uploads', 'community');
+const MAX_COMMUNITY_IMAGE_BYTES = 3 * 1024 * 1024;
+fs.mkdirSync(COMMUNITY_UPLOAD_DIR, { recursive: true });
 
 // ---- 种子数据（与客户端 src/services/community.ts 保持一致） ----
 
@@ -268,6 +274,24 @@ function postExists(id) {
   return Boolean(db.findById('community_posts', id) || SEED_POSTS.some((p) => p.id === id));
 }
 
+/** 将浏览器临时图片持久化到服务器磁盘，避免其他测试账号看不到 blob 地址。 */
+function persistCommunityImage(uri) {
+  if (!uri || typeof uri !== 'string') return null;
+  if (uri.startsWith('/uploads/community/')) return uri;
+  const matched = uri.match(/^data:image\/(jpeg|jpg|png|webp);base64,([A-Za-z0-9+/=]+)$/);
+  if (!matched) return null;
+  const buffer = Buffer.from(matched[2], 'base64');
+  if (!buffer.length || buffer.length > MAX_COMMUNITY_IMAGE_BYTES) {
+    const error = new Error('COMMUNITY_IMAGE_TOO_LARGE');
+    error.code = 'COMMUNITY_IMAGE_TOO_LARGE';
+    throw error;
+  }
+  const extension = matched[1] === 'jpg' ? 'jpeg' : matched[1];
+  const filename = `${Date.now()}-${db.generateId().replace(/[^a-zA-Z0-9_-]/g, '')}.${extension}`;
+  fs.writeFileSync(path.join(COMMUNITY_UPLOAD_DIR, filename), buffer);
+  return `/uploads/community/${filename}`;
+}
+
 // ---- 路由 ----
 
 router.use(optionalAuth);
@@ -287,6 +311,15 @@ router.post('/posts', (req, res) => {
   const category = CATEGORIES.has(req.body.category) ? req.body.category : '打卡';
   const image = req.body.image && typeof req.body.image === 'object' ? req.body.image : undefined;
   const author = authorIdentity(req.user.userId);
+  let imageUri = null;
+  try {
+    imageUri = persistCommunityImage(image?.uri);
+  } catch (error) {
+    if (error.code === 'COMMUNITY_IMAGE_TOO_LARGE') {
+      return res.status(413).json({ error: { code: error.code, message: '图片过大，请选择 3MB 以内的图片' } });
+    }
+    throw error;
+  }
 
   const row = db.insert('community_posts', {
     authorName: author.name,
@@ -298,7 +331,7 @@ router.post('/posts', (req, res) => {
     content,
     imageEmoji: image?.emoji || null,
     imageColor: image?.color || null,
-    imageUri: image?.uri || null,
+    imageUri,
     likes: 0,
   });
   res.status(201).json({ data: toPostView(row, { comments: 0, likes: 0, liked: false }), message: '发布成功' });
@@ -367,6 +400,15 @@ router.post('/photos', (req, res) => {
   const userId = req.user.userId;
   const body = req.body || {};
   const current = photosView(userId);
+  let photoUri = null;
+  try {
+    photoUri = persistCommunityImage(body.uri);
+  } catch (error) {
+    if (error.code === 'COMMUNITY_IMAGE_TOO_LARGE') {
+      return res.status(413).json({ error: { code: error.code, message: '图片过大，请选择 3MB 以内的图片' } });
+    }
+    throw error;
+  }
   const photo = {
     id: db.generateId(),
     date: String(body.date || new Date().toISOString().slice(0, 10)),
@@ -374,7 +416,7 @@ router.post('/photos', (req, res) => {
     weight: body.weight == null ? undefined : Number(body.weight),
     bodyFat: body.bodyFat == null ? undefined : Number(body.bodyFat),
     note: body.note || undefined,
-    uri: body.uri || undefined,
+    uri: photoUri || undefined,
     emoji: body.emoji || '🌱',
     color: body.color || '#E4F3ED',
   };

@@ -101,7 +101,8 @@ function buildQueries(ingredients, mealType = 'any') {
   }
   const flexible = names.find((name) => /牛奶|酸奶|奶油|奶酪|水果|苹果|香蕉|草莓|坚果|核桃|杏仁|花生|燕麦/.test(name));
   if (flexible) queries.push(`${flexible} 早餐 甜品 做法`);
-  return [...new Set(queries)].slice(0, 10);
+  // 保留早餐/甜品等柔性食材搜索，避免被前面的通用查询截掉。
+  return [...new Set(queries)].slice(0, 12);
 }
 
 async function collectVideoEvidence(ingredients, mealType = 'any') {
@@ -127,7 +128,10 @@ async function collectVideoEvidence(ingredients, mealType = 'any') {
 async function discoverRecipeRecommendations(params) {
   if (isMockMode() || !isTextLlmReady()) return mockRecipeRecommendations(params);
   const names = (params.ingredients || []).map((item) => item.name).join('|');
-  const key = `${names}|p${params.people || 1}|t${params.cookTime || 20}|d${params.difficulty || ''}|m${params.mealType || 'any'}|g${params.user?.goal || ''}`;
+  const excluded = [...new Set((params.excludeDishNames || []).map(String).map((name) => name.trim()).filter(Boolean))]
+    .sort()
+    .join('|');
+  const key = `${names}|p${params.people || 1}|t${params.cookTime || 20}|d${params.difficulty || ''}|m${params.mealType || 'any'}|g${params.user?.goal || ''}|x${excluded}`;
   const cached = cache.get(key);
   if (cached && Date.now() - cached.createdAt < CACHE_TTL_MS) return cached.value;
 

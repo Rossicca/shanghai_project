@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Pressable, StyleSheet, Text, type GestureResponderEvent } from 'react-native';
 
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -6,7 +6,7 @@ import { useTheme } from '@/hooks/use-theme';
 type Props = {
   label: string;
   isSelected?: boolean;
-  onPress?: () => void;
+  onPress?: (event: GestureResponderEvent) => void;
   /** 悬浮在视频上时的暗色样式 */
   overlay?: boolean;
 };
@@ -16,15 +16,20 @@ export function CategoryChip({ label, isSelected, onPress, overlay }: Props) {
   const colors = useTheme();
 
   return (
-    <Pressable onPress={onPress}>
+    <Pressable
+      accessibilityRole="tab"
+      accessibilityState={{ selected: Boolean(isSelected) }}
+      accessibilityLabel={`${label}${isSelected ? '，当前分类；双击可换一组' : ''}`}
+      onPress={onPress}
+      style={styles.pressable}>
       <Text
         style={[
           styles.chip,
           overlay
             ? {
-                backgroundColor: isSelected ? colors.primary : 'rgba(0,0,0,0.35)',
-                color: '#fff',
-                borderColor: isSelected ? colors.primary : 'rgba(255,255,255,0.35)',
+                backgroundColor: isSelected ? 'rgba(47,168,134,0.92)' : 'transparent',
+                color: isSelected ? '#fff' : 'rgba(255,255,255,0.78)',
+                borderColor: isSelected ? 'rgba(255,255,255,0.18)' : 'transparent',
               }
             : {
                 backgroundColor: isSelected ? colors.primary : colors.backgroundElement,
@@ -39,12 +44,13 @@ export function CategoryChip({ label, isSelected, onPress, overlay }: Props) {
 }
 
 const styles = StyleSheet.create({
+  pressable: { minHeight: 44, justifyContent: 'center' },
   chip: {
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
     borderRadius: Radius.chip,
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
     borderWidth: 1,
     overflow: 'hidden',
   },

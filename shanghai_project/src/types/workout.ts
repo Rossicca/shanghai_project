@@ -30,8 +30,14 @@ export interface WorkoutVideo {
   sourceUrl?: string;
   /** 视频平台 */
   platform?: 'bilibili' | 'youtube' | 'douyin';
+  /** 封面原始方向，用于避免横图被裁成竖图或反之 */
+  coverOrientation?: 'portrait' | 'landscape' | 'square';
   /** AI 推荐理由 */
   reason: string;
+  /** AI 排序时使用的内容类型 */
+  contentType?: '跟练训练' | '动作教学' | '热身与恢复' | '健身知识' | '健康成果';
+  /** 当前推荐是如何得出的 */
+  recommendationBasis?: string;
   tags?: string[];
 }
 
@@ -42,13 +48,18 @@ export interface BodyData {
   age: number;
   gender: '男' | '女';
   bodyFat?: number; // %
+  chest?: number; // cm
   waist?: number; // cm
   hip?: number; // cm
+  upperArm?: number; // cm
+  thigh?: number; // cm
+  calf?: number; // cm
 }
 
 /** 健身目标 */
 export interface FitnessGoal {
   type: '减脂' | '增肌' | '塑形' | '保持健康';
+  types?: ('减脂' | '增肌' | '塑形' | '保持健康')[];
   targetWeight?: number;
   deadline?: string;
   weeklyFrequency?: number;
@@ -66,14 +77,23 @@ export interface WorkoutRecommendParams {
   limit?: number;
 }
 
+export type WorkoutGoalType = 'lose_fat' | 'gain_muscle' | 'shape' | 'maintain';
+
 export interface WorkoutPlanInput {
-  goalType: 'lose_fat' | 'gain_muscle' | 'shape' | 'maintain';
+  goalType: WorkoutGoalType;
+  goalTypes: WorkoutGoalType[];
   weeklyFrequency: number;
   sessionDurationMinutes: number;
   workoutLocation: 'home' | 'gym' | 'outdoor';
   hasEquipment: boolean;
+  equipment: string[];
   fitnessLevel: 'beginner' | 'intermediate' | 'advanced';
+  trainingMode: 'gentle' | 'balanced' | 'progressive';
   limitations: string[];
+  preferredTraining: string[];
+  dietaryPreferences: string[];
+  allergies: string[];
+  mealsPerDay: number;
 }
 
 export interface WorkoutPlanExercise {
@@ -86,17 +106,85 @@ export interface WorkoutPlanExercise {
   videoUrl: string | null;
 }
 
+export interface WorkoutPlanActivity {
+  name: string;
+  durationSeconds: number;
+  notes: string;
+  videoId: string | null;
+  videoUrl: string | null;
+}
+
 export interface WorkoutPlan {
   planId: string;
   goalType: WorkoutPlanInput['goalType'];
+  goalTypes?: WorkoutGoalType[];
   summary: string;
   weeklySchedule: {
     day: number;
     title: string;
     durationMinutes: number;
+    warmup: WorkoutPlanActivity[];
     exercises: WorkoutPlanExercise[];
+    cooldown: WorkoutPlanActivity[];
+  }[];
+  nutritionSummary?: string;
+  nutritionTargets?: {
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+    water: number;
+  } | null;
+  mealSuggestions?: {
+    mealType: string;
+    name: string;
+    reason: string;
+    ingredients: string[];
+  }[];
+  dietPlan?: {
+    day: number;
+    trainingDay: boolean;
+    focus: string;
+    meals: {
+      mealType: string;
+      name: string;
+      reason: string;
+      ingredients: string[];
+    }[];
+  }[];
+  profileAnalysis?: {
+    bmi: number | null;
+    bmiCategory: string | null;
+    dataCompleteness: number;
+    goalStrategy: 'body_recomposition' | 'primary_plus_secondary' | 'single_goal';
+    goalSummary: string;
+    insights: string[];
+  };
+  profileSnapshot?: BodyData | null;
+  planConditions?: {
+    weeklyFrequency: number;
+    sessionDurationMinutes: number;
+    workoutLocation: WorkoutPlanInput['workoutLocation'];
+    fitnessLevel: WorkoutPlanInput['fitnessLevel'];
+    trainingMode?: WorkoutPlanInput['trainingMode'];
+    equipment: string[];
+    goalTypes?: WorkoutGoalType[];
+    preferredTraining?: string[];
+    dietaryPreferences?: string[];
+    allergies?: string[];
+    mealsPerDay?: number;
+  };
+  isSaved?: boolean;
+  isFavorite?: boolean;
+  evidence?: {
+    title: string;
+    organization: string;
+    url: string;
+    note: string;
   }[];
   reminders: string[];
   disclaimer: string;
+  generationMode?: 'ai' | 'safe_fallback' | 'demo';
+  generationWarning?: string | null;
   createdAt: string;
 }

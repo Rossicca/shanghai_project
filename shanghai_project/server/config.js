@@ -95,4 +95,13 @@ function isVisionReady() {
   return Boolean(config.ai.enabled && config.ai.apiKey && config.ai.visionModel);
 }
 
-module.exports = { config, isMockMode, isTextLlmReady, isVisionReady, getTextProvider, getVisionProvider };
+function getAiStatus() {
+  return {
+    vision: isVisionReady(),
+    text: Boolean(config.ai.enabled && isTextLlmReady()),
+    visionProvider: config.ai.provider || 'volcano',
+    textProvider: config.ai.textBaseURL ? 'deepseek' : (config.ai.provider || 'volcano'),
+  };
+}
+
+module.exports = { config, isMockMode, isTextLlmReady, isVisionReady, getTextProvider, getVisionProvider, getAiStatus };

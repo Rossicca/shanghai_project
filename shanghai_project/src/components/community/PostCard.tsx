@@ -20,6 +20,13 @@ const CATEGORY_COLORS: Record<CommunityPost['category'], string> = {
   晒变化: '#C0664C',
 };
 
+const CATEGORY_ICONS: Record<CommunityPost['category'], keyof typeof Ionicons.glyphMap> = {
+  打卡: 'checkmark-circle-outline',
+  食谱: 'restaurant-outline',
+  提问: 'help-circle-outline',
+  晒变化: 'trending-up-outline',
+};
+
 type Props = {
   post: CommunityPost;
   onToggleLike?: (id: string) => void;
@@ -30,7 +37,7 @@ type Props = {
 /** 分享文案：作者(+标签) · 分类\n内容 */
 function buildShareText(post: CommunityPost): string {
   const author = `${post.author.name}${post.author.tag ? `（${post.author.tag}）` : ''}`;
-  return `${author} · ${post.category}\n${post.content}\n——来自芽芽健康社区`;
+  return `${author} · ${post.category}\n${post.content}`;
 }
 
 /** 社区动态卡片 */
@@ -92,7 +99,7 @@ export function PostCard({ post, onToggleLike, showFollow = true }: Props) {
             router.push({ pathname: '/community/user/[name]', params: { name: post.author.name } })
           }>
           <View style={[styles.avatar, { backgroundColor: colors.primarySoft }]}>
-            <Text style={styles.avatarEmoji}>{post.author.avatar}</Text>
+            <Text style={[styles.avatarInitial, { color: colors.primary }]}>{post.author.name.slice(0, 1)}</Text>
             {/* 好友角标：绝对定位在头像右上，不改变推文排版 */}
             {isFriend ? (
               <View style={[styles.friendBadge, { backgroundColor: colors.warning }]}>
@@ -126,7 +133,10 @@ export function PostCard({ post, onToggleLike, showFollow = true }: Props) {
           <Image source={{ uri: post.image.uri }} style={styles.image} contentFit="cover" />
         ) : (
           <View style={[styles.image, { backgroundColor: post.image.color }]}>
-            <Text style={styles.imageEmoji}>{post.image.emoji}</Text>
+            <View style={[styles.imagePlaceholderIcon, { backgroundColor: `${catColor}20` }]}>
+              <Ionicons name={CATEGORY_ICONS[post.category]} size={30} color={catColor} />
+            </View>
+            <Text style={[styles.imagePlaceholderText, { color: catColor }]}>{post.category}</Text>
           </View>
         )
       ) : null}
@@ -175,7 +185,7 @@ const styles = StyleSheet.create({
   authorMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   authorInfo: { flex: 1 },
   avatar: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  avatarEmoji: { fontSize: 20 },
+  avatarInitial: { fontSize: 15, fontWeight: '800' },
   friendBadge: {
     position: 'absolute',
     top: -3,
@@ -190,9 +200,10 @@ const styles = StyleSheet.create({
   tag: { fontSize: 10, fontWeight: '700', paddingHorizontal: 6, paddingVertical: 2, borderRadius: Radius.chip, overflow: 'hidden' },
   content: { fontSize: 14, lineHeight: 22 },
   image: { height: 120, borderRadius: Radius.card, alignItems: 'center', justifyContent: 'center' },
-  imageEmoji: { fontSize: 44 },
+  imagePlaceholderIcon: { width: 56, height: 56, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  imagePlaceholderText: { marginTop: 7, fontSize: 11, fontWeight: '800' },
   actions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.four, paddingTop: 2 },
-  action: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  action: { minWidth: 44, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 5 },
   actionText: { fontSize: 13, fontWeight: '600' },
   toast: {
     position: 'absolute',

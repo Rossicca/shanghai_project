@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, Image, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { VideoView, useVideoPlayer } from 'expo-video';
 
-import { CATEGORY_ICONS } from '@/constants/fitness';
+import { CATEGORY_ICON_NAMES } from '@/constants/fitness';
 import { API_BASE_URL } from '@/constants/config';
 import type { WorkoutVideo } from '@/types/workout';
 import { openExternalLink } from '@/utils/externalLink';
@@ -26,7 +26,36 @@ export function VideoPlayer({ video, playing = true, onEnd, showControls }: Prop
   const [progress, setProgress] = useState(0);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const [pulse] = useState(() => new Animated.Value(1));
-  const [coverFailed, setCoverFailed] = useState(false);
+  const [measuredCover, setMeasuredCover] = useState<{
+    uri: string;
+    aspect: number | null;
+    failed: boolean;
+  } | null>(null);
+  const isYouTubeCover = video.coverUrl?.startsWith('https://i.ytimg.com/');
+  const coverUri = video.coverUrl
+    ? video.coverUrl.startsWith('/covers/')
+      ? `${API_BASE_URL}${video.coverUrl}`
+      : isYouTubeCover
+        ? video.coverUrl
+        : `${API_BASE_URL}/api/cover?url=${encodeURIComponent(video.coverUrl)}`
+    : null;
+  const coverAspect = measuredCover?.uri === coverUri ? measuredCover.aspect : null;
+  const coverFailed = measuredCover?.uri === coverUri ? measuredCover.failed : false;
+
+  useEffect(() => {
+    if (!coverUri) return;
+    let active = true;
+    Image.getSize(
+      coverUri,
+      (width, height) => {
+        if (active && width > 0 && height > 0) {
+          setMeasuredCover({ uri: coverUri, aspect: width / height, failed: false });
+        }
+      },
+      () => {}
+    );
+    return () => { active = false; };
+  }, [coverUri]);
 
   useEffect(() => {
     let loop: Animated.CompositeAnimation | null = null;
@@ -81,50 +110,73 @@ export function VideoPlayer({ video, playing = true, onEnd, showControls }: Prop
     // 封面分两类：
     // - 本地封面（抖音 seed 下载到 server/data/covers，coverUrl 以 /covers/ 开头）→ 直接走静态目录
     // - 远程封面（B站图床按 Referer 防盗链）→ 走后端 /api/cover 代理，绕开直连 403
-    const coverUri = video.coverUrl
-      ? video.coverUrl.startsWith('/covers/')
-        ? `${API_BASE_URL}${video.coverUrl}`
-        : `${API_BASE_URL}/api/cover?url=${encodeURIComponent(video.coverUrl)}`
-      : null;
     const showCover = !!coverUri && !coverFailed;
+    const isLandscape = coverAspect != null
+      ? coverAspect > 1.15
+      : video.coverOrientation === 'landscape' || (video.platform !== 'douyin' && video.coverOrientation !== 'portrait');
     return (
       <View style={[styles.container, { backgroundColor: video.coverColor }]}>
-        {showCover ? (
+        {showCover && isLandscape ? (
+          <>
+            <Image source={{ uri: coverUri! }} style={StyleSheet.absoluteFill} resizeMode="cover" blurRadius={22} />
+            <View style={styles.landscapeBackdrop} />
+            <Image
+              source={{ uri: coverUri! }}
+              style={[styles.landscapeCover, { aspectRatio: coverAspect || 16 / 9 }]}
+              resizeMode="contain"
+              onError={() => setMeasuredCover({ uri: coverUri!, aspect: coverAspect, failed: true })}
+            />
+          </>
+        ) : showCover ? (
           <Image
             source={{ uri: coverUri! }}
             style={StyleSheet.absoluteFill}
             resizeMode="cover"
-            onError={() => setCoverFailed(true)}
+            onError={() => setMeasuredCover({ uri: coverUri!, aspect: coverAspect, failed: true })}
           />
         ) : (
           <Animated.View style={[styles.emojiWrap, { transform: [{ scale: pulse }] }]}>
-            <Text style={styles.emoji}>{CATEGORY_ICONS[video.category] ?? '💪'}</Text>
+            <Ionicons
+              name={(CATEGORY_ICON_NAMES[video.category] || 'barbell') as keyof typeof Ionicons.glyphMap}
+              size={70}
+              color="rgba(255,255,255,0.94)"
+            />
           </Animated.View>
         )}
-        {showCover ? <View style={styles.coverShade} /> : null}
-        <View style={styles.bottomInfo}>
-          <Text style={styles.playingText}>
-            {playing ? '🔥 跟练中' : '⏸ 已暂停'} · {video.category}
-          </Text>
-          {showControls ? (
+        {showCover ? <View pointerEvents="none" style={styles.coverShade} /> : null}
+        {showControls ? (
+          <View style={styles.bottomInfo}>
+            <View style={styles.playingRow}>
+              <Ionicons name={playing ? 'flame' : 'pause-circle'} size={17} color="#FFFFFF" />
+              <Text style={styles.playingText}>{playing ? '跟练中' : '已暂停'} · {video.category}</Text>
+            </View>
             <Text style={styles.remainText}>还剩 {Math.floor(remain / 60)}:{String(remain % 60).padStart(2, '0')}</Text>
-          ) : null}
-        </View>
-        <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: `${progress}%` }]} />
-        </View>
+          </View>
+        ) : null}
+        {showControls ? <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${progress}%` }]} /></View> : null}
         {showControls ? (
           <View style={styles.tip}>
             <Ionicons name="information-circle-outline" size={14} color="rgba(255,255,255,0.85)" />
             <Text style={styles.tipText}>演示视频：以示范动画代替真实跟练视频</Text>
           </View>
         ) : null}
-        <Pressable style={styles.watchBtn} onPress={openExternal}>
-          <Ionicons name={video.platform === 'douyin' ? 'musical-notes' : 'logo-youtube'} size={20} color="#fff" />
-          <Text style={styles.watchBtnText}>
-            {video.platform === 'bilibili' ? '去B站观看 ›' : video.platform === 'douyin' ? '去抖音观看 ›' : '跳转观看 ›'}
-          </Text>
-        </Pressable>
+        {showControls ? (
+          <Pressable style={[styles.watchBtn, video.platform === 'douyin' && styles.douyinWatchBtn]} onPress={openExternal}>
+            <Ionicons name={video.platform === 'douyin' ? 'musical-notes' : 'logo-youtube'} size={20} color="#fff" />
+            <Text style={styles.watchBtnText}>
+              {video.platform === 'bilibili' ? '去B站观看 ›' : video.platform === 'douyin' ? '去抖音观看 ›' : '跳转观看 ›'}
+            </Text>
+          </Pressable>
+        ) : (
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel={`打开${video.title}`}
+            accessibilityHint="前往视频原平台观看"
+            style={({ pressed }) => [styles.feedPlayButton, pressed && styles.feedPlayButtonPressed]}
+            onPress={openExternal}>
+            <Ionicons name="play" size={24} color="#fff" />
+          </Pressable>
+        )}
       </View>
     );
   }
@@ -133,12 +185,17 @@ export function VideoPlayer({ video, playing = true, onEnd, showControls }: Prop
   return (
     <View style={[styles.container, { backgroundColor: video.coverColor }]}>
       <Animated.View style={[styles.emojiWrap, { transform: [{ scale: pulse }] }]}>
-        <Text style={styles.emoji}>{CATEGORY_ICONS[video.category] ?? '💪'}</Text>
+        <Ionicons
+          name={(CATEGORY_ICON_NAMES[video.category] || 'barbell') as keyof typeof Ionicons.glyphMap}
+          size={70}
+          color="rgba(255,255,255,0.94)"
+        />
       </Animated.View>
       <View style={styles.bottomInfo}>
-        <Text style={styles.playingText}>
-          {playing ? '🔥 跟练中' : '⏸ 已暂停'} · {video.category}
-        </Text>
+        <View style={styles.playingRow}>
+          <Ionicons name={playing ? 'flame' : 'pause-circle'} size={17} color="#FFFFFF" />
+          <Text style={styles.playingText}>{playing ? '跟练中' : '已暂停'} · {video.category}</Text>
+        </View>
         {showControls ? (
           <Text style={styles.remainText}>还剩 {Math.floor(remain / 60)}:{String(remain % 60).padStart(2, '0')}</Text>
         ) : null}
@@ -169,11 +226,13 @@ function RealVideo({ source, playing }: { source: string; playing: boolean }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  container: { flex: 1, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   emojiWrap: { width: 120, height: 120, alignItems: 'center', justifyContent: 'center' },
-  emoji: { fontSize: 72 },
   coverShade: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.25)' },
+  landscapeBackdrop: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(0,0,0,0.5)' },
+  landscapeCover: { width: '100%', maxHeight: '72%' },
   bottomInfo: { position: 'absolute', bottom: 44, alignItems: 'center', gap: 4 },
+  playingRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   playingText: { color: '#fff', fontWeight: '800', fontSize: 16, textShadowColor: 'rgba(0,0,0,0.4)', textShadowRadius: 4 },
   remainText: { color: 'rgba(255,255,255,0.9)', fontSize: 13, fontWeight: '700' },
   progressTrack: { position: 'absolute', top: 6, left: 8, right: 8, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.3)', overflow: 'hidden' },
@@ -192,4 +251,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   watchBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  douyinWatchBtn: { backgroundColor: '#161823' },
+  feedPlayButton: { width: 58, height: 58, borderRadius: 29, backgroundColor: 'rgba(0,0,0,0.42)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.52)', alignItems: 'center', justifyContent: 'center', paddingLeft: 3, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 12, shadowOffset: { width: 0, height: 5 }, elevation: 5 },
+  feedPlayButtonPressed: { transform: [{ scale: 0.94 }], opacity: 0.88 },
 });

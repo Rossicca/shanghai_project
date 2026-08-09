@@ -17,10 +17,13 @@ function mapWorkoutVideo(item: any): WorkoutVideo {
     calories: Number(item.calories || 0),
     coverColor: item.coverColor || '#2FA886',
     coverUrl: item.coverUrl || undefined,
+    coverOrientation: item.coverOrientation || (item.platform === 'douyin' ? 'portrait' : 'landscape'),
     source: typeof item.source === 'string' && /^https?:\/\//.test(item.source) ? item.source : undefined,
     sourceUrl: item.sourceUrl || item.videoUrl || undefined,
     platform: item.platform || 'bilibili',
     reason: item.reason || '\u9002\u5408\u5f53\u524d\u8bad\u7ec3\u76ee\u6807',
+    contentType: item.contentType || undefined,
+    recommendationBasis: item.recommendationBasis || undefined,
     tags: Array.isArray(item.tags) ? item.tags : [],
   };
 }
@@ -74,6 +77,46 @@ export async function generateWorkoutPlan(input: WorkoutPlanInput): Promise<Work
 
 export async function fetchLatestWorkoutPlan(): Promise<WorkoutPlan | null> {
   const res = await api.get('/api/v1/workout-plans/latest');
+  return res.data.data;
+}
+
+export async function refreshWorkoutFeed(params: {
+  category?: string;
+  excludeIds?: string[];
+  limit?: number;
+}): Promise<{
+  items: WorkoutVideo[];
+  generationMode: 'ai' | 'safe_fallback';
+  generationWarning?: string;
+}> {
+  const res = await api.post('/api/v1/workouts/feed/refresh', params, { timeout: AI_TIMEOUT });
+  return {
+    ...res.data.data,
+    items: (res.data.data.items || []).map(mapWorkoutVideo),
+  };
+}
+
+export async function fetchWorkoutPlan(planId: string): Promise<WorkoutPlan> {
+  const res = await api.get(`/api/v1/workout-plans/${encodeURIComponent(planId)}`);
+  return res.data.data;
+}
+
+export async function setWorkoutPlanSaved(planId: string, saved: boolean): Promise<WorkoutPlan> {
+  const res = saved
+    ? await api.post(`/api/v1/workout-plans/${encodeURIComponent(planId)}/save`)
+    : await api.delete(`/api/v1/workout-plans/${encodeURIComponent(planId)}/save`);
+  return res.data.data;
+}
+
+export async function setWorkoutPlanFavorite(planId: string, favorite: boolean): Promise<WorkoutPlan> {
+  const res = favorite
+    ? await api.post(`/api/v1/workout-plans/${encodeURIComponent(planId)}/favorite`)
+    : await api.delete(`/api/v1/workout-plans/${encodeURIComponent(planId)}/favorite`);
+  return res.data.data;
+}
+
+export async function fetchSavedWorkoutPlans(): Promise<WorkoutPlan[]> {
+  const res = await api.get('/api/v1/workout-plans/saved/list');
   return res.data.data;
 }
 

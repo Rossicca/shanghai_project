@@ -3,6 +3,7 @@ const assert = require('assert/strict');
 process.env.AI_FORCE_DEMO = 'true';
 
 const { buildQueries, sanitizeSelectedDish } = require('../recipe-discovery');
+const { mockRecipeRecommendations } = require('../demo-data');
 
 const queries = buildQueries([
   { name: '牛奶' },
@@ -33,5 +34,18 @@ const expandedIngredients = sanitizeSelectedDish({
   missingIngredients: Array.from({ length: 12 }, (_, index) => `食材${index + 1}`),
 });
 assert.equal(expandedIngredients.missingIngredients.length, 10);
+
+const firstBatch = mockRecipeRecommendations({
+  ingredients: [{ name: '鸡蛋' }, { name: '番茄' }],
+  user: { goal: '减脂' },
+});
+assert.equal(firstBatch.length, 6);
+const secondBatch = mockRecipeRecommendations({
+  ingredients: [{ name: '鸡蛋' }, { name: '番茄' }],
+  user: { goal: '减脂' },
+  excludeDishNames: firstBatch.map((item) => item.name),
+});
+assert.equal(secondBatch.length, 6);
+assert.equal(secondBatch.some((item) => firstBatch.some((first) => first.name === item.name)), false);
 
 console.log('PASS: 视频证据驱动的菜谱发现测试通过');

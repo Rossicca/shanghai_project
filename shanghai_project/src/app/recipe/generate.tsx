@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -32,6 +32,7 @@ const PANTRY_LABELS = {
 
 export default function GenerateRecipe() {
   const colors = useTheme();
+  const routeParams = useLocalSearchParams<{ mealType?: string }>();
   const { currentIngredients, generateRecipe, selectRecipe, setRecipeQueue } = useRecipeStore();
   const bodyData = useUserStore((s) => s.bodyData);
   const goal = useUserStore((s) => s.goal);
@@ -41,13 +42,20 @@ export default function GenerateRecipe() {
   const [people, setPeople] = useState(1);
   const [cookTime, setCookTime] = useState(20);
   const [difficulty, setDifficulty] = useState<(typeof DIFFICULTIES)[number]>('简单');
-  const [mealType, setMealType] = useState<(typeof MEAL_TYPES)[number]['value']>('any');
+  const [mealType, setMealType] = useState<(typeof MEAL_TYPES)[number]['value']>(() =>
+    MEAL_TYPES.some((option) => option.value === routeParams.mealType)
+      ? routeParams.mealType as (typeof MEAL_TYPES)[number]['value']
+      : 'any'
+  );
   const [recommendations, setRecommendations] = useState<RecipeCandidate[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [seenDishNames, setSeenDishNames] = useState<string[]>([]);
   const [recommending, setRecommending] = useState(false);
   const [generatingId, setGeneratingId] = useState('');
   const [error, setError] = useState('');
+  const [recommendationWarning, setRecommendationWarning] = useState('');
   const [retryAfter, setRetryAfter] = useState(0);
+  const batchSequence = useRef(0);
 
   useEffect(() => {
     if (retryAfter <= 0) return;
@@ -88,7 +96,9 @@ export default function GenerateRecipe() {
   function clearRecommendations() {
     setRecommendations([]);
     setSelectedIds([]);
+    setSeenDishNames([]);
     setError('');
+    setRecommendationWarning('');
   }
 
   function buildParams(selectedDish?: RecipeGenerateParams['selectedDish']): RecipeGenerateParams {
@@ -107,6 +117,13 @@ export default function GenerateRecipe() {
           weight: bodyData.weight,
           age: bodyData.age,
           gender: bodyData.gender,
+          bodyFat: bodyData.bodyFat,
+          chest: bodyData.chest,
+          waist: bodyData.waist,
+          hip: bodyData.hip,
+          upperArm: bodyData.upperArm,
+          thigh: bodyData.thigh,
+          calf: bodyData.calf,
         } : undefined,
       },
     };
@@ -116,10 +133,30 @@ export default function GenerateRecipe() {
     if (ingredients.length === 0) return;
     setRecommending(true);
     setError('');
+    setRecommendationWarning('');
     try {
-      const next = await recommendRecipes(buildParams());
-      setRecommendations(next);
-      setSelectedIds([]);
+      const preserved = recommendations.filter((item) => selectedIds.includes(item.id));
+      const excluded = recommendations.length > 0
+        ? [...new Set([...seenDishNames, ...recommendations.map((item) => item.name)])]
+        : [];
+      const result = await recommendRecipes({
+        ...buildParams(),
+        excludeDishNames: excluded,
+      });
+      setRecommendationWarning(result.generationWarning || '');
+      batchSequence.current += 1;
+      const batchKey = String(batchSequence.current);
+      const next = result.recommendations.map((item, index) => ({
+        ...item,
+        id: `${item.id}-${batchKey}-${index}`,
+      }));
+      const preservedNames = new Set(preserved.map((item) => item.name));
+      const replacements = next
+        .filter((item) => !preservedNames.has(item.name))
+        .slice(0, Math.max(0, 6 - preserved.length));
+      setRecommendations([...preserved, ...replacements]);
+      setSelectedIds(preserved.map((item) => item.id));
+      setSeenDishNames([...new Set([...excluded, ...next.map((item) => item.name)])]);
     } catch (e) {
       setError((e as Error).message || '推荐失败，请重试');
     } finally {
@@ -347,13 +384,13 @@ export default function GenerateRecipe() {
             <ActivityIndicator color={colors.primary} />
             <ThemedText type="subtitle">AI 正在搭配更多可能…</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
-              先检索真实教程，再结合食材和身体目标筛选 8 种不同做法
+              先检索真实教程，再结合食材和身体目标筛选 6 种不同做法
             </ThemedText>
           </Card>
         ) : recommendations.length === 0 ? (
           <View style={styles.recommendAction}>
             <Button
-              title={ingredients.length === 0 ? '请先添加食材' : 'AI 推荐 8 种做法'}
+              title={ingredients.length === 0 ? '请先添加食材' : 'AI 推荐 6 种做法'}
               icon={ingredients.length === 0 ? 'basket-outline' : 'sparkles'}
               size="large"
               onPress={runRecommend}
@@ -369,11 +406,17 @@ export default function GenerateRecipe() {
 
         {recommendations.length > 0 ? (
           <View style={styles.recommendationSection}>
+            {recommendationWarning ? (
+              <View style={[styles.recommendationWarning, { backgroundColor: colors.yellowSoft }]}>
+                <Ionicons name="information-circle-outline" size={18} color={colors.warning} />
+                <ThemedText type="small" style={{ flex: 1 }}>{recommendationWarning}</ThemedText>
+              </View>
+            ) : null}
             <View style={styles.recommendationHeading}>
               <View style={{ flex: 1 }}>
                 <ThemedText type="title">把想做的先选出来</ThemedText>
                 <ThemedText type="small" themeColor="textSecondary">
-                  可多选；已找到 {recommendations.length} 种有真实教程依据的方案
+                  可多选；换一批只替换未选方案，已勾选的会继续保留
                 </ThemedText>
               </View>
               <Pressable accessibilityRole="button" onPress={runRecommend} disabled={recommending}>
@@ -400,7 +443,7 @@ export default function GenerateRecipe() {
                     ]}>
                     <View style={styles.candidateTop}>
                       <View style={[styles.candidateCover, { backgroundColor: colors.backgroundElement }]}>
-                        <Text style={styles.candidateEmoji}>{candidate.coverEmoji}</Text>
+                        <Ionicons name="restaurant-outline" size={28} color={colors.primary} />
                         {recipeCoverUrl(candidate.sourceVideo?.coverUrl) ? (
                           <Image source={{ uri: recipeCoverUrl(candidate.sourceVideo?.coverUrl) }} style={styles.candidateCoverImage} />
                         ) : null}
@@ -546,6 +589,7 @@ const styles = StyleSheet.create({
   generating: { alignItems: 'center', gap: Spacing.two, paddingVertical: Spacing.four },
   recommendAction: { gap: Spacing.two },
   recommendationSection: { gap: Spacing.three, marginTop: Spacing.two },
+  recommendationWarning: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.two, padding: Spacing.three, borderRadius: Radius.button },
   recommendationHeading: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
   candidateList: { gap: Spacing.two },
   candidate: { borderWidth: 1, borderRadius: Radius.card, padding: Spacing.three, gap: Spacing.two },

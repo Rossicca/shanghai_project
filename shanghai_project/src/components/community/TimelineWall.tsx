@@ -87,7 +87,9 @@ export function TimelineWall({ entries, onAdd, onRemove }: Props) {
       <View style={[styles.cover, { backgroundColor: colors.primarySoft }]}>
         <View style={[styles.coverGlow, styles.glowBig, { backgroundColor: colors.primary }]} />
         <View style={[styles.coverGlow, styles.glowSmall, { backgroundColor: '#FDF0DC' }]} />
-        <Text style={styles.coverEmoji}>🕰️</Text>
+        <View style={styles.coverIcon}>
+          <Ionicons name="time-outline" size={30} color="#16382E" />
+        </View>
         <Text style={styles.coverTitle}>我的时光阁</Text>
         <Text style={styles.coverSub}>把锻炼的每一天，收进这里</Text>
         <View style={styles.statsRow}>
@@ -159,7 +161,7 @@ export function TimelineWall({ entries, onAdd, onRemove }: Props) {
                   <Image source={{ uri: entry.uri }} style={styles.photo} contentFit="cover" />
                 ) : (
                   <View style={[styles.photo, { backgroundColor: entry.color }]}>
-                    <Text style={styles.photoEmoji}>{entry.emoji}</Text>
+                    <Ionicons name="image-outline" size={34} color="#5A7A6F" />
                   </View>
                 )}
                 <View style={styles.cardBody}>
@@ -207,7 +209,7 @@ const styles = StyleSheet.create({
   coverGlow: { position: 'absolute', borderRadius: 999, opacity: 0.35 },
   glowBig: { width: 200, height: 200, top: -90, right: -60 },
   glowSmall: { width: 120, height: 120, bottom: -50, left: -30 },
-  coverEmoji: { fontSize: 40 },
+  coverIcon: { width: 54, height: 54, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.5)', alignItems: 'center', justifyContent: 'center' },
   coverTitle: { fontSize: 22, fontWeight: '800', color: '#16382E', marginTop: Spacing.one },
   coverSub: { fontSize: 12, color: '#5A7A6F' },
   statsRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.four, marginTop: Spacing.three },
@@ -241,7 +243,6 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   photo: { height: 132, alignItems: 'center', justifyContent: 'center' },
-  photoEmoji: { fontSize: 52 },
   cardBody: { padding: Spacing.two + 2, gap: 4 },
   cardMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   date: { fontSize: 12, fontWeight: '700' },

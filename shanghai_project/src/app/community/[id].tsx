@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -31,16 +31,22 @@ const CATEGORY_COLORS: Record<string, string> = {
 export default function CommunityPostDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useTheme();
-  const { posts, commentsByPost, addComment, toggleLike, load, loaded } = useCommunityStore();
+  const { posts, commentsByPost, addComment, toggleLike, load, syncFeed, loaded } = useCommunityStore();
   const post = posts.find((p) => p.id === id);
   const comments = commentsByPost[id ?? ''] ?? [];
   const [draft, setDraft] = useState('');
   // 加载完成且帖子不存在才算「不存在」
   const notFound = loaded && !!id && !posts.some((p) => p.id === id);
 
-  useEffect(() => {
-    if (!loaded) load();
-  }, [loaded, load]);
+  useFocusEffect(
+    useCallback(() => {
+      if (!loaded) load().catch(() => undefined);
+      const timer = setInterval(() => {
+        syncFeed().catch(() => undefined);
+      }, 6000);
+      return () => clearInterval(timer);
+    }, [load, loaded, syncFeed])
+  );
 
   function submit() {
     if (!id) return;

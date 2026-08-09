@@ -102,6 +102,7 @@ export async function saveGoal(goal: FitnessGoal): Promise<void> {
   try {
     await api.put('/api/v1/users/me/goal', {
       goalType: goal.type,
+      goalTypes: goal.types || [goal.type],
       targetWeight: goal.targetWeight,
       targetDate: goal.deadline,
       weeklyFrequency: goal.weeklyFrequency,
@@ -149,13 +150,20 @@ export async function fetchCurrentAccount(): Promise<{
         age: Number(profile.bodyData.age),
         gender: profile.bodyData.gender === 'female' || profile.bodyData.gender === '女' ? '女' : '男',
         bodyFat: profile.bodyData.bodyFat == null ? undefined : Number(profile.bodyData.bodyFat),
+        chest: profile.bodyData.chest == null ? undefined : Number(profile.bodyData.chest),
         waist: profile.bodyData.waist == null ? undefined : Number(profile.bodyData.waist),
         hip: profile.bodyData.hip == null ? undefined : Number(profile.bodyData.hip),
+        upperArm: profile.bodyData.upperArm == null ? undefined : Number(profile.bodyData.upperArm),
+        thigh: profile.bodyData.thigh == null ? undefined : Number(profile.bodyData.thigh),
+        calf: profile.bodyData.calf == null ? undefined : Number(profile.bodyData.calf),
       }
     : null;
   const goal: FitnessGoal | null = profile.fitnessGoal
-    ? {
+      ? {
         type: goalLabel(profile.fitnessGoal.goalType),
+        types: Array.isArray(profile.fitnessGoal.goalTypes)
+          ? profile.fitnessGoal.goalTypes.map(goalLabel)
+          : [goalLabel(profile.fitnessGoal.goalType)],
         targetWeight:
           profile.fitnessGoal.targetWeight == null ? undefined : Number(profile.fitnessGoal.targetWeight),
         deadline: profile.fitnessGoal.targetDate || undefined,

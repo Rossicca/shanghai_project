@@ -17,7 +17,10 @@ interface CommunityState {
   /** 关注我的作者名（演示种子数据，用于互关好友） */
   followers: string[];
   loaded: boolean;
+  isSyncing: boolean;
+  lastSyncedAt: number | null;
   load: () => Promise<void>;
+  syncFeed: () => Promise<void>;
   addPost: (input: {
     content: string;
     category: CommunityPost['category'];
@@ -37,6 +40,8 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   following: [],
   followers: [],
   loaded: false,
+  isSyncing: false,
+  lastSyncedAt: null,
 
   load: async () => {
     const [posts, photos, commentsByPost, following] = await Promise.all([
@@ -57,16 +62,39 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       following,
       followers: communityService.SEED_FOLLOWERS,
       loaded: true,
+      lastSyncedAt: Date.now(),
     });
+  },
+
+  syncFeed: async () => {
+    if (get().isSyncing) return;
+    set({ isSyncing: true });
+    try {
+      const [posts, commentsByPost] = await Promise.all([
+        communityService.loadPosts(),
+        communityService.loadComments(),
+      ]);
+      set({
+        posts: posts.map((post) => ({
+          ...post,
+          comments: commentsByPost[post.id]?.length ?? post.comments,
+        })),
+        commentsByPost,
+        lastSyncedAt: Date.now(),
+      });
+    } finally {
+      set({ isSyncing: false });
+    }
   },
 
   addPost: async ({ content, category, image }) => {
     try {
       // 作者身份由后端从登录用户取出，返回的帖子带真实 id；配图一并上传
       const post = await communityService.createPost({ content, category, image });
-      set((s) => ({ posts: [post, ...s.posts] }));
+      set((s) => ({ posts: [post, ...s.posts], lastSyncedAt: Date.now() }));
     } catch (error) {
       console.warn('[community] 发布失败:', error);
+      throw error;
     }
   },
 

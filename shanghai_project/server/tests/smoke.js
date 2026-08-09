@@ -1,4 +1,5 @@
 const assert = require('assert/strict');
+const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 const yanTestData = require('../../integration/yan-test-data.json');
@@ -6,11 +7,12 @@ const yanTestData = require('../../integration/yan-test-data.json');
 const PORT = Number(process.env.TEST_PORT || 8791);
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 const serverDir = path.resolve(__dirname, '..');
+const testDbPath = path.join(serverDir, 'data', `.smoke-${process.pid}.db`);
 
 function startServer() {
   const child = spawn(process.execPath, ['server.js'], {
     cwd: serverDir,
-    env: { ...process.env, PORT: String(PORT), AI_FORCE_DEMO: 'true' },
+    env: { ...process.env, PORT: String(PORT), AI_FORCE_DEMO: 'true', DB_PATH: testDbPath },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
@@ -51,6 +53,7 @@ async function request(pathname, { method = 'GET', token, body, form, status = 2
 
 async function run() {
   const server = startServer();
+  let communityImagePath;
 
   try {
     await waitForServer();
@@ -80,6 +83,19 @@ async function run() {
     assert.ok(token);
     assert.ok(refreshToken);
 
+    const legacyFeed = await request('/api/workout/recommend', {
+      method: 'POST',
+      body: { goal: { type: '减脂' }, limit: 8 },
+    });
+    assert.ok(legacyFeed.data.videos.some((video) => video.platform === 'douyin'));
+    assert.ok(legacyFeed.data.videos.some((video) => video.platform === 'bilibili'));
+
+    const mixedFeed = await request('/api/v1/workouts/feed?pageSize=6', { token });
+    assert.ok(mixedFeed.data.data.items.some((video) => video.platform === 'douyin'));
+    assert.ok(mixedFeed.data.data.items.some((video) => video.platform === 'bilibili'));
+    assert.ok(mixedFeed.data.data.items.some((video) => video.platform === 'youtube'));
+    assert.ok(mixedFeed.data.data.items.every((video) => !/丰胸|乳沟|升杯|性感|私密|擦边/.test(video.title)));
+
     await request('/api/v1/auth/refresh', {
       method: 'POST',
       body: { refreshToken: token },
@@ -100,7 +116,7 @@ async function run() {
     await request('/api/v1/users/me/goal', {
       method: 'PUT',
       token,
-      body: { goalType: 'lose_fat', targetWeight: 55, activityLevel: 'moderate' },
+      body: { goalType: 'lose_fat', goalTypes: ['lose_fat', 'gain_muscle'], targetWeight: 55, activityLevel: 'moderate' },
     });
     await request('/api/v1/users/me/body-data', {
       method: 'POST', token,
@@ -120,17 +136,29 @@ async function run() {
       method: 'POST',
       token,
       body: {
-        goalType: 'lose_fat', weeklyFrequency: 4, sessionDurationMinutes: 30,
+        goalType: 'lose_fat', goalTypes: ['lose_fat', 'gain_muscle'], weeklyFrequency: 4, sessionDurationMinutes: 30,
         workoutLocation: 'home', hasEquipment: false, fitnessLevel: 'beginner',
-        limitations: ['\u819d\u5173\u8282\u907f\u514d\u9ad8\u51b2\u51fb'],
+        limitations: ['\u819d\u5173\u8282\u907f\u514d\u9ad8\u51b2\u51fb'], preferredTraining: ['strength'],
+        dietaryPreferences: ['balanced'], allergies: [], mealsPerDay: 4,
       },
     });
     assert.equal(workoutPlan.data.data.weeklySchedule.length, 4);
     assert.ok(workoutPlan.data.data.weeklySchedule.every((day) => Array.isArray(day.exercises) && day.exercises.length > 0));
+    assert.ok(workoutPlan.data.data.weeklySchedule.every((day) => Array.isArray(day.warmup) && day.warmup.length >= 3));
+    assert.ok(workoutPlan.data.data.weeklySchedule.every((day) => Array.isArray(day.cooldown) && day.cooldown.length >= 3));
+    assert.ok(workoutPlan.data.data.nutritionTargets?.calories > 0);
+    assert.equal(workoutPlan.data.data.dietPlan.length, 7);
+    assert.equal(workoutPlan.data.data.goalTypes.length, 2);
+    assert.ok(workoutPlan.data.data.profileAnalysis.insights.length >= 3);
+    assert.ok(workoutPlan.data.data.evidence?.length >= 5);
     assert.ok(workoutPlan.data.data.weeklySchedule.flatMap((day) => day.exercises)
-      .every((exercise) => exercise.videoUrl === null || /^https:\/\/(www\.|search\.)?bilibili\.com\//.test(exercise.videoUrl)));
+      .every((exercise) => exercise.videoUrl === null || /^https:\/\/(www\.|search\.)?(bilibili|douyin|youtube)\.com\//.test(exercise.videoUrl) || /^https:\/\/youtu\.be\//.test(exercise.videoUrl)));
     const latestPlan = await request('/api/v1/workout-plans/latest', { token });
     assert.equal(latestPlan.data.data.planId, workoutPlan.data.data.planId);
+    const savedPlan = await request(`/api/v1/workout-plans/${workoutPlan.data.data.planId}/save`, { method: 'POST', token });
+    assert.equal(savedPlan.data.data.isSaved, true);
+    const favoritePlan = await request(`/api/v1/workout-plans/${workoutPlan.data.data.planId}/favorite`, { method: 'POST', token });
+    assert.equal(favoritePlan.data.data.isFavorite, true);
     for (const profile of yanTestData.profiles.slice(1)) {
       const profilePlan = await request('/api/v1/workout-plans/generate', {
         method: 'POST', token,
@@ -260,6 +288,40 @@ async function run() {
       status: 201,
     });
     const secondToken = secondAccount.data.data.accessToken;
+    const communityPost = await request('/api/v1/community/posts', {
+      method: 'POST',
+      token,
+      body: {
+        content: '三人联调共享动态',
+        category: '打卡',
+        image: {
+          emoji: '配图',
+          color: '#E4F3ED',
+          uri: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+        },
+      },
+      status: 201,
+    });
+    const sharedPostId = communityPost.data.data.id;
+    const sharedImageUri = communityPost.data.data.image.uri;
+    assert.ok(sharedImageUri.startsWith('/uploads/community/'));
+    communityImagePath = path.join(serverDir, 'data', sharedImageUri.replace(/^\/uploads\//, ''));
+    const sharedImage = await fetch(`${BASE_URL}${sharedImageUri}`);
+    assert.equal(sharedImage.status, 200);
+
+    const secondAccountFeed = await request('/api/v1/community/posts', { token: secondToken });
+    assert.ok(secondAccountFeed.data.data.posts.some((post) => post.id === sharedPostId));
+    await request(`/api/v1/community/posts/${sharedPostId}/comments`, {
+      method: 'POST', token: secondToken, body: { content: '另一个账号已经看到并评论' }, status: 201,
+    });
+    await request(`/api/v1/community/posts/${sharedPostId}/like`, { method: 'POST', token: secondToken });
+    const firstAccountComments = await request('/api/v1/community/comments', { token });
+    assert.equal(firstAccountComments.data.data.comments[sharedPostId].length, 1);
+    const firstAccountFeed = await request('/api/v1/community/posts', { token });
+    const syncedPost = firstAccountFeed.data.data.posts.find((post) => post.id === sharedPostId);
+    assert.equal(syncedPost.comments, 1);
+    assert.equal(syncedPost.likes, 1);
+
     await request(`/api/v1/recipes/${generatedRecipeId}`, { token: secondToken, status: 404 });
     await request(`/api/v1/recipes/${generatedRecipeId}/save`, { method: 'POST', token: secondToken, status: 404 });
     await request(`/api/v1/recipes/${generatedRecipeId}/reimagine`, {
@@ -288,6 +350,13 @@ async function run() {
       feed.data.data.items.some((first) => secondFeedPage.data.data.items.some((second) => first.id === second.id)),
       false
     );
+    const refreshedFeed = await request('/api/v1/workouts/feed/refresh', {
+      method: 'POST', token,
+      body: { category: 'recommended', limit: 6, excludeIds: feed.data.data.items.map((item) => item.id) },
+    });
+    assert.equal(refreshedFeed.data.data.items.length, 6);
+    assert.equal(refreshedFeed.data.data.generationMode, 'safe_fallback');
+    assert.ok(new Set(refreshedFeed.data.data.items.map((item) => item.platform)).size >= 2);
     const workoutId = feed.data.data.items[0].id;
     await request(`/api/v1/workouts/${workoutId}/complete`, { method: 'POST', token, status: 201 });
     const workoutHistory = await request('/api/v1/workouts/history/list', { token });
@@ -318,7 +387,7 @@ async function run() {
         user: { goal: '保持健康', caloriesTarget: 450 },
       },
     });
-    assert.equal(recommendations.data.data.recommendations.length, 8);
+    assert.equal(recommendations.data.data.recommendations.length, 6);
     assert.ok(new Set(recommendations.data.data.recommendations.map((item) => item.category)).size >= 5);
     const categoryCounts = recommendations.data.data.recommendations.reduce((counts, item) => ({
       ...counts,
@@ -353,6 +422,10 @@ async function run() {
     console.log('PASS: 后端演示模式冒烟测试全部通过');
   } finally {
     server.kill();
+    try { fs.unlinkSync(testDbPath); } catch {}
+    if (communityImagePath) {
+      try { fs.unlinkSync(communityImagePath); } catch {}
+    }
   }
 }
 

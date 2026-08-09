@@ -8,7 +8,6 @@ import {
   ScrollView,
   StyleSheet,
   View,
-  type DimensionValue,
   type ViewToken,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -31,10 +30,13 @@ export default function WorkoutTab() {
     currentCategory,
     isLoading,
     isLoadingMore,
+    isRefreshing,
+    refreshNotice,
     hasMore,
     error,
     savedVideos,
     fetchFeed,
+    refreshFeed,
     switchCategory,
     toggleSave,
     selectVideo,
@@ -46,6 +48,8 @@ export default function WorkoutTab() {
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [listHeight, setListHeight] = useState(0);
+  const [showRefreshNotice, setShowRefreshNotice] = useState(false);
+  const lastCategoryTapRef = useRef<{ category: string; time: number } | null>(null);
   const savedIds = new Set(savedVideos.map((v) => v.id));
 
   const [onViewableItemsChanged] = useState(
@@ -67,6 +71,23 @@ export default function WorkoutTab() {
     setActiveIndex(0);
   }
 
+  function handleCategoryTap(cat: string, timestamp: number) {
+    const lastTap = lastCategoryTapRef.current;
+    const isDoubleTap = lastTap?.category === cat && timestamp - lastTap.time < 360;
+    lastCategoryTapRef.current = isDoubleTap ? null : { category: cat, time: timestamp };
+
+    if (isDoubleTap && cat === currentCategory) {
+      setActiveIndex(0);
+      void refreshFeed({ bodyData: bodyData ?? undefined, goal: goal ?? undefined, limit: 6 })
+        .finally(() => {
+          setShowRefreshNotice(true);
+          setTimeout(() => setShowRefreshNotice(false), 2400);
+        });
+      return;
+    }
+    if (cat !== currentCategory) handleSwitch(cat);
+  }
+
   function openDetail(video: (typeof feed)[number]) {
     addHistory(video);
     selectVideo(video);
@@ -76,19 +97,38 @@ export default function WorkoutTab() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        {/* 分类标签栏（顶部，可横向滚动，支持鼠标滚轮） */}
-        <ScrollView
-          ref={catScrollRef}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoryBar}>
-          {CATEGORIES.map((c) => (
-            <CategoryChip key={c} label={c} isSelected={currentCategory === c} onPress={() => handleSwitch(c)} />
-          ))}
-        </ScrollView>
-
-        {/* 视频区：顶部位于页面上方 1/8 处，向下延伸到底部导航栏 */}
         <View style={styles.feedWrap} onLayout={(e) => setListHeight(e.nativeEvent.layout.height)}>
+          {/* 透明分类导航覆盖在视频顶部 */}
+          <ScrollView
+            ref={catScrollRef}
+            horizontal
+            style={styles.categoryScroll}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoryBar}>
+            {CATEGORIES.map((c) => (
+              <CategoryChip
+                key={c}
+                label={c}
+                overlay
+                isSelected={currentCategory === c}
+                onPress={(event) => handleCategoryTap(c, event.nativeEvent.timestamp)}
+              />
+            ))}
+          </ScrollView>
+
+          {(isRefreshing || showRefreshNotice) && (
+            <View style={styles.refreshToast} pointerEvents="none">
+              {isRefreshing ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Ionicons name="sparkles" size={15} color="#FFFFFF" />
+              )}
+              <ThemedText style={styles.refreshToastText}>
+                {isRefreshing ? 'AI 正在重新挑选' : refreshNotice}
+              </ThemedText>
+            </View>
+          )}
+
           {isLoading && feed.length === 0 ? (
             <View style={styles.loading}>
               <ActivityIndicator size="large" color={colors.primary} />
@@ -145,8 +185,24 @@ export default function WorkoutTab() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   safeArea: { flex: 1 },
-  categoryBar: { gap: Spacing.two, paddingHorizontal: Spacing.three, paddingTop: Spacing.two, paddingBottom: Spacing.two },
+  categoryScroll: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20, height: 58, backgroundColor: 'rgba(7,20,15,0.42)', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.12)' },
+  categoryBar: { gap: Spacing.one, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two, alignItems: 'center' },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.three },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.two, padding: Spacing.four },
-  feedWrap: { position: 'absolute', top: 'calc(6.25% - 7px)' as DimensionValue, left: 0, right: 0, bottom: 0 },
+  feedWrap: { flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden', backgroundColor: '#070B09' },
+  refreshToast: {
+    position: 'absolute',
+    zIndex: 30,
+    top: 66,
+    alignSelf: 'center',
+    minHeight: 36,
+    maxWidth: '88%',
+    paddingHorizontal: Spacing.three,
+    borderRadius: 18,
+    backgroundColor: 'rgba(7,20,15,0.82)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+  },
+  refreshToastText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
 });

@@ -66,7 +66,7 @@ export function MoreSheet({ visible, onClose }: Props) {
               <Ionicons name="leaf" size={18} color="#B07A26" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: colors.text, fontSize: 14 }}>芽芽健康</Text>
+              <Text style={{ color: colors.text, fontSize: 14 }}>核心功能</Text>
               <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 2 }}>
                 拍照识别食物 · 按身体数据推送运动
               </Text>
@@ -84,7 +84,7 @@ export function MoreSheet({ visible, onClose }: Props) {
             </View>
           </View>
 
-          <Text style={[styles.tip, { color: colors.textSecondary }]}>芽芽健康 · 星火计划超级个体挑战赛 demo</Text>
+          <Text style={[styles.tip, { color: colors.textSecondary }]}>训练与饮食建议仅供健康管理参考，不替代医疗诊断</Text>
         </View>
       </View>
     </Modal>

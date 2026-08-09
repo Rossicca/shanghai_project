@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { useEffect, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import {
   Alert,
   Modal,
@@ -31,12 +32,20 @@ import type { TimelineEntry } from '@/types/community';
 type TabKey = 'feed' | 'follow' | 'wall';
 
 const DEMO_COLORS = ['#FDF0DC', '#E7F0FA', '#E4F3ED', '#FCE9E4', '#F0EDFA'];
-const DEMO_EMOJIS = ['🌱', '🏃', '🧘', '💪', '✨', '🏋️', '🥗'];
 
 export default function CommunityTab() {
   const colors = useTheme();
-  const { posts, photos, load, addPost, toggleLike, addPhoto, removePhoto } =
-    useCommunityStore();
+  const {
+    posts,
+    photos,
+    load,
+    syncFeed,
+    isSyncing,
+    addPost,
+    toggleLike,
+    addPhoto,
+    removePhoto,
+  } = useCommunityStore();
   const { bodyData } = useUserStore();
   const [tab, setTab] = useState<TabKey>('feed');
   const [composerOpen, setComposerOpen] = useState(false);
@@ -47,9 +56,15 @@ export default function CommunityTab() {
   const [memoryWeight, setMemoryWeight] = useState('');
   const [memoryNote, setMemoryNote] = useState('');
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      load().catch(() => undefined);
+      const timer = setInterval(() => {
+        syncFeed().catch(() => undefined);
+      }, 6000);
+      return () => clearInterval(timer);
+    }, [load, syncFeed])
+  );
 
   function openMemory() {
     setMemoryWeight(bodyData?.weight != null ? String(bodyData.weight) : '');
@@ -63,10 +78,16 @@ export default function CommunityTab() {
       const res = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: false,
-        quality: 0.7,
+        quality: 0.55,
+        base64: true,
       });
-      if (res.canceled || !res.assets?.[0]?.uri) return;
-      setMemoryUri(res.assets[0].uri);
+      const asset = res.assets?.[0];
+      if (res.canceled || !asset?.uri) return;
+      setMemoryUri(
+        asset.base64
+          ? `data:${asset.mimeType || 'image/jpeg'};base64,${asset.base64}`
+          : asset.uri
+      );
     } catch {
       Alert.alert('选择照片失败', '请换个方式试试');
     }
@@ -79,7 +100,7 @@ export default function CommunityTab() {
       weight: memoryWeight ? Number(memoryWeight) : undefined,
       note: memoryNote.trim() || undefined,
       uri: memoryUri,
-      emoji: DEMO_EMOJIS[photos.length % DEMO_EMOJIS.length],
+      emoji: '',
       color: DEMO_COLORS[photos.length % DEMO_COLORS.length],
     };
     await addPhoto(entry);
@@ -93,7 +114,18 @@ export default function CommunityTab() {
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         {/* 顶部品牌 + 切换 */}
         <View style={styles.header}>
-          <ThemedText style={styles.title}>社区</ThemedText>
+          <View style={styles.headingRow}>
+            <View style={{ flex: 1 }}>
+              <ThemedText style={styles.title}>健康社区</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">分享训练、饮食和每一次小进步</ThemedText>
+            </View>
+            <View style={[styles.communityCount, { backgroundColor: colors.primarySoft }]}>
+              <View style={[styles.liveDot, { backgroundColor: colors.primary }]} />
+              <Text style={[styles.communityCountText, { color: colors.primary }]}>
+                {isSyncing ? '同步中' : '自动同步'}
+              </Text>
+            </View>
+          </View>
           <View style={[styles.segment, { backgroundColor: colors.backgroundElement }]}>
             {(
               [
@@ -125,16 +157,22 @@ export default function CommunityTab() {
             {/* 发动态入口 */}
             <Pressable
               onPress={() => setComposerOpen(true)}
-              style={[styles.compose, { backgroundColor: colors.primary, borderColor: colors.primary }]}>
-              <Ionicons name="create-outline" size={18} color="#fff" />
-              <Text style={styles.composeText}>分享今天的打卡或心得…</Text>
+              style={[styles.compose, { backgroundColor: colors.primarySoft }]}>
+              <View style={[styles.composeIcon, { backgroundColor: colors.primary }]}>
+                <Ionicons name="create-outline" size={18} color="#fff" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.composeText, { color: colors.text }]}>记录今天的新进展</Text>
+                <Text style={[styles.composeHint, { color: colors.textSecondary }]}>训练、饮食或此刻的感受</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.primary} />
             </Pressable>
 
             {posts.map((post) => (
               <PostCard key={post.id} post={post} onToggleLike={toggleLike} />
             ))}
             <ThemedText type="small" themeColor="textSecondary" style={styles.tip}>
-              社区内容为演示数据，仅供展示
+              每 6 秒自动同步 · 你和朋友发布的内容会出现在同一条动态流
             </ThemedText>
           </ScrollView>
         ) : tab === 'follow' ? (
@@ -221,7 +259,11 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   safeArea: { flex: 1 },
   header: { paddingHorizontal: Spacing.three, paddingTop: Spacing.two, gap: Spacing.two },
+  headingRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   title: { fontSize: 24, fontWeight: '800' },
+  communityCount: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 7, borderRadius: Radius.chip },
+  liveDot: { width: 7, height: 7, borderRadius: 4 },
+  communityCountText: { fontSize: 12, fontWeight: '800' },
   segment: {
     flexDirection: 'row',
     padding: 3,
@@ -240,10 +282,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.two,
     padding: Spacing.three,
-    borderRadius: Radius.button,
-    borderWidth: 1,
+    borderRadius: Radius.card,
   },
-  composeText: { color: '#fff', fontSize: 14, fontWeight: '600', opacity: 0.9 },
+  composeIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  composeText: { fontSize: 14, fontWeight: '700' },
+  composeHint: { fontSize: 11, marginTop: 2 },
   empty: { alignItems: 'center', gap: Spacing.two, paddingVertical: Spacing.five },
   emptyDesc: { textAlign: 'center' },
   tip: { textAlign: 'center', marginTop: Spacing.two },
