@@ -13,6 +13,7 @@ import { useTheme } from '@/hooks/use-theme';
 import {
   fetchLatestWorkoutPlan,
   fetchWorkoutPlan,
+  activateWorkoutPlan,
   setWorkoutPlanFavorite,
   setWorkoutPlanSaved,
 } from '@/services/workout';
@@ -61,6 +62,24 @@ export default function WorkoutPlanResultPage() {
       setPlan(await setWorkoutPlanFavorite(plan.planId, !plan.isFavorite));
     } catch (requestError) {
       setError((requestError as Error).message || '收藏失败');
+    } finally {
+      setAction('');
+    }
+  }
+
+  async function confirmPlan() {
+    if (!plan || action) return;
+    if (plan.isActive) {
+      router.replace('/');
+      return;
+    }
+    setAction('activate');
+    setError('');
+    try {
+      setPlan(await activateWorkoutPlan(plan.planId));
+      router.replace('/');
+    } catch (requestError) {
+      setError((requestError as Error).message || '确认计划失败，请重试');
     } finally {
       setAction('');
     }
@@ -169,6 +188,27 @@ export default function WorkoutPlanResultPage() {
               <ThemedText type="small" style={{ flex: 1 }}>{plan.generationWarning}</ThemedText>
             </View>
           ) : null}
+
+          <View style={[styles.confirmPlan, { backgroundColor: plan.isActive ? colors.successSoft : colors.card }]}>
+            <View style={styles.confirmPlanIntro}>
+              <View style={[styles.confirmPlanIcon, { backgroundColor: plan.isActive ? colors.primary : colors.primarySoft }]}>
+                <Ionicons name={plan.isActive ? 'checkmark' : 'home-outline'} size={20} color={plan.isActive ? '#FFFFFF' : colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <ThemedText type="smallBold">{plan.isActive ? '这份计划正在首页执行' : '确认后设为首页当前计划'}</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  {plan.isActive ? '首页会展示今天的训练与饮食安排' : '确认不会删除其他方案，之后仍可重新调整或更换计划'}
+                </ThemedText>
+              </View>
+            </View>
+            <Button
+              title={plan.isActive ? '返回首页查看计划' : '确认计划并显示到首页'}
+              icon={plan.isActive ? 'arrow-forward' : 'checkmark-circle-outline'}
+              size="large"
+              onPress={confirmPlan}
+              loading={action === 'activate'}
+            />
+          </View>
 
           <View style={styles.planActions}>
             <Button
@@ -467,6 +507,9 @@ const styles = StyleSheet.create({
   heroSummary: { color: 'rgba(255,255,255,0.86)', fontSize: 14, lineHeight: 21 }, heroPills: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   heroPill: { color: '#fff', fontSize: 11, fontWeight: '700', backgroundColor: 'rgba(0,0,0,0.13)', paddingHorizontal: 9, paddingVertical: 5, borderRadius: Radius.chip },
   planActions: { flexDirection: 'row', gap: Spacing.two }, sectionCard: { gap: Spacing.three },
+  confirmPlan: { gap: Spacing.three, padding: Spacing.three, borderRadius: Radius.card },
+  confirmPlanIntro: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  confirmPlanIcon: { width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   planSwitch: { flexDirection: 'row', gap: Spacing.one, padding: 4, borderRadius: Radius.card },
   planSwitchButton: { flex: 1, minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingHorizontal: Spacing.two, paddingVertical: 10, borderRadius: 15, borderWidth: 1 },
   planSwitchIcon: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },

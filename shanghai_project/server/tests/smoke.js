@@ -163,6 +163,13 @@ async function run() {
     assert.ok(planActions.every((action) => action.videoTitle && ['douyin', 'bilibili'].includes(action.videoPlatform)));
     const latestPlan = await request('/api/v1/workout-plans/latest', { token });
     assert.equal(latestPlan.data.data.planId, workoutPlan.data.data.planId);
+    const currentBeforeActivation = await request('/api/v1/workout-plans/current', { token });
+    assert.equal(currentBeforeActivation.data.data, null);
+    const activatedPlan = await request(`/api/v1/workout-plans/${workoutPlan.data.data.planId}/activate`, { method: 'POST', token });
+    assert.equal(activatedPlan.data.data.isActive, true);
+    assert.equal(activatedPlan.data.data.isSaved, true);
+    const currentPlan = await request('/api/v1/workout-plans/current', { token });
+    assert.equal(currentPlan.data.data.planId, workoutPlan.data.data.planId);
     const savedPlan = await request(`/api/v1/workout-plans/${workoutPlan.data.data.planId}/save`, { method: 'POST', token });
     assert.equal(savedPlan.data.data.isSaved, true);
     const favoritePlan = await request(`/api/v1/workout-plans/${workoutPlan.data.data.planId}/favorite`, { method: 'POST', token });

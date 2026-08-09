@@ -413,6 +413,7 @@ router.post('/generate', async (req, res) => {
       profileAnalysis: personalizationAnalysis,
       isSaved: 0,
       isFavorite: 0,
+      isActive: 0,
       reminders: normalized.reminders.length ? normalized.reminders : [
         '\u8bad\u7ec3\u524d\u70ed\u8eab 5 \u5206\u949f',
         '\u4efb\u4f55\u52a8\u4f5c\u5f15\u8d77\u660e\u663e\u75bc\u75db\u65f6\u7acb\u5373\u505c\u6b62',
@@ -435,6 +436,18 @@ router.get('/latest', (req, res) => {
   res.json({ data: plan ? serializePlan(plan) : null, message: 'ok' });
 });
 
+router.get('/current', (req, res) => {
+  const plans = db.find('workout_plans', { userId: req.user.userId });
+  const current = plans
+    .filter((plan) => Boolean(plan.isActive))
+    .sort((a, b) => new Date(b.activatedAt || b.createdAt) - new Date(a.activatedAt || a.createdAt))[0]
+    || plans
+      .filter((plan) => Boolean(plan.isSaved))
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0]
+    || null;
+  res.json({ data: current ? serializePlan(current) : null, message: 'ok' });
+});
+
 router.get('/saved/list', (req, res) => {
   const plans = db.find('workout_plans', { userId: req.user.userId })
     .filter((plan) => Boolean(plan.isSaved) || Boolean(plan.isFavorite))
@@ -455,6 +468,24 @@ router.post('/:planId/save', (req, res) => updatePlanFlag(req, res, 'isSaved', t
 router.delete('/:planId/save', (req, res) => updatePlanFlag(req, res, 'isSaved', false));
 router.post('/:planId/favorite', (req, res) => updatePlanFlag(req, res, 'isFavorite', true));
 router.delete('/:planId/favorite', (req, res) => updatePlanFlag(req, res, 'isFavorite', false));
+router.post('/:planId/activate', (req, res) => {
+  const plan = db.findById('workout_plans', req.params.planId);
+  if (!plan || plan.userId !== req.user.userId) {
+    return res.status(404).json({ error: { code: 'PLAN_NOT_FOUND', message: '计划不存在' } });
+  }
+
+  for (const existing of db.find('workout_plans', { userId: req.user.userId })) {
+    if (existing.id !== plan.id && existing.isActive) {
+      db.update('workout_plans', existing.id, { isActive: 0 });
+    }
+  }
+  const updated = db.update('workout_plans', plan.id, {
+    isActive: 1,
+    isSaved: 1,
+    activatedAt: new Date().toISOString(),
+  });
+  return res.json({ data: serializePlan(updated), message: '计划已设为当前计划' });
+});
 
 function serializePlan(plan) {
   return {
@@ -462,6 +493,7 @@ function serializePlan(plan) {
     planId: plan.id,
     isSaved: Boolean(plan.isSaved),
     isFavorite: Boolean(plan.isFavorite),
+    isActive: Boolean(plan.isActive),
   };
 }
 

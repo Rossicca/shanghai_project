@@ -80,6 +80,11 @@ export async function fetchLatestWorkoutPlan(): Promise<WorkoutPlan | null> {
   return res.data.data;
 }
 
+export async function fetchCurrentWorkoutPlan(): Promise<WorkoutPlan | null> {
+  const res = await api.get('/api/v1/workout-plans/current');
+  return res.data.data;
+}
+
 export async function refreshWorkoutFeed(params: {
   category?: string;
   excludeIds?: string[];
@@ -112,6 +117,11 @@ export async function setWorkoutPlanFavorite(planId: string, favorite: boolean):
   const res = favorite
     ? await api.post(`/api/v1/workout-plans/${encodeURIComponent(planId)}/favorite`)
     : await api.delete(`/api/v1/workout-plans/${encodeURIComponent(planId)}/favorite`);
+  return res.data.data;
+}
+
+export async function activateWorkoutPlan(planId: string): Promise<WorkoutPlan> {
+  const res = await api.post(`/api/v1/workout-plans/${encodeURIComponent(planId)}/activate`);
   return res.data.data;
 }
 

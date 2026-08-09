@@ -192,6 +192,7 @@ export interface WorkoutPlan {
   };
   isSaved?: boolean;
   isFavorite?: boolean;
+  isActive?: boolean;
   evidence?: {
     title: string;
     organization: string;

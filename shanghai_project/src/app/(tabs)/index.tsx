@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -14,11 +14,18 @@ import { useCommunityStore } from '@/store/communityStore';
 import { useRecipeStore } from '@/store/recipeStore';
 import { useUserStore } from '@/store/userStore';
 import { useWorkoutStore } from '@/store/workoutStore';
-import { fetchLatestWorkoutPlan } from '@/services/workout';
+import { fetchCurrentWorkoutPlan } from '@/services/workout';
 import { getToken } from '@/services/api';
 import type { WorkoutPlan } from '@/types/workout';
 import { calcBMI, estimateTargetCalories } from '@/utils/nutrition';
 import { useWebHorizontalDrag } from '@/utils/webScroll';
+
+const PLAN_GOAL_LABELS = {
+  lose_fat: '减脂',
+  gain_muscle: '增肌',
+  shape: '塑形',
+  maintain: '保持健康',
+} as const;
 
 export default function HomeScreen() {
   const colors = useTheme();
@@ -27,7 +34,7 @@ export default function HomeScreen() {
   const { history: workoutHistory, loadLocal: loadWorkouts } = useWorkoutStore();
   const { posts: communityPosts, load: loadCommunityPosts, toggleLike } = useCommunityStore();
   const [fastingOpen, setFastingOpen] = useState(false);
-  const [latestPlan, setLatestPlan] = useState<WorkoutPlan | null>(null);
+  const [activePlan, setActivePlan] = useState<WorkoutPlan | null>(null);
   // 今日推荐推文区：支持鼠标拖拽平移
   const postScrollRef = useRef<ScrollView>(null);
   useWebHorizontalDrag(postScrollRef);
@@ -36,8 +43,19 @@ export default function HomeScreen() {
     loadRecipes();
     loadWorkouts();
     loadCommunityPosts();
-    if (getToken()) fetchLatestWorkoutPlan().then(setLatestPlan).catch(() => setLatestPlan(null));
   }, [loadRecipes, loadWorkouts, loadCommunityPosts]);
+
+  useFocusEffect(useCallback(() => {
+    let mounted = true;
+    if (!getToken()) {
+      setActivePlan(null);
+      return undefined;
+    }
+    fetchCurrentWorkoutPlan()
+      .then((plan) => { if (mounted) setActivePlan(plan); })
+      .catch(() => { if (mounted) setActivePlan(null); });
+    return () => { mounted = false; };
+  }, []));
 
   const todayKey = new Date().toDateString();
   const todayRecipes = recipeHistory.filter(
@@ -53,7 +71,13 @@ export default function HomeScreen() {
   const remain = target ? Math.max(0, target - todayIntake) : null;
   const bmi = calcBMI(bodyData);
   const bmiStatus = bmi == null ? '待填写' : bmi < 18.5 ? '偏低' : bmi < 24 ? '正常' : bmi < 28 ? '偏高' : '较高';
-  const weeklyFrequency = goal?.weeklyFrequency ?? latestPlan?.planConditions?.weeklyFrequency ?? 3;
+  const weeklyFrequency = goal?.weeklyFrequency ?? activePlan?.planConditions?.weeklyFrequency ?? 3;
+  const activeGoalLabel = activePlan
+    ? (activePlan.goalTypes?.length ? activePlan.goalTypes : [activePlan.goalType])
+      .map((item) => PLAN_GOAL_LABELS[item])
+      .join(' + ')
+    : '';
+  const currentGoalLabel = goal?.type || activeGoalLabel || '待设置';
   const profileFields = bodyData
     ? [bodyData.height, bodyData.weight, bodyData.age, bodyData.gender, bodyData.waist, bodyData.hip, bodyData.bodyFat]
     : [];
@@ -75,8 +99,8 @@ export default function HomeScreen() {
           ? '下午好'
           : '晚上好';
   const scheduleIndex = ((now.getDay() + 6) % 7);
-  const todayPlanDay = latestPlan?.weeklySchedule?.[scheduleIndex % Math.max(latestPlan?.weeklySchedule?.length || 1, 1)];
-  const todayDietDay = latestPlan?.dietPlan?.[scheduleIndex % Math.max(latestPlan?.dietPlan?.length || 1, 1)];
+  const todayPlanDay = activePlan?.weeklySchedule?.[scheduleIndex % Math.max(activePlan?.weeklySchedule?.length || 1, 1)];
+  const todayDietDay = activePlan?.dietPlan?.[scheduleIndex % Math.max(activePlan?.dietPlan?.length || 1, 1)];
 
   return (
     <ThemedView style={styles.container}>
@@ -87,7 +111,7 @@ export default function HomeScreen() {
             <View style={styles.greet}>
               <ThemedText style={styles.greetTitle}>{greeting}</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                {today} · {goal ? `正在朝“${goal.type}”前进` : '从一份适合你的计划开始'}
+                {today} · {activePlan || goal ? `正在朝“${currentGoalLabel}”前进` : '从一份适合你的计划开始'}
               </ThemedText>
             </View>
             <View style={styles.topIcons}>
@@ -105,18 +129,18 @@ export default function HomeScreen() {
             <Pressable
               accessibilityRole="button"
               onPress={() => {
-                if (latestPlan) router.push({ pathname: '/workout/plan-result', params: { planId: latestPlan.planId } });
+                if (activePlan) router.push({ pathname: '/workout/plan-result', params: { planId: activePlan.planId } });
                 else router.push('/workout/plan');
               }}
               style={[styles.planEntry, { backgroundColor: colors.primary }]}>
               <View style={styles.planTopRow}>
                 <View style={styles.planIcon}>
-                  <Ionicons name={latestPlan ? 'calendar' : 'sparkles'} size={20} color="#fff" />
+                  <Ionicons name={activePlan ? 'calendar' : 'sparkles'} size={20} color="#fff" />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.planTitle}>{latestPlan ? '本周计划已准备好' : '生成专属训练与饮食计划'}</Text>
+                  <Text style={styles.planTitle}>{activePlan ? '当前计划正在进行' : '生成专属训练与饮食计划'}</Text>
                   <Text style={styles.planDescription} numberOfLines={2}>
-                    {latestPlan ? latestPlan.summary : '结合身体数据、目标、器械和每周频率进行安排'}
+                    {activePlan ? activePlan.summary : '结合身体数据、目标、器械和每周频率进行安排'}
                   </Text>
                 </View>
                 <View style={styles.planArrow}>
@@ -126,12 +150,12 @@ export default function HomeScreen() {
               <View style={styles.planMetrics}>
                 <PlanMetric label="身高" value={bodyData ? `${bodyData.height}cm` : '--'} />
                 <PlanMetric label="体重" value={bodyData ? `${bodyData.weight}kg` : '--'} />
-                <PlanMetric label="目标" value={goal?.type ?? '待设置'} />
+                <PlanMetric label="目标" value={currentGoalLabel} />
                 <PlanMetric label="频率" value={`每周${weeklyFrequency}次`} />
               </View>
-              {latestPlan ? (
+              {activePlan ? (
                 <View style={styles.planPreview}>
-                  {latestPlan.weeklySchedule.slice(0, 3).map((day) => (
+                  {activePlan.weeklySchedule.slice(0, 3).map((day) => (
                     <View key={day.day} style={styles.planDay}>
                       <Text style={styles.planDayNumber}>第{day.day}天</Text>
                       <Text style={styles.planDayTitle} numberOfLines={1}>{day.title}</Text>
@@ -278,8 +302,8 @@ export default function HomeScreen() {
             <View style={styles.todayGrid}>
               <Pressable
                 style={[styles.todayTask, { backgroundColor: colors.card }]}
-                onPress={() => latestPlan
-                  ? router.push({ pathname: '/workout/plan-result', params: { planId: latestPlan.planId } })
+                onPress={() => activePlan
+                  ? router.push({ pathname: '/workout/plan-result', params: { planId: activePlan.planId } })
                   : router.push('/workout/plan')}>
                 <View style={[styles.todayIcon, { backgroundColor: colors.successSoft }]}>
                   <Ionicons name="barbell-outline" size={22} color={colors.success} />
