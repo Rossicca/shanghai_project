@@ -33,6 +33,8 @@ export interface Recipe {
     caloriePercentage: number;
     isAcceptable: boolean;
   } | null;
+  generationMode?: 'ai' | 'safe_fallback' | 'demo';
+  generationWarning?: string | null;
 }
 
 export interface RecipeSourceVideo {
@@ -43,7 +45,7 @@ export interface RecipeSourceVideo {
   coverUrl?: string | null;
   sourceUrl: string;
   description?: string;
-  platform: 'bilibili';
+  platform: 'bilibili' | 'douyin';
 }
 
 export interface RecipeVideo {
@@ -55,14 +57,14 @@ export interface RecipeVideo {
   sourceUrl: string;
   playCount?: number;
   reason: string;
-  platform: 'bilibili';
+  platform: 'bilibili' | 'douyin';
 }
 
 export interface RecipeVideoRecommendation {
   query: string;
   searchUrl: string;
   platformSearches: {
-    platform: 'bilibili' | 'douyin' | 'xiaohongshu' | 'youtube';
+    platform: 'bilibili' | 'douyin';
     label: string;
     url: string;
     resultType: 'video' | 'search';
@@ -96,6 +98,8 @@ export interface RecipeGenerateParams {
   cookTime: number;
   difficulty: '简单' | '中等' | '困难';
   mealType: 'any' | 'breakfast' | 'lunch' | 'dinner' | 'dessert';
+  /** 换一批时需要排除的历史菜名，避免 AI 重复上一批。 */
+  excludeDishNames?: string[];
   selectedDish?: Pick<RecipeCandidate, 'name' | 'missingIngredients' | 'pantryLevel' | 'sourceVideo'>;
   /** 用户身体数据/目标（用于热量对比），可空 */
   user?: {
@@ -106,6 +110,13 @@ export interface RecipeGenerateParams {
       weight: number;
       age: number;
       gender: string;
+      bodyFat?: number;
+      chest?: number;
+      waist?: number;
+      hip?: number;
+      upperArm?: number;
+      thigh?: number;
+      calf?: number;
     };
   };
 }

@@ -13,16 +13,35 @@
    - 桌面/平板上：窄屏居中，模拟手机框
    - 手机上：宽度 < 480px 时自然撑满，不受影响
    ============================================ */
+html,
+body {
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+  overflow-x: hidden;
+}
+
 body {
   background: #e9edf0;
 }
 
 #root {
+  width: 100%;
   max-width: 480px;
   margin: 0 auto;
   min-height: 100vh;
+  box-sizing: border-box;
+  overflow-x: hidden;
   background: #ffffff;
   box-shadow: 0 8px 40px rgba(0, 0, 0, 0.12);
+}
+
+/* React Navigation 的顶层容器在窄屏 Web 上不能按内容宽度撑开，否则右侧标签会被裁掉。 */
+#root > div {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 @media (prefers-color-scheme: dark) {

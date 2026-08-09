@@ -56,16 +56,15 @@ async function main() {
       },
     });
     assert.equal(result.rankingMode, 'search');
-    assert.equal(result.videos.length, 2);
+    assert.ok(result.videos.length >= 2 && result.videos.length <= 4);
     assert.equal(result.videos[0].id, 'BV1SOURCE999');
     assert.equal(result.videos[0].sourceUrl, 'https://www.bilibili.com/video/BV1SOURCE999');
     assert.match(result.videos[0].reason, /原教程/);
-    assert.equal(result.videos[1].id, 'BV1TEST12345');
-    assert.equal(result.videos[1].title, '香煎鸡胸肉完整做法');
-    assert.equal(result.videos[1].duration, 515);
+    assert.ok(result.videos.some((video) => video.platform === 'douyin'));
+    assert.ok(result.videos.every((video) => ['douyin', 'bilibili'].includes(video.platform)));
     assert.deepEqual(
       result.platformSearches.map((item) => item.platform),
-      ['bilibili', 'douyin', 'xiaohongshu', 'youtube']
+      ['bilibili', 'douyin']
     );
     assert.ok(result.platformSearches.every((item) => item.url.startsWith('https://')));
     assert.equal(fetchCalls.length, 2);

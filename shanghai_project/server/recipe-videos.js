@@ -1,5 +1,6 @@
 const { rankRecipeVideos } = require('./ai');
-const { bilibiliSearchUrl, searchBilibiliVideos, validateBilibiliVideo } = require('./bilibili-search');
+const { bilibiliSearchUrl, searchBilibiliVideos } = require('./bilibili-search');
+const { findCuratedRecipeVideos, validateRecipeVideo } = require('./curated-recipe-videos');
 
 const CACHE_TTL_MS = 15 * 60 * 1000;
 const cache = new Map();
@@ -9,8 +10,6 @@ function platformSearches(query) {
   return [
     { platform: 'bilibili', label: 'B站', url: bilibiliSearchUrl(query), resultType: 'video' },
     { platform: 'douyin', label: '抖音', url: `https://www.douyin.com/search/${encoded}?type=video`, resultType: 'search' },
-    { platform: 'xiaohongshu', label: '小红书', url: `https://www.xiaohongshu.com/search_result?keyword=${encoded}&source=web_search_result_notes`, resultType: 'search' },
-    { platform: 'youtube', label: 'YouTube', url: `https://www.youtube.com/results?search_query=${encoded}`, resultType: 'search' },
   ];
 }
 
@@ -26,7 +25,7 @@ async function recommendRecipeVideos(recipe) {
     .filter(Boolean)
     .slice(0, 10);
   const query = `${name} 做法 教程`;
-  const preferredVideo = validateBilibiliVideo(recipe?.sourceVideo);
+  const preferredVideo = validateRecipeVideo(recipe?.sourceVideo);
   const key = `${name}|${ingredients.join('|')}|${preferredVideo?.id || ''}`;
   const cached = cache.get(key);
   if (cached && Date.now() - cached.createdAt < CACHE_TTL_MS) return cached.value;
@@ -41,10 +40,15 @@ async function recommendRecipeVideos(recipe) {
   };
 
   try {
-    const searched = await searchBilibiliVideos(query);
+    const [searched, curated] = await Promise.all([
+      searchBilibiliVideos(query).catch(() => []),
+      Promise.resolve(findCuratedRecipeVideos({ name, ingredients })),
+    ]);
+    const merged = [...curated, ...searched];
+    const unique = [...new Map(merged.map((video) => [String(video.id), video])).values()];
     const candidates = preferredVideo
-      ? [preferredVideo, ...searched.filter((video) => video.id !== preferredVideo.id)]
-      : searched;
+      ? [preferredVideo, ...unique.filter((video) => video.id !== preferredVideo.id)]
+      : unique;
     let ranked = [];
     if (candidates.length > 0) {
       try {
@@ -69,18 +73,18 @@ async function recommendRecipeVideos(recipe) {
     const selected = preferredVideo
       ? [preferredVideo, ...ordered.filter((video) => video.id !== preferredVideo.id)]
       : ordered;
-    // AI 排过序就只保留 AI 选中的（宁缺毋滥）；搜索排序则最多取 3 条
-    const maxVideos = ranked.length > 0 ? ranked.length : 3;
+    // AI 排过序就只保留 AI 选中的（宁缺毋滥）；搜索排序最多展示 4 条国内教程。
+    const maxVideos = ranked.length > 0 ? ranked.length : 4;
     result.videos = selected.slice(0, maxVideos).map((video) => ({
       ...video,
       reason: video.id === preferredVideo?.id
         ? '这是你选择菜谱时参考的原教程，菜名、步骤与视频来源保持一致。'
         : video.reason || fallbackReason(name),
-      platform: 'bilibili',
+      platform: video.platform === 'douyin' ? 'douyin' : 'bilibili',
     }));
   } catch (error) {
-    console.warn('[recipe-videos] B站检索失败:', error.message);
-    result.warning = '暂时无法读取视频列表，可打开 B 站继续搜索';
+    console.warn('[recipe-videos] 国内平台检索失败:', error.message);
+    result.warning = '暂时无法读取视频列表，可打开抖音或 B 站继续搜索';
     result.rankingMode = 'fallback';
   }
 

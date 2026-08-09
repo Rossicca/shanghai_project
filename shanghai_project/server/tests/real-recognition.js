@@ -48,6 +48,17 @@ async function main() {
   if (registration.response.status !== 201) throw new Error(`Registration failed: ${JSON.stringify(registration.data)}`);
   const token = registration.data.data.accessToken;
 
+  const foodImageResponse = await fetch('https://upload.wikimedia.org/wikipedia/commons/5/56/Tomato_with_egg.jpg');
+  if (!foodImageResponse.ok) throw new Error(`Food fixture download failed: ${foodImageResponse.status}`);
+  const foodImage = Buffer.from(await foodImageResponse.arrayBuffer()).toString('base64');
+  const food = await request('/api/v1/recognition/upload', {
+    method: 'POST', token, requestId: 'yan-real-food',
+    body: { image: foodImage },
+  });
+  if (!food.response.ok || !Array.isArray(food.data.data?.ingredients) || food.data.data.ingredients.length === 0) {
+    throw new Error(`Food recognition failed: HTTP ${food.response.status} ${JSON.stringify(food.data)}`);
+  }
+
   const imagePath = path.join(__dirname, '..', '..', 'assets', 'images', 'icon.png');
   const nonFood = await request('/api/v1/recognition/upload', {
     method: 'POST', token, requestId: 'yan-real-non-food',
@@ -85,6 +96,10 @@ async function main() {
       status: nonFood.response.status,
       code: nonFood.data.error.code,
       requestId: nonFood.data.error.requestId,
+    },
+    food: {
+      status: food.response.status,
+      ingredients: food.data.data.ingredients.map((item) => item.name),
     },
     recipe: {
       status: recipe.response.status,

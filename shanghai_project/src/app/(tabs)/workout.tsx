@@ -4,11 +4,11 @@ import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   View,
-  type DimensionValue,
   type ViewToken,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -31,10 +31,13 @@ export default function WorkoutTab() {
     currentCategory,
     isLoading,
     isLoadingMore,
+    isRefreshing,
+    refreshNotice,
     hasMore,
     error,
     savedVideos,
     fetchFeed,
+    refreshFeed,
     switchCategory,
     toggleSave,
     selectVideo,
@@ -43,9 +46,15 @@ export default function WorkoutTab() {
   } = useWorkoutStore();
   const bodyData = useUserStore((s) => s.bodyData);
   const goal = useUserStore((s) => s.goal);
+  const userLoaded = useUserStore((s) => s.loaded);
+  const isLoggedIn = useUserStore((s) => s.isLoggedIn);
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [listHeight, setListHeight] = useState(0);
+  const [showRefreshNotice, setShowRefreshNotice] = useState(false);
+  const lastCategoryTapRef = useRef<{ category: string; time: number } | null>(null);
+  const listRef = useRef<FlatList<(typeof feed)[number]>>(null);
+  const wheelLockRef = useRef(0);
   const savedIds = new Set(savedVideos.map((v) => v.id));
 
   const [onViewableItemsChanged] = useState(
@@ -59,12 +68,30 @@ export default function WorkoutTab() {
   useWebHorizontalDrag(catScrollRef, { panOnWheel: true });
 
   useEffect(() => {
+    if (!userLoaded) return;
     fetchFeed({ bodyData: bodyData ?? undefined, goal: goal ?? undefined });
-  }, [fetchFeed, bodyData, goal]);
+  }, [fetchFeed, bodyData, goal, userLoaded, isLoggedIn]);
 
   function handleSwitch(cat: string) {
     switchCategory(cat, { bodyData: bodyData ?? undefined, goal: goal ?? undefined });
     setActiveIndex(0);
+  }
+
+  function handleCategoryTap(cat: string, timestamp: number) {
+    const lastTap = lastCategoryTapRef.current;
+    const isDoubleTap = lastTap?.category === cat && timestamp - lastTap.time < 360;
+    lastCategoryTapRef.current = isDoubleTap ? null : { category: cat, time: timestamp };
+
+    if (isDoubleTap && cat === currentCategory) {
+      setActiveIndex(0);
+      void refreshFeed({ bodyData: bodyData ?? undefined, goal: goal ?? undefined, limit: 6 })
+        .finally(() => {
+          setShowRefreshNotice(true);
+          setTimeout(() => setShowRefreshNotice(false), 2400);
+        });
+      return;
+    }
+    if (cat !== currentCategory) handleSwitch(cat);
   }
 
   function openDetail(video: (typeof feed)[number]) {
@@ -73,22 +100,56 @@ export default function WorkoutTab() {
     router.push({ pathname: '/workout/[id]', params: { id: video.id } });
   }
 
+  function handleWheel(event: any) {
+    if (Platform.OS !== 'web' || !listHeight || Math.abs(Number(event?.nativeEvent?.deltaY ?? event?.deltaY ?? 0)) < 12) return;
+    event.preventDefault?.();
+    const now = Date.now();
+    if (now - wheelLockRef.current < 460) return;
+    wheelLockRef.current = now;
+    const delta = Number(event?.nativeEvent?.deltaY ?? event?.deltaY ?? 0);
+    const nextIndex = Math.max(0, Math.min(feed.length - 1, activeIndex + (delta > 0 ? 1 : -1)));
+    if (nextIndex !== activeIndex) {
+      listRef.current?.scrollToOffset({ offset: nextIndex * listHeight, animated: true });
+      setActiveIndex(nextIndex);
+    }
+    if (delta > 0 && nextIndex >= feed.length - 2 && hasMore) void loadMore();
+  }
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        {/* 分类标签栏（顶部，可横向滚动，支持鼠标滚轮） */}
-        <ScrollView
-          ref={catScrollRef}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoryBar}>
-          {CATEGORIES.map((c) => (
-            <CategoryChip key={c} label={c} isSelected={currentCategory === c} onPress={() => handleSwitch(c)} />
-          ))}
-        </ScrollView>
-
-        {/* 视频区：顶部位于页面上方 1/8 处，向下延伸到底部导航栏 */}
         <View style={styles.feedWrap} onLayout={(e) => setListHeight(e.nativeEvent.layout.height)}>
+          {/* 透明分类导航覆盖在视频顶部 */}
+          <ScrollView
+            ref={catScrollRef}
+            horizontal
+            style={styles.categoryScroll}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoryBar}>
+            {CATEGORIES.map((c) => (
+              <CategoryChip
+                key={c}
+                label={c}
+                overlay
+                isSelected={currentCategory === c}
+                onPress={(event) => handleCategoryTap(c, event.nativeEvent.timestamp)}
+              />
+            ))}
+          </ScrollView>
+
+          {(isRefreshing || showRefreshNotice) && (
+            <View style={styles.refreshToast} pointerEvents="none">
+              {isRefreshing ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Ionicons name="sparkles" size={15} color="#FFFFFF" />
+              )}
+              <ThemedText style={styles.refreshToastText}>
+                {isRefreshing ? 'AI 正在重新挑选' : refreshNotice}
+              </ThemedText>
+            </View>
+          )}
+
           {isLoading && feed.length === 0 ? (
             <View style={styles.loading}>
               <ActivityIndicator size="large" color={colors.primary} />
@@ -113,16 +174,22 @@ export default function WorkoutTab() {
             </View>
           ) : (
             <FlatList
+              ref={listRef}
               data={feed}
               keyExtractor={(v) => v.id}
               pagingEnabled
+              snapToInterval={listHeight || undefined}
+              snapToAlignment="start"
+              decelerationRate="fast"
+              disableIntervalMomentum
               showsVerticalScrollIndicator={false}
               onViewableItemsChanged={onViewableItemsChanged}
               viewabilityConfig={viewabilityConfig}
               onEndReached={() => { if (hasMore) loadMore(); }}
               onEndReachedThreshold={0.6}
-              ListFooterComponent={isLoadingMore ? <ActivityIndicator color={colors.primary} /> : null}
-              style={{ flex: 1 }}
+              getItemLayout={(_, index) => ({ length: listHeight || 600, offset: (listHeight || 600) * index, index })}
+              {...(Platform.OS === 'web' ? ({ onWheel: handleWheel } as any) : {})}
+              style={[styles.feedList, Platform.OS === 'web' ? ({ overflowY: 'hidden' } as any) : null]}
               renderItem={({ item, index }) => (
                 <View style={{ height: listHeight || 600 }}>
                   <WorkoutFeedItem
@@ -136,6 +203,14 @@ export default function WorkoutTab() {
               )}
             />
           )}
+          {feed.length > 0 ? (
+            <View style={styles.feedProgress} pointerEvents="none">
+              {isLoadingMore ? <ActivityIndicator size="small" color="#FFFFFF" /> : null}
+              <ThemedText style={styles.feedProgressText}>
+                {isLoadingMore ? '正在继续挑选' : `${activeIndex + 1} / ${feed.length}${hasMore ? ' · 上滑继续' : ' · 双击分类换一组'}`}
+              </ThemedText>
+            </View>
+          ) : null}
         </View>
       </SafeAreaView>
     </ThemedView>
@@ -145,8 +220,27 @@ export default function WorkoutTab() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   safeArea: { flex: 1 },
-  categoryBar: { gap: Spacing.two, paddingHorizontal: Spacing.three, paddingTop: Spacing.two, paddingBottom: Spacing.two },
+  categoryScroll: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20, height: 58, backgroundColor: 'rgba(7,20,15,0.42)', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.12)' },
+  categoryBar: { gap: Spacing.one, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two, alignItems: 'center' },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.three },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.two, padding: Spacing.four },
-  feedWrap: { position: 'absolute', top: 'calc(6.25% - 7px)' as DimensionValue, left: 0, right: 0, bottom: 0 },
+  feedWrap: { flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden', backgroundColor: '#070B09' },
+  feedList: { flex: 1 },
+  refreshToast: {
+    position: 'absolute',
+    zIndex: 30,
+    top: 66,
+    alignSelf: 'center',
+    minHeight: 36,
+    maxWidth: '88%',
+    paddingHorizontal: Spacing.three,
+    borderRadius: 18,
+    backgroundColor: 'rgba(7,20,15,0.82)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+  },
+  refreshToastText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
+  feedProgress: { position: 'absolute', zIndex: 25, right: 14, top: 68, minHeight: 30, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, borderRadius: 15, backgroundColor: 'rgba(7,20,15,0.62)' },
+  feedProgressText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
 });

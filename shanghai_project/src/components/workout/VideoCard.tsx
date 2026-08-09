@@ -6,7 +6,7 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { Card } from '@/components/ui/Card';
 import { API_BASE_URL } from '@/constants/config';
-import { CATEGORY_ICONS } from '@/constants/fitness';
+import { CATEGORY_ICON_NAMES } from '@/constants/fitness';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { WorkoutVideo } from '@/types/workout';
@@ -35,19 +35,29 @@ export function VideoCard({ video, onPress }: Props) {
     : null;
   const showCover = !!coverUri && !coverFailed;
 
+  const isPortraitCover = video.coverOrientation === 'portrait';
+
   return (
     <Pressable onPress={onPress}>
       <Card style={styles.card} padded={false}>
         <View style={[styles.cover, { backgroundColor: video.coverColor }]}>
           {showCover ? (
-            <Image
-              source={{ uri: coverUri! }}
-              style={StyleSheet.absoluteFill}
-              resizeMode="cover"
-              onError={() => setCoverFailed(true)}
-            />
+            <View style={isPortraitCover ? styles.portraitCoverFrame : StyleSheet.absoluteFill}>
+              <Image
+                source={{ uri: coverUri! }}
+                style={StyleSheet.absoluteFill}
+                resizeMode="cover"
+                onError={() => setCoverFailed(true)}
+              />
+            </View>
           ) : (
-            <Text style={styles.coverEmoji}>{CATEGORY_ICONS[video.category] ?? '💪'}</Text>
+            <View style={styles.coverIcon}>
+              <Ionicons
+                name={(CATEGORY_ICON_NAMES[video.category] || 'barbell') as keyof typeof Ionicons.glyphMap}
+                size={46}
+                color="rgba(255,255,255,0.92)"
+              />
+            </View>
           )}
           <View style={styles.durationBadge}>
             <Text style={styles.durationText}>{fmtDuration(video.duration)}</Text>
@@ -80,7 +90,8 @@ export function VideoCard({ video, onPress }: Props) {
 const styles = StyleSheet.create({
   card: { overflow: 'hidden' },
   cover: { height: 120, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  coverEmoji: { fontSize: 52 },
+  portraitCoverFrame: { height: '100%', aspectRatio: 9 / 16, overflow: 'hidden' },
+  coverIcon: { width: 76, height: 76, borderRadius: 24, backgroundColor: 'rgba(0,0,0,0.12)', alignItems: 'center', justifyContent: 'center' },
   durationBadge: { position: 'absolute', bottom: 6, right: 6, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 },
   durationText: { color: '#fff', fontSize: 11, fontWeight: '700' },
   body: { padding: Spacing.three, gap: Spacing.one },

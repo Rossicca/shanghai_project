@@ -21,8 +21,6 @@ function formatDuration(seconds: number) {
 const PLATFORM_ICONS = {
   bilibili: 'tv-outline',
   douyin: 'musical-notes-outline',
-  xiaohongshu: 'book-outline',
-  youtube: 'logo-youtube',
 } as const;
 
 export function RecipeVideoSection({ recipe }: { recipe: Recipe }) {
@@ -87,7 +85,9 @@ export function RecipeVideoSection({ recipe }: { recipe: Recipe }) {
               onPress={() => openUrl(video.sourceUrl)}
               style={({ pressed }) => [styles.video, { opacity: pressed ? 0.72 : 1 }]}>
               <View style={[styles.thumbnail, { backgroundColor: colors.backgroundElement }]}>
-                {recipeCoverUrl(video.coverUrl) ? <Image source={{ uri: recipeCoverUrl(video.coverUrl) }} style={styles.image} /> : null}
+                {recipeCoverUrl(video.coverUrl || recipe.sourceVideo?.coverUrl) ? <Image source={{ uri: recipeCoverUrl(video.coverUrl || recipe.sourceVideo?.coverUrl) }} style={styles.image} /> : (
+                  <View style={styles.imageFallback}><Ionicons name="restaurant-outline" size={24} color={colors.primary} /></View>
+                )}
                 <View style={styles.playBadge}>
                   <Ionicons name="play" size={16} color="#FFFFFF" />
                 </View>
@@ -98,8 +98,12 @@ export function RecipeVideoSection({ recipe }: { recipe: Recipe }) {
               <View style={styles.videoCopy}>
                 <ThemedText type="smallBold" numberOfLines={2}>{video.title}</ThemedText>
                 <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
-                  {video.author || 'B站创作者'}
+                  {video.author || (video.platform === 'douyin' ? '抖音创作者' : 'B站创作者')}
                 </ThemedText>
+                <View style={styles.sourceRow}>
+                  <Ionicons name={PLATFORM_ICONS[video.platform]} size={13} color={colors.textSecondary} />
+                  <ThemedText type="small" themeColor="textSecondary">{video.platform === 'douyin' ? '抖音' : 'B站'}</ThemedText>
+                </View>
                 <ThemedText type="small" themeColor="primary" numberOfLines={2}>
                   {video.reason}
                 </ThemedText>
@@ -149,7 +153,7 @@ export function RecipeVideoSection({ recipe }: { recipe: Recipe }) {
       ) : null}
 
       <ThemedText type="small" themeColor="textSecondary">
-        视频来自公开搜索结果，内容与版权归原作者及平台所有
+        仅展示国内平台的公开教程索引，内容与版权归原作者及平台所有
       </ThemedText>
     </Card>
   );
@@ -166,9 +170,11 @@ const styles = StyleSheet.create({
   video: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, minHeight: 92 },
   thumbnail: { width: 116, height: 72, borderRadius: Radius.button, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   image: { width: '100%', height: '100%' },
+  imageFallback: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
   playBadge: { position: 'absolute', width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.68)', alignItems: 'center', justifyContent: 'center' },
   duration: { position: 'absolute', right: 5, bottom: 5, color: '#FFFFFF', backgroundColor: 'rgba(0,0,0,0.72)', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2, fontSize: 11, fontWeight: '700' },
   videoCopy: { flex: 1, minWidth: 0, gap: Spacing.one },
+  sourceRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   moreSection: { gap: Spacing.two },
   platforms: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
   platform: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: Spacing.one, paddingHorizontal: Spacing.three, borderRadius: Radius.button },

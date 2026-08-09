@@ -125,6 +125,14 @@ function mockRecipeRecommendations(params) {
       { name: `${dairy}南瓜浓汤`, emoji: '🥣', category: '汤羹', required: [dairy, '南瓜', '洋葱'], minutes: 25, calories: 300 },
       { name: `香蕉${dairy}燕麦煎饼`, emoji: '🥞', category: '快手早餐', required: [dairy, '香蕉', '燕麦', '鸡蛋'], minutes: 15, calories: 390 },
       { name: `${nut}酸奶水果碗`, emoji: '🍓', category: '轻食加餐', required: [nut, '酸奶', '草莓', '苹果'], minutes: 6, calories: 290 },
+      { name: `${dairy}紫薯燕麦粥`, emoji: '🍠', category: '早餐', required: [dairy, '紫薯', '燕麦'], minutes: 20, calories: 350 },
+      { name: `${nut}香蕉磅蛋糕`, emoji: '🍰', category: '烘焙', required: [nut, '香蕉', '面粉', '鸡蛋'], minutes: 45, calories: 430 },
+      { name: `${dairy}芒果西米露`, emoji: '🥭', category: '甜品', required: [dairy, '芒果', '西米'], minutes: 25, calories: 310 },
+      { name: `${nut}鸡胸沙拉`, emoji: '🥗', category: '高蛋白轻食', required: [nut, '鸡胸肉', '生菜', '番茄'], minutes: 18, calories: 420 },
+      { name: `${dairy}玉米浓汤`, emoji: '🌽', category: '汤羹', required: [dairy, '玉米', '土豆'], minutes: 28, calories: 330 },
+      { name: `${nut}可可燕麦棒`, emoji: '🍫', category: '加餐', required: [nut, '燕麦', '可可粉', '蜂蜜'], minutes: 22, calories: 360 },
+      { name: `${dairy}蘑菇意面`, emoji: '🍝', category: '主食组合', required: [dairy, '蘑菇', '意面'], minutes: 25, calories: 510 },
+      { name: `${nut}南瓜藜麦碗`, emoji: '🎃', category: '轻食主食', required: [nut, '南瓜', '藜麦'], minutes: 30, calories: 440 },
     ];
   } else {
     templates = [
@@ -136,9 +144,20 @@ function mockRecipeRecommendations(params) {
       { name: `${main}彩蔬烘蛋`, emoji: '🥚', category: '高蛋白轻食', required: [main, '鸡蛋', '彩椒', '牛奶'], minutes: 22, calories: 360 },
       { name: `${main}咖喱杂蔬饭`, emoji: '🍛', category: '一锅主食', required: [main, '咖喱', '土豆', '胡萝卜', '米饭'], minutes: 35, calories: 560 },
       { name: `${main}蔬菜蛋饼`, emoji: '🥞', category: '快手早餐', required: [main, '鸡蛋', '面粉', '胡萝卜'], minutes: 16, calories: 400 },
+      { name: `${main}鸡肉卷`, emoji: '🌯', category: '便携主食', required: [main, '鸡胸肉', '全麦饼', '生菜'], minutes: 20, calories: 470 },
+      { name: `${main}豆腐蒸蛋`, emoji: '🥚', category: '高蛋白主菜', required: [main, '豆腐', '鸡蛋'], minutes: 18, calories: 330 },
+      { name: `${main}虾仁藜麦碗`, emoji: '🥗', category: '轻食主食', required: [main, '虾仁', '藜麦', '玉米'], minutes: 25, calories: 450 },
+      { name: `${main}土豆炖鸡`, emoji: '🍲', category: '炖菜', required: [main, '鸡腿肉', '土豆', '胡萝卜'], minutes: 40, calories: 520 },
+      { name: `${main}燕麦咸粥`, emoji: '🥣', category: '快手早餐', required: [main, '燕麦', '鸡蛋'], minutes: 12, calories: 340 },
+      { name: `${main}鲜蔬水饺`, emoji: '🥟', category: '主食组合', required: [main, '饺子皮', '鸡蛋', '香菇'], minutes: 35, calories: 490 },
+      { name: `${main}番茄意面`, emoji: '🍝', category: '西式主食', required: [main, '番茄', '意面'], minutes: 25, calories: 480 },
+      { name: `${main}鸡丝凉拌菜`, emoji: '🥒', category: '凉菜', required: [main, '鸡胸肉', '黄瓜', '胡萝卜'], minutes: 18, calories: 320 },
     ];
   }
-  return templates.map((item, index) => {
+  const excludedNames = new Set(
+    (params.excludeDishNames || []).map(String).map((name) => name.trim()).filter(Boolean),
+  );
+  return templates.filter((item) => !excludedNames.has(item.name)).slice(0, 6).map((item, index) => {
     const availableIngredients = item.required.filter((required) =>
       availableNames.some((owned) => owned.includes(required) || required.includes(owned))
     );

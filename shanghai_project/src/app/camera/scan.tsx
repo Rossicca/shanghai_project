@@ -85,7 +85,8 @@ export default function Scan() {
     setCapturing(true);
     setError('');
     try {
-      const photo = await cameraRef.current.takePictureAsync({ base64: true, quality: 0.45 });
+      // 视觉模型需要保留食材纹理与边缘细节，过低画质容易把肉类、豆制品和蔬菜识别混淆。
+      const photo = await cameraRef.current.takePictureAsync({ base64: true, quality: 0.72 });
       if (!photo) throw new Error('相机没有返回照片');
       const encoded = await readImageBase64(photo.uri, photo.base64);
       if (!encoded) throw new Error('照片数据为空');
@@ -231,7 +232,7 @@ export default function Scan() {
                   </Pressable>
                 </View>
               ))}
-              <Pressable style={styles.addMoreBtn} onPress={takePhoto}>
+              <Pressable style={styles.addMoreBtn} onPress={openCamera}>
                 <Ionicons name="camera" size={24} color={colors.primary} />
                 <ThemedText type="small">拍照</ThemedText>
               </Pressable>

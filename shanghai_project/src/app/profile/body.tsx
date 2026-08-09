@@ -3,7 +3,6 @@ import { useState } from 'react';
 
 import { ThemedView } from '@/components/themed-view';
 import { BodyDataForm } from '@/components/BodyDataForm';
-import { ThemedText } from '@/components/themed-text';
 import { useUserStore } from '@/store/userStore';
 
 export default function BodyDataPage() {
@@ -27,8 +26,7 @@ export default function BodyDataPage() {
 
   return (
     <ThemedView style={{ flex: 1 }}>
-      <BodyDataForm initial={bodyData} onSave={handleSave} saving={saving} />
-      {error ? <ThemedText type="small" themeColor="danger" style={{ paddingHorizontal: 16 }}>{error}</ThemedText> : null}
+      <BodyDataForm initial={bodyData} onSave={handleSave} saving={saving} error={error} />
     </ThemedView>
   );
 }

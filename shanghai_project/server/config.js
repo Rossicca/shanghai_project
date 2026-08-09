@@ -20,6 +20,15 @@ function loadLocalSecrets() {
 const localSecrets = loadLocalSecrets();
 const jwtSecretPath = path.join(__dirname, '.jwt-secret');
 
+function firstDefined(...values) {
+  return values.find((value) => value !== undefined && value !== null && String(value).trim() !== '');
+}
+
+function readBoolean(value, fallback) {
+  if (value === undefined || value === null || value === '') return fallback;
+  return !['0', 'false', 'no', 'off'].includes(String(value).trim().toLowerCase());
+}
+
 function loadOrCreateJwtSecret() {
   const configured = process.env.JWT_SECRET || localSecrets.server?.jwtSecret;
   if (configured) return configured;
@@ -37,6 +46,50 @@ function loadOrCreateJwtSecret() {
 }
 
 const configuredJwtSecret = loadOrCreateJwtSecret();
+const fileAiConfig = {
+  ...publicConfig.ai,
+  ...(localSecrets.ai || {}),
+};
+
+// 本地开发优先使用 config.toml；服务器部署可用环境变量覆盖，避免把密钥提交到 Git。
+const configuredAi = {
+  ...fileAiConfig,
+  enabled: readBoolean(process.env.AI_ENABLED, fileAiConfig.enabled),
+  provider: firstDefined(process.env.AI_PROVIDER, fileAiConfig.provider),
+  apiKey: firstDefined(
+    process.env.VOLCANO_ARK_API_KEY,
+    process.env.ARK_API_KEY,
+    process.env.AI_API_KEY,
+    fileAiConfig.apiKey
+  ),
+  baseURL: firstDefined(
+    process.env.VOLCANO_ARK_BASE_URL,
+    process.env.ARK_BASE_URL,
+    process.env.AI_BASE_URL,
+    fileAiConfig.baseURL
+  ),
+  visionModel: firstDefined(
+    process.env.VOLCANO_VISION_MODEL,
+    process.env.ARK_VISION_MODEL,
+    process.env.AI_VISION_MODEL,
+    fileAiConfig.visionModel
+  ),
+  textApiKey: firstDefined(
+    process.env.DEEPSEEK_API_KEY,
+    process.env.AI_TEXT_API_KEY,
+    fileAiConfig.textApiKey
+  ),
+  textBaseURL: firstDefined(
+    process.env.DEEPSEEK_BASE_URL,
+    process.env.AI_TEXT_BASE_URL,
+    fileAiConfig.textBaseURL
+  ),
+  textModel: firstDefined(
+    process.env.DEEPSEEK_MODEL,
+    process.env.AI_TEXT_MODEL,
+    fileAiConfig.textModel
+  ),
+};
 
 const config = {
   ...publicConfig,
@@ -44,8 +97,7 @@ const config = {
   // 未配置时仅生成本次进程有效的随机密钥，避免仓库内出现可预测密钥。
   jwtSecret: configuredJwtSecret || randomBytes(48).toString('hex'),
   ai: {
-    ...publicConfig.ai,
-    ...(localSecrets.ai || {}),
+    ...configuredAi,
   },
 };
 
@@ -85,14 +137,23 @@ function isMockMode() {
     return !config.ai.baidu?.apiKey || !config.ai.baidu?.secretKey;
   }
   // 至少有一种AI可用（视觉或文本），否则进演示模式
-  const visionReady = Boolean(config.ai.apiKey && config.ai.visionModel);
+  const visionReady = isVisionReady();
   const textReady = isTextLlmReady();
   return !visionReady && !textReady;
 }
 
 /** 仅视觉模型是否可用 */
 function isVisionReady() {
-  return Boolean(config.ai.enabled && config.ai.apiKey && config.ai.visionModel);
+  return Boolean(config.ai.enabled && config.ai.apiKey && config.ai.baseURL && config.ai.visionModel);
 }
 
-module.exports = { config, isMockMode, isTextLlmReady, isVisionReady, getTextProvider, getVisionProvider };
+function getAiStatus() {
+  return {
+    vision: isVisionReady(),
+    text: Boolean(config.ai.enabled && isTextLlmReady()),
+    visionProvider: config.ai.provider || 'volcano',
+    textProvider: config.ai.textBaseURL ? 'deepseek' : (config.ai.provider || 'volcano'),
+  };
+}
+
+module.exports = { config, isMockMode, isTextLlmReady, isVisionReady, getTextProvider, getVisionProvider, getAiStatus };

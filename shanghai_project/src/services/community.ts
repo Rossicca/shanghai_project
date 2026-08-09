@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { API_BASE_URL } from '@/constants/config';
 import { api } from '@/services/api';
 import type { Comment, CommunityPost, TimelineEntry } from '@/types/community';
 
@@ -24,6 +25,21 @@ export type CommentMap = Record<string, Comment[]>;
 /** 关注我的用户（演示种子数据，用于计算互关好友：following ∩ followers） */
 export const SEED_FOLLOWERS: string[] = ['晓雯', '沐沐', 'Kevin'];
 
+function sharedMediaUrl(uri?: string): string | undefined {
+  if (!uri) return undefined;
+  return uri.startsWith('/') ? `${API_BASE_URL}${uri}` : uri;
+}
+
+function normalizePostMedia(post: CommunityPost): CommunityPost {
+  return post.image?.uri
+    ? { ...post, image: { ...post.image, uri: sharedMediaUrl(post.image.uri) } }
+    : post;
+}
+
+function normalizePhotoMedia(photo: TimelineEntry): TimelineEntry {
+  return photo.uri ? { ...photo, uri: sharedMediaUrl(photo.uri) } : photo;
+}
+
 async function getJSON<T>(key: string): Promise<T | null> {
   const raw = await AsyncStorage.getItem(key);
   if (!raw) return null;
@@ -39,14 +55,14 @@ async function setJSON(key: string, value: unknown): Promise<void> {
 }
 
 /** 后端优先：成功则缓存到本地；失败则回退本地缓存 */
-async function withLocalFallback<T>(request: () => Promise<T>, localKey: string): Promise<T> {
+async function withLocalFallback<T>(request: () => Promise<T>, localKey: string, fallback: T): Promise<T> {
   try {
     const data = await request();
     await setJSON(localKey, data);
     return data;
   } catch {
     const cached = await getJSON<T>(localKey);
-    return cached as T;
+    return cached ?? fallback;
   }
 }
 
@@ -58,9 +74,10 @@ export async function loadPosts(): Promise<CommunityPost[]> {
       const res = await api.get('/api/v1/community/posts');
       const posts = res.data?.data?.posts as CommunityPost[];
       if (!Array.isArray(posts)) throw new Error('bad posts response');
-      return posts;
+      return posts.map(normalizePostMedia);
     },
-    KEY_POSTS
+    KEY_POSTS,
+    []
   );
 }
 
@@ -70,9 +87,10 @@ export async function loadPhotos(): Promise<TimelineEntry[]> {
       const res = await api.get('/api/v1/community/photos');
       const photos = res.data?.data?.photos as TimelineEntry[];
       if (!Array.isArray(photos)) throw new Error('bad photos response');
-      return photos;
+      return photos.map(normalizePhotoMedia);
     },
-    KEY_PHOTOS
+    KEY_PHOTOS,
+    []
   );
 }
 
@@ -84,7 +102,8 @@ export async function loadComments(): Promise<CommentMap> {
       if (!comments || typeof comments !== 'object') throw new Error('bad comments response');
       return comments;
     },
-    KEY_COMMENTS
+    KEY_COMMENTS,
+    {}
   );
 }
 
@@ -96,7 +115,8 @@ export async function loadFollowing(): Promise<string[]> {
       if (!Array.isArray(following)) throw new Error('bad following response');
       return following;
     },
-    KEY_FOLLOWING
+    KEY_FOLLOWING,
+    []
   );
 }
 
@@ -112,7 +132,7 @@ export async function createPost(input: {
   const res = await api.post('/api/v1/community/posts', input);
   const post = res.data?.data as CommunityPost;
   if (!post?.id) throw new Error('create post failed');
-  return post;
+  return normalizePostMedia(post);
 }
 
 /** 切换点赞：返回最新 { likes, liked } */
@@ -140,7 +160,7 @@ export async function createPhoto(photo: Omit<TimelineEntry, 'id'>): Promise<Tim
   const res = await api.post('/api/v1/community/photos', photo);
   const created = res.data?.data as TimelineEntry;
   if (!created?.id) throw new Error('create photo failed');
-  return created;
+  return normalizePhotoMedia(created);
 }
 
 /** 删除时光记忆 */

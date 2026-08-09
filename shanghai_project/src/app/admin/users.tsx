@@ -38,7 +38,8 @@ export default function AdminUsers() {
   }, [search]);
 
   useEffect(() => {
-    loadUsers(1);
+    const timer = setTimeout(() => { void loadUsers(1); }, 0);
+    return () => clearTimeout(timer);
   }, [loadUsers]);
 
   function handleRefresh() {

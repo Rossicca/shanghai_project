@@ -21,11 +21,14 @@ interface WorkoutState {
   history: WorkoutVideo[];
   isLoading: boolean;
   isLoadingMore: boolean;
+  isRefreshing: boolean;
+  refreshNotice: string;
   hasMore: boolean;
   page: number;
   error: string;
   selectVideo: (video: WorkoutVideo) => void;
   fetchFeed: (params?: Partial<WorkoutRecommendParams>) => Promise<void>;
+  refreshFeed: (params?: Partial<WorkoutRecommendParams>) => Promise<void>;
   switchCategory: (category: string, params?: Partial<WorkoutRecommendParams>) => Promise<void>;
   loadMore: () => Promise<void>;
   toggleSave: (video: WorkoutVideo) => Promise<void>;
@@ -38,6 +41,7 @@ interface WorkoutState {
 export const useWorkoutStore = create<WorkoutState>((set, get) => ({
   feed: [], categories: [], currentCategory: '\u4e3a\u4f60\u63a8\u8350', selectedVideo: null,
   savedVideos: [], history: [], isLoading: false, isLoadingMore: false,
+  isRefreshing: false, refreshNotice: '',
   hasMore: false, page: 1, error: '',
 
   selectVideo: (selectedVideo) => set({ selectedVideo }),
@@ -47,10 +51,8 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
     try {
       if (getToken()) {
         const slug = CATEGORY_SLUGS[get().currentCategory] || 'recommended';
-        const result = slug === 'recommended'
-          ? await workoutService.fetchFeed({ category: slug, page: 1, pageSize: 6 })
-          : await workoutService.fetchWorkoutsByCategory(slug, { page: 1, pageSize: 6 });
-        set({ feed: result.items, hasMore: result.hasMore, page: 1 });
+        const result = await workoutService.refreshWorkoutFeed({ category: slug, limit: 6 });
+        set({ feed: result.items, hasMore: result.items.length >= 6, page: 1 });
       } else if (get().currentCategory === '\u4e3a\u4f60\u63a8\u8350') {
         const videos = await workoutService.recommendWorkout({
           bodyData: params?.bodyData ?? undefined,
@@ -70,6 +72,36 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
     }
   },
 
+  refreshFeed: async (params) => {
+    if (get().isRefreshing) return;
+    set({ isRefreshing: true, error: '', refreshNotice: '' });
+    try {
+      if (getToken()) {
+        const slug = CATEGORY_SLUGS[get().currentCategory] || 'recommended';
+        const result = await workoutService.refreshWorkoutFeed({
+          category: slug,
+          excludeIds: get().feed.map((video) => video.id),
+          limit: params?.limit ?? 6,
+        });
+        set({
+          feed: result.items,
+          page: 1,
+          hasMore: result.items.length >= 6,
+          refreshNotice: result.generationMode === 'ai'
+            ? '\u5df2\u6839\u636e\u4f60\u7684\u8d44\u6599\u6362\u4e86\u4e00\u7ec4'
+            : (result.generationWarning || '\u5df2\u4ece\u5b89\u5168\u89c6\u9891\u5e93\u6362\u4e86\u4e00\u7ec4'),
+        });
+      } else {
+        await get().fetchFeed(params);
+        set({ refreshNotice: '\u5df2\u4e3a\u4f60\u6362\u4e86\u4e00\u7ec4\u89c6\u9891' });
+      }
+    } catch (error) {
+      set({ error: (error as Error).message || '\u6682\u65f6\u65e0\u6cd5\u5237\u65b0\u63a8\u8350' });
+    } finally {
+      set({ isRefreshing: false });
+    }
+  },
+
   switchCategory: async (currentCategory, params) => {
     set({ currentCategory, feed: [], page: 1, hasMore: false, error: '' });
     await get().fetchFeed(params);
@@ -81,14 +113,17 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
     set({ isLoadingMore: true });
     try {
       const slug = CATEGORY_SLUGS[get().currentCategory] || 'recommended';
-      const result = slug === 'recommended'
-        ? await workoutService.fetchFeed({ category: slug, page: nextPage, pageSize: 6 })
-        : await workoutService.fetchWorkoutsByCategory(slug, { page: nextPage, pageSize: 6 });
+      const result = await workoutService.refreshWorkoutFeed({
+        category: slug,
+        excludeIds: get().feed.map((video) => video.id),
+        limit: 6,
+      });
       const existingIds = new Set(get().feed.map((video) => video.id));
+      const newItems = result.items.filter((video: WorkoutVideo) => !existingIds.has(video.id));
       set({
-        feed: [...get().feed, ...result.items.filter((video: WorkoutVideo) => !existingIds.has(video.id))],
+        feed: [...get().feed, ...newItems],
         page: nextPage,
-        hasMore: result.hasMore,
+        hasMore: newItems.length >= 3,
       });
     } catch (error) {
       set({ error: (error as Error).message || '\u52a0\u8f7d\u66f4\u591a\u5931\u8d25' });
@@ -148,6 +183,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
   clearLocalData: () => set({
     feed: [], categories: [], currentCategory: '为你推荐', selectedVideo: null,
     savedVideos: [], history: [], isLoading: false, isLoadingMore: false,
+    isRefreshing: false, refreshNotice: '',
     hasMore: false, page: 1, error: '',
   }),
 }));

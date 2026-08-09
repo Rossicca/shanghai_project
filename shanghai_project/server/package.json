@@ -10,7 +10,12 @@
     "test:smoke": "node tests/smoke.js",
     "test:recipe-videos": "node tests/recipe-videos.js",
     "test:recipe-discovery": "node tests/recipe-discovery.js",
-    "test:ai-quality": "node tests/ai-quality.js"
+    "test:workout-video-matching": "node tests/workout-video-matching.js",
+    "test:ai-fallback": "node tests/ai-fallback.js",
+    "test:recognition-error": "node tests/recognition-error.js",
+    "test:ai-quality": "node tests/ai-quality.js",
+    "test:ai-live": "node tests/ark-endpoints.js",
+    "test:recognition-live": "node tests/real-recognition.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

@@ -21,6 +21,8 @@ function mapRecipe(data: any): Recipe {
     tips: Array.isArray(data.tips) ? data.tips : [],
     servings: Number(data.servings || 1),
     nutritionTarget: data.nutritionTarget || null,
+    generationMode: data.generationMode || undefined,
+    generationWarning: data.generationWarning || null,
     createdAt: Date.parse(data.createdAt) || Number(data.createdAt) || Date.now(),
   };
 }
@@ -28,7 +30,7 @@ function mapRecipe(data: any): Recipe {
 /** AI 生成菜谱（旧 API，兼容现有 store） */
 export async function generateRecipe(params: RecipeGenerateParams): Promise<Recipe> {
   const res = await api.post<{ recipe: Recipe }>('/api/recipe/generate', params, { timeout: AI_TIMEOUT });
-  return res.data.recipe;
+  return mapRecipe(res.data.recipe);
 }
 
 /** AI 生成菜谱（新 API） */
@@ -58,25 +60,12 @@ export async function generateRecipeFromSession(
     mealType: params.mealType === 'any' ? undefined : params.mealType,
     selectedDish: params.selectedDish,
   });
-  return {
-    id: data.recipeId,
-    name: data.name,
-    description: data.description || '',
-    coverEmoji: data.coverEmoji || '🍽️',
-    sourceVideo: data.sourceVideo || null,
-    calories: Number(data.nutrition?.calories || 0),
-    protein: Number(data.nutrition?.protein || 0),
-    carbs: Number(data.nutrition?.carbs || 0),
-    fat: Number(data.nutrition?.fat || 0),
-    ingredients: data.ingredients || [],
-    steps: (data.steps || []).map((step: any) => typeof step === 'string' ? step : step.description),
-    cookTime: Number(data.cookTime || params.cookTime),
+  return mapRecipe({
+    ...data,
+    cookTime: data.cookTime || params.cookTime,
     difficulty: data.difficulty || params.difficulty,
-    tips: data.tips || [],
     servings: data.servings || params.people,
-    nutritionTarget: data.nutritionTarget || null,
-    createdAt: Date.parse(data.createdAt) || Date.now(),
-  };
+  });
 }
 
 /** 换做法 */
@@ -118,10 +107,18 @@ export async function fetchRecipeHistory() {
   return res.data.data;
 }
 
-/** 先根据食材和用户数据生成 5–8 个候选，再由用户选择最终菜谱。 */
-export async function recommendRecipes(params: RecipeGenerateParams): Promise<RecipeCandidate[]> {
+/** 先根据食材和用户数据生成 6 个候选，再由用户选择最终菜谱。 */
+export async function recommendRecipes(params: RecipeGenerateParams): Promise<{
+  recommendations: RecipeCandidate[];
+  generationMode: 'ai' | 'safe_fallback';
+  generationWarning?: string | null;
+}> {
   const res = await api.post('/api/recipe/recommendations', params, { timeout: AI_TIMEOUT });
-  return res.data.data.recommendations;
+  return {
+    recommendations: res.data.data.recommendations || [],
+    generationMode: res.data.data.generationMode || 'ai',
+    generationWarning: res.data.data.generationWarning || null,
+  };
 }
 
 /** 实时检索与当前菜谱匹配的公开视频。 */

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -9,21 +9,17 @@ import { ThemedView } from '@/components/themed-view';
 import { Card } from '@/components/ui/Card';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { deleteUser, fetchAdminUserDetail, updateUserRole, type AdminUserDetail } from '@/services/admin';
+import { deleteUser, fetchAdminUserDetail, updateUserRole, type AdminUserDetail as AdminUserDetailData } from '@/services/admin';
 import { alertDialog, confirmDialog } from '@/utils/dialog';
 
 export default function AdminUserDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useTheme();
-  const [detail, setDetail] = useState<AdminUserDetail | null>(null);
+  const [detail, setDetail] = useState<AdminUserDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    loadDetail();
-  }, [id]);
-
-  async function loadDetail() {
+  const loadDetail = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -34,7 +30,12 @@ export default function AdminUserDetail() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [id]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => { void loadDetail(); }, 0);
+    return () => clearTimeout(timer);
+  }, [loadDetail]);
 
   function handleToggleRole() {
     if (!detail) return;
@@ -130,9 +131,10 @@ export default function AdminUserDetail() {
               <ThemedText type="smallBold" style={styles.sectionTitle}>身体数据 ({detail.bodyData.length} 条)</ThemedText>
               {detail.bodyData.slice(0, 5).map((bd: any) => (
                 <Card key={bd.id} style={{ gap: 4 }}>
-                  <ThemedText type="small">
-                    📅 {bd.measuredAt || bd.createdAt?.slice(0, 10)}
-                  </ThemedText>
+                  <View style={styles.dateRow}>
+                    <Ionicons name="calendar-outline" size={15} color={colors.textSecondary} />
+                    <ThemedText type="small">{bd.measuredAt || bd.createdAt?.slice(0, 10)}</ThemedText>
+                  </View>
                   <ThemedText type="small">
                     身高 {bd.height}cm · 体重 {bd.weight}kg · 年龄 {bd.age}
                   </ThemedText>
@@ -183,6 +185,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.two },
   sectionTitle: { marginTop: Spacing.one },
   infoRow: { flexDirection: 'row', alignItems: 'center' },
+  dateRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   dangerBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.two,
     padding: Spacing.three, borderRadius: 16,

@@ -13,7 +13,7 @@ import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { getToken } from '@/services/api';
 import { fetchAdminStats } from '@/services/admin';
-import { fetchDashboard } from '@/services/workout';
+import { fetchDashboard, fetchSavedWorkoutPlans } from '@/services/workout';
 import { useCommunityStore } from '@/store/communityStore';
 import { useRecipeStore } from '@/store/recipeStore';
 import { useUserStore } from '@/store/userStore';
@@ -36,6 +36,7 @@ export default function ProfileTab() {
   const [dashboard, setDashboard] = useState<any>(null);
   const [dashboardError, setDashboardError] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
+  const [savedPlanCount, setSavedPlanCount] = useState(0);
 
   const friendCount = following.filter((n) => followers.includes(n)).length;
 
@@ -46,6 +47,7 @@ export default function ProfileTab() {
     loadCommunity();
     if (getToken()) {
       fetchDashboard().then(setDashboard).catch((error) => setDashboardError(error.message));
+      fetchSavedWorkoutPlans().then((plans) => setSavedPlanCount(plans.length)).catch(() => setSavedPlanCount(0));
       fetchAdminStats().then(() => setIsAdmin(true)).catch(() => setIsAdmin(false));
     }
   }, [load, loadRecipes, loadWorkouts, loadCommunity]);
@@ -84,7 +86,7 @@ export default function ProfileTab() {
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <ScrollView contentContainerStyle={styles.content}>
           {/* 用户头部 */}
-          <View style={styles.header}>
+          <View style={[styles.header, { backgroundColor: colors.card }]}>
             <View style={[styles.avatar, { backgroundColor: colors.primarySoft }]}>
               <Ionicons name="person" size={36} color={colors.primary} />
             </View>
@@ -105,6 +107,9 @@ export default function ProfileTab() {
                 关注 {following.length} · 好友 {friendCount}
               </ThemedText>
             </View>
+            <Pressable accessibilityRole="button" accessibilityLabel="编辑个人资料" hitSlop={8} onPress={() => router.push('/profile/body')}>
+              <Ionicons name="create-outline" size={20} color={colors.textSecondary} />
+            </Pressable>
           </View>
 
           {/* 数据统计看板 */}
@@ -171,6 +176,32 @@ export default function ProfileTab() {
                 <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
               </Card>
             </Pressable>
+            <Pressable onPress={() => router.push('/workout/plans')}>
+              <Card style={styles.row}>
+                <View style={[styles.rowIcon, { backgroundColor: colors.blueSoft }]}>
+                  <Ionicons name="calendar" size={22} color="#557DB3" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <ThemedText type="smallBold">我的训练计划</ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {savedPlanCount ? `已保存或收藏 ${savedPlanCount} 份计划` : '保存计划后可随时回来查看'}
+                  </ThemedText>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+              </Card>
+            </Pressable>
+            <Pressable onPress={() => router.push('/more')}>
+              <Card style={styles.row}>
+                <View style={[styles.rowIcon, { backgroundColor: colors.backgroundElement }]}>
+                  <Ionicons name="settings-outline" size={22} color={colors.textSecondary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <ThemedText type="smallBold">设置</ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">外观、个性化数据与版本说明</ThemedText>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+              </Card>
+            </Pressable>
           </View>
 
           {/* 身体数据趋势 */}
@@ -196,7 +227,7 @@ export default function ProfileTab() {
                 {favoritesPreview.map((item) =>
                   item.kind === 'recipe' ? (
                     <Pressable key={`r${item.r.id}`} onPress={() => openRecipe(item.r)} style={styles.snippet}>
-                      <Text style={styles.snippetEmoji}>{item.r.coverEmoji}</Text>
+                      <Ionicons name="restaurant-outline" size={18} color={colors.primary} />
                       <ThemedText type="small" style={{ flex: 1 }} numberOfLines={1}>
                         {item.r.name}
                       </ThemedText>
@@ -233,7 +264,7 @@ export default function ProfileTab() {
               ))}
               {recipeHistory.slice(0, 3).map((r) => (
                 <Pressable key={r.id} onPress={() => openRecipe(r)} style={styles.snippet}>
-                  <Text style={styles.snippetEmoji}>{r.coverEmoji}</Text>
+                  <Ionicons name="restaurant-outline" size={18} color={colors.primary} />
                   <ThemedText type="small" style={{ flex: 1 }} numberOfLines={1}>
                     {r.name}
                   </ThemedText>
@@ -289,7 +320,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   safeArea: { flex: 1 },
   content: { padding: Spacing.three, gap: Spacing.three },
-  header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
+  header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, padding: Spacing.three, borderRadius: Radius.card },
   followCount: { marginTop: 2 },
   avatar: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center' },
   statsRow: { flexDirection: 'row', gap: Spacing.two },

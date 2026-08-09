@@ -13,7 +13,7 @@ const fs = require('fs');
 const { randomUUID } = require('crypto');
 const https = require('https');
 const { authMiddleware, adminMiddleware } = require('./auth');
-const { config, isMockMode } = require('./config');
+const { config, isMockMode, getAiStatus } = require('./config');
 
 // 路由
 const authRoutes = require('./routes/auth');
@@ -28,9 +28,10 @@ const communityRoutes = require('./routes/community');
 
 // 旧版兼容路由（保持前端现有调用可用）
 const { recognizeFood, generateRecipe, recommendWorkout } = require('./ai');
-const { DEMO_INGREDIENTS, WORKOUT_LIBRARY, pickMockRecipe, mockRecommendWorkout } = require('./demo-data');
+const { DEMO_INGREDIENTS, WORKOUT_LIBRARY, pickMockRecipe, mockRecipeRecommendations, mockRecommendWorkout } = require('./demo-data');
 const { discoverRecipeRecommendations, sanitizeSelectedDish } = require('./recipe-discovery');
 const { recommendRecipeVideos } = require('./recipe-videos');
+const { mergeCuratedWorkoutVideos } = require('./workout-video-safety');
 
 const app = express();
 const PORT = config.port || 8787;
@@ -80,7 +81,12 @@ app.use((req, res, next) => {
 
 // ---- 健康检查 ----
 app.get('/health', (req, res) => {
-  res.json({ ok: true, mode: isMockMode() ? 'demo' : 'real', timestamp: new Date().toISOString() });
+  res.json({
+    ok: true,
+    mode: isMockMode() ? 'demo' : 'real',
+    ai: getAiStatus(),
+    timestamp: new Date().toISOString(),
+  });
 });
 
 // B站封面禁止 localhost 热链；仅代理已验证的官方图片域名。
@@ -133,6 +139,11 @@ app.post('/api/recognize', async (req, res) => {
     const allResults = await Promise.allSettled(
       images.filter((img) => img && String(img).trim()).map((img) => recognizeFood(img))
     );
+    const fulfilledResults = allResults.filter((result) => result.status === 'fulfilled');
+    if (allResults.length > 0 && fulfilledResults.length === 0) {
+      const firstFailure = allResults.find((result) => result.status === 'rejected');
+      throw firstFailure?.reason || new Error('AI 图片识别调用失败');
+    }
     const merged = new Map();
     for (const result of allResults) {
       if (result.status !== 'fulfilled' || !Array.isArray(result.value)) continue;
@@ -162,6 +173,7 @@ app.post('/api/recognize', async (req, res) => {
       error: {
         code: 'AI_RECOGNITION_FAILED',
         message: '\u56fe\u7247\u8bc6\u522b\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5',
+        requestId: req.requestId,
       },
     });
   }
@@ -182,16 +194,32 @@ app.post('/api/recipe/recommendations', async (req, res) => {
       cookTime: req.body.cookTime ?? 30,
       difficulty: req.body.difficulty ?? '简单',
       mealType: req.body.mealType ?? 'any',
+      excludeDishNames: Array.isArray(req.body.excludeDishNames)
+        ? req.body.excludeDishNames.map(String).map((name) => name.trim()).filter(Boolean).slice(0, 60)
+        : [],
       user: req.body.user,
     });
-    res.json({ data: { recommendations } });
-  } catch (error) {
-    console.error('[compat] recipe recommendations error:', error);
-    res.status(502).json({
-      error: { code: 'AI_RECOMMENDATIONS_FAILED', message: '菜谱推荐失败，请稍后重试' },
-    });
-  }
-});
+      res.json({ data: { recommendations, generationMode: 'ai', generationWarning: null } });
+    } catch (error) {
+      console.error('[compat] recipe recommendations error:', error);
+      const recommendations = mockRecipeRecommendations({
+        ingredients: ingredients.slice(0, 15),
+        people: req.body.people ?? 1,
+        cookTime: req.body.cookTime ?? 30,
+        difficulty: req.body.difficulty ?? '简单',
+        mealType: req.body.mealType ?? 'any',
+        excludeDishNames: Array.isArray(req.body.excludeDishNames) ? req.body.excludeDishNames : [],
+        user: req.body.user,
+      });
+      res.json({
+        data: {
+          recommendations,
+          generationMode: 'safe_fallback',
+          generationWarning: 'AI 服务暂时不稳定，已先给出可继续选择的安全推荐。',
+        },
+      });
+    }
+  });
 
 // POST /api/recipe/generate — 生成用户选定菜品的完整菜谱
 app.post('/api/recipe/generate', async (req, res) => {
@@ -236,11 +264,41 @@ app.post('/api/recipe/videos', async (req, res) => {
   }
 });
 
+function mixWorkoutPlatforms(videos) {
+  const groups = new Map();
+  for (const video of videos) {
+    const platform = video.platform || 'bilibili';
+    if (!groups.has(platform)) groups.set(platform, []);
+    groups.get(platform).push(video);
+  }
+  if (groups.size < 2) return videos;
+  const queues = [...groups.values()].sort((a, b) => a.length - b.length);
+  const mixed = [];
+  let added = true;
+  while (added) {
+    added = false;
+    for (const queue of queues) {
+      const next = queue.shift();
+      if (next) {
+        mixed.push(next);
+        added = true;
+      }
+    }
+  }
+  return mixed;
+}
+
+// 社区上传图片：由后端落盘，三人联调时共享访问；不把大段 base64 存进 SQLite。
+const COMMUNITY_UPLOADS_DIR = path.join(__dirname, 'data', 'uploads');
+if (fs.existsSync(COMMUNITY_UPLOADS_DIR)) {
+  app.use('/uploads', express.static(COMMUNITY_UPLOADS_DIR, { maxAge: '7d' }));
+}
+
 // POST /api/workout/recommend — 推荐视频
 app.post('/api/workout/recommend', async (req, res) => {
   try {
     const db = require('./db');
-    let videos = db.readCollection('workout_videos');
+    let videos = mergeCuratedWorkoutVideos(db.readCollection('workout_videos'));
     if (!videos || videos.length === 0) {
       videos = mockRecommendWorkout(req.body);
     } else {
@@ -257,6 +315,7 @@ app.post('/api/workout/recommend', async (req, res) => {
       if (filtered.length >= 4) videos = filtered;
       // 按播放量排序
       videos.sort((a, b) => (b.playCount || 0) - (a.playCount || 0));
+      videos = mixWorkoutPlatforms(videos);
     }
     const limit = req.body.limit || 8;
     res.json({ videos: videos.slice(0, limit) });
@@ -269,12 +328,13 @@ app.post('/api/workout/recommend', async (req, res) => {
 // POST /api/workout/list — 分类视频列表
 app.post('/api/workout/list', (req, res) => {
   const db = require('./db');
-  const videos = db.readCollection('workout_videos');
+  const videos = mergeCuratedWorkoutVideos(db.readCollection('workout_videos'));
   const category = req.body.category;
   const filtered = category
     ? videos.filter((w) => w.category === category)
     : videos;
-  res.json({ videos: filtered.slice(0, 20) });
+  filtered.sort((a, b) => (b.playCount || 0) - (a.playCount || 0));
+  res.json({ videos: mixWorkoutPlatforms(filtered).slice(0, 20) });
 });
 
 // GET /api/workout/categories — 分类列表
@@ -292,22 +352,78 @@ app.get('/api/workout/categories', (req, res) => {
   res.json({ data: cats });
 });
 
-// GET /api/cover — 代理 B站/抖音封面图，绕过 Referer 防盗链
-// 仅允许 B站图床 / 抖音图床 / picsum 兜底图，防 SSRF
+const COVER_THEMES = {
+  '臀腿': ['#245B49', '#55B790'], '全身燃脂': ['#7A3C27', '#F08C61'],
+  '核心': ['#43305F', '#8E6CC4'], '肩背': ['#274A68', '#6094BF'],
+  '手臂': ['#76531E', '#E6A84E'], '有氧': ['#742F3A', '#E36D7D'],
+  '拉伸': ['#17685A', '#47B59D'],
+};
+
+function escapeSvgText(value) {
+  return String(value || '').replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;',
+  })[char]);
+}
+
+function splitCoverTitle(value, maxChars = 11) {
+  const chars = [...String(value || '精选健身内容').replace(/\s+/g, ' ').trim()];
+  const lines = [];
+  while (chars.length && lines.length < 3) lines.push(chars.splice(0, maxChars).join(''));
+  return lines.length ? lines : ['精选健身内容'];
+}
+
+function sendGeneratedCover(req, res) {
+  if (res.headersSent) return;
+  const category = String(req.query.category || '全身燃脂').slice(0, 12);
+  const platform = String(req.query.platform || '国内精选').slice(0, 12);
+  const orientation = req.query.orientation === 'landscape' ? 'landscape' : 'portrait';
+  const [dark, accent] = COVER_THEMES[category] || ['#174F43', '#38AE8C'];
+  const [width, height] = orientation === 'landscape' ? [1600, 900] : [900, 1600];
+  const maxChars = orientation === 'landscape' ? 18 : 11;
+  const titleLines = splitCoverTitle(req.query.title, maxChars);
+  const titleY = orientation === 'landscape' ? 390 : 720;
+  const titleSize = orientation === 'landscape' ? 78 : 72;
+  const lineGap = orientation === 'landscape' ? 92 : 90;
+  const titleSvg = titleLines.map((line, index) =>
+    `<text x="72" y="${titleY + index * lineGap}" fill="#FFFFFF" font-size="${titleSize}" font-weight="800">${escapeSvgText(line)}</text>`
+  ).join('');
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+    <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="${dark}"/><stop offset="1" stop-color="${accent}"/></linearGradient></defs>
+    <rect width="${width}" height="${height}" fill="url(#bg)"/>
+    <circle cx="${width - 80}" cy="120" r="260" fill="#FFFFFF" opacity="0.08"/>
+    <circle cx="${width * 0.72}" cy="${height * 0.78}" r="${orientation === 'landscape' ? 240 : 330}" fill="#071E18" opacity="0.12"/>
+    <path d="M0 ${height * 0.28} L${width} ${height * 0.08} L${width} ${height * 0.18} L0 ${height * 0.38}Z" fill="#FFFFFF" opacity="0.06"/>
+    <rect x="72" y="82" width="${orientation === 'landscape' ? 250 : 230}" height="62" rx="31" fill="#FFFFFF" opacity="0.18"/>
+    <text x="${orientation === 'landscape' ? 197 : 187}" y="123" text-anchor="middle" fill="#FFFFFF" font-size="28" font-weight="700">${escapeSvgText(platform)}</text>
+    <text x="72" y="${titleY - 74}" fill="#FFFFFF" opacity="0.78" font-size="30" font-weight="650">${escapeSvgText(category)} · 安全内容库</text>
+    ${titleSvg}
+    <rect x="72" y="${height - 130}" width="150" height="6" rx="3" fill="#FFFFFF" opacity="0.88"/>
+  </svg>`;
+  res.status(200).set({
+    'Content-Type': 'image/svg+xml; charset=utf-8',
+    'Cache-Control': 'public, max-age=86400',
+    'X-Cover-Fallback': 'generated',
+  }).send(svg);
+}
+
+// 没有远程封面时也返回与分类、标题对应的完整封面，避免纯色空白卡。
+app.get('/api/video-cover', sendGeneratedCover);
+
+// GET /api/cover — 优先代理 B站/抖音真实封面；平台暂时不可达时自动返回生成封面。
+// 仅允许 B站和抖音图床，避免把该接口变成任意 URL 代理。
 app.get('/api/cover', (req, res) => {
   const url = String(req.query.url || '');
   const allowed =
     /^https:\/\/[a-z0-9-]+\.hdslb\.com\/bfs\//.test(url) ||
-    /^https:\/\/[a-z0-9-]+\.douyinpic\.com\//.test(url) ||
-    /^https:\/\/picsum\.photos\//.test(url);
+    /^https:\/\/[a-z0-9-]+\.douyinpic\.com\//.test(url);
   if (!allowed) {
-    return res.status(400).json({ error: { code: 'INVALID_COVER_URL' } });
+    return sendGeneratedCover(req, res);
   }
 
   let hops = 0;
   const fetch = (target) => {
     https
-      .get(target, { headers: { 'User-Agent': 'Mozilla/5.0', Referer: 'https://www.bilibili.com/' } }, (upstream) => {
+      .get(target, { headers: { 'User-Agent': 'Mozilla/5.0', Referer: target.includes('douyinpic.com') ? 'https://www.douyin.com/' : 'https://www.bilibili.com/' } }, (upstream) => {
         const loc = upstream.headers.location;
         if (upstream.statusCode >= 300 && upstream.statusCode < 400 && loc && hops < 3) {
           upstream.resume();
@@ -316,13 +432,13 @@ app.get('/api/cover', (req, res) => {
         }
         if (upstream.statusCode !== 200) {
           upstream.resume();
-          return res.status(502).json({ error: { code: 'COVER_FETCH_FAILED', status: upstream.statusCode } });
+          return sendGeneratedCover(req, res);
         }
         res.setHeader('Content-Type', upstream.headers['content-type'] || 'image/jpeg');
         res.setHeader('Cache-Control', 'public, max-age=86400');
         upstream.pipe(res);
       })
-      .on('error', () => res.status(502).json({ error: { code: 'COVER_FETCH_ERROR' } }));
+      .on('error', () => sendGeneratedCover(req, res));
   };
   fetch(url);
 });

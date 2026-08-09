@@ -11,10 +11,10 @@ import { useTheme } from '@/hooks/use-theme';
 import type { CommunityPost } from '@/types/community';
 
 const CATEGORIES: { key: CommunityPost['category']; label: string }[] = [
-  { key: '打卡', label: '💪 打卡' },
-  { key: '食谱', label: '🥗 食谱' },
-  { key: '晒变化', label: '📸 晒变化' },
-  { key: '提问', label: '🙋 提问' },
+  { key: '打卡', label: '打卡' },
+  { key: '食谱', label: '食谱' },
+  { key: '晒变化', label: '晒变化' },
+  { key: '提问', label: '提问' },
 ];
 
 type Props = {
@@ -24,7 +24,7 @@ type Props = {
     content: string;
     category: CommunityPost['category'];
     image?: CommunityPost['image'];
-  }) => void;
+  }) => Promise<void>;
 };
 
 /** 发动态底部弹层 */
@@ -34,19 +34,30 @@ export function PostComposer({ visible, onClose, onSubmit }: Props) {
   const [content, setContent] = useState('');
   const [category, setCategory] = useState<CommunityPost['category']>('打卡');
   const [image, setImage] = useState<CommunityPost['image'] | undefined>();
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   function reset() {
     setContent('');
     setCategory('打卡');
     setImage(undefined);
+    setSubmitError('');
   }
 
-  function submit() {
+  async function submit() {
     const text = content.trim();
-    if (!text) return;
-    onSubmit({ content: text, category, image });
-    reset();
-    onClose();
+    if (!text || submitting) return;
+    setSubmitting(true);
+    setSubmitError('');
+    try {
+      await onSubmit({ content: text, category, image });
+      reset();
+      onClose();
+    } catch (error) {
+      setSubmitError((error as Error).message || '发布失败，请检查登录状态和网络后重试');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   /** 从相册选一张配图（web 端为文件选择器） */
@@ -55,10 +66,14 @@ export function PostComposer({ visible, onClose, onSubmit }: Props) {
       const res = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: false,
-        quality: 0.7,
+        quality: 0.55,
+        base64: true,
       });
-      if (res.canceled || !res.assets?.[0]?.uri) return;
-      setImage({ uri: res.assets[0].uri, emoji: '📸', color: '#E4F3ED' });
+      const asset = res.assets?.[0];
+      if (res.canceled || !asset?.uri) return;
+      const mimeType = asset.mimeType?.startsWith('image/') ? asset.mimeType : 'image/jpeg';
+      const sharedUri = asset.base64 ? `data:${mimeType};base64,${asset.base64}` : asset.uri;
+      setImage({ uri: sharedUri, emoji: '配图', color: '#E4F3ED' });
     } catch {
       Alert.alert('选择照片失败', '请换个方式试试');
     }
@@ -71,7 +86,7 @@ export function PostComposer({ visible, onClose, onSubmit }: Props) {
         <View style={[styles.sheet, { backgroundColor: colors.card }]}>
           <View style={styles.handle} />
           <View style={[styles.avatarRow, { backgroundColor: colors.primarySoft }]}>
-            <Text style={{ fontSize: 18 }}>🌱</Text>
+            <Ionicons name="leaf" size={17} color={colors.primary} />
             <Text style={[styles.selfName, { color: colors.text }]}>我</Text>
           </View>
           <TextInput
@@ -128,7 +143,8 @@ export function PostComposer({ visible, onClose, onSubmit }: Props) {
               );
             })}
           </View>
-          <Button title="发布" onPress={submit} disabled={!content.trim()} size="large" />
+          {submitError ? <Text style={[styles.submitError, { color: colors.danger }]}>{submitError}</Text> : null}
+          <Button title="发布" onPress={submit} disabled={!content.trim()} loading={submitting} size="large" />
         </View>
       </View>
     </Modal>
@@ -180,4 +196,5 @@ const styles = StyleSheet.create({
   },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
   chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.chip, borderWidth: 1 },
+  submitError: { fontSize: 12, lineHeight: 18 },
 });

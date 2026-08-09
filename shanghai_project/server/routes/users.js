@@ -37,6 +37,7 @@ router.get('/me', (req, res) => {
         role: user.role || 'user',
         fitnessGoal: goal ? {
           goalType: goal.goalType,
+          goalTypes: goal.goalTypes || [goal.goalType],
           targetWeight: goal.targetWeight,
           targetDate: goal.targetDate,
           activityLevel: goal.activityLevel,
@@ -48,8 +49,12 @@ router.get('/me', (req, res) => {
           age: bodyData.age,
           gender: bodyData.gender,
           bodyFat: bodyData.bodyFat,
+          chest: bodyData.chest,
           waist: bodyData.waist,
           hip: bodyData.hip,
+          upperArm: bodyData.upperArm,
+          thigh: bodyData.thigh,
+          calf: bodyData.calf,
           measuredAt: bodyData.measuredAt || bodyData.createdAt?.slice(0, 10),
         } : null,
         preferences: preferences ? {
@@ -103,15 +108,27 @@ router.put('/me', (req, res) => {
  */
 router.post('/me/body-data', (req, res) => {
   try {
-    const { height, weight, age, gender, bodyFat, waist, hip } = req.body;
+    const { height, weight, age, gender, bodyFat, chest, waist, hip, upperArm, thigh, calf } = req.body;
     const numericHeight = Number(height);
     const numericWeight = Number(weight);
     const numericAge = Number(age);
+    const optionalMetrics = { bodyFat, chest, waist, hip, upperArm, thigh, calf };
+    const metricRanges = {
+      bodyFat: [2, 70], chest: [30, 220], waist: [30, 220], hip: [30, 220],
+      upperArm: [10, 100], thigh: [20, 140], calf: [10, 100],
+    };
+    const invalidOptionalMetric = Object.entries(optionalMetrics).some(([key, value]) => {
+      if (value === undefined || value === null || value === '') return false;
+      const numeric = Number(value);
+      const [min, max] = metricRanges[key];
+      return !Number.isFinite(numeric) || numeric < min || numeric > max;
+    });
     if (
       !Number.isFinite(numericHeight) || numericHeight < 80 || numericHeight > 250 ||
       !Number.isFinite(numericWeight) || numericWeight < 20 || numericWeight > 350 ||
       !Number.isFinite(numericAge) || numericAge < 12 || numericAge > 100 ||
-      !['男', '女', 'male', 'female'].includes(gender)
+      !['男', '女', 'male', 'female'].includes(gender) ||
+      invalidOptionalMetric
     ) {
       return res.status(400).json({
         error: { code: 'INVALID_BODY_DATA', message: '请填写有效的身高、体重、年龄和性别' },
@@ -125,8 +142,12 @@ router.post('/me/body-data', (req, res) => {
       age: numericAge,
       gender,
       bodyFat: bodyFat ? Number(bodyFat) : null,
+      chest: chest ? Number(chest) : null,
       waist: waist ? Number(waist) : null,
       hip: hip ? Number(hip) : null,
+      upperArm: upperArm ? Number(upperArm) : null,
+      thigh: thigh ? Number(thigh) : null,
+      calf: calf ? Number(calf) : null,
       measuredAt: new Date().toISOString().slice(0, 10),
     });
 
@@ -185,8 +206,8 @@ router.get('/me/body-data/history', (req, res) => {
  */
 router.put('/me/goal', (req, res) => {
   try {
-    const { goalType, targetWeight, targetDate, activityLevel, weeklyFrequency } = req.body;
-    const allowedGoals = ['lose_fat', 'gain_muscle', 'shape', 'maintain', '减脂', '增肌', '塑形', '保持健康'];
+      const { goalType, targetWeight, targetDate, activityLevel, weeklyFrequency } = req.body;
+      const allowedGoals = ['lose_fat', 'gain_muscle', 'shape', 'maintain', '减脂', '增肌', '塑形', '保持健康'];
     if (!allowedGoals.includes(goalType)) {
       return res.status(400).json({
         error: { code: 'INVALID_GOAL_TYPE', message: '请选择有效的健身目标' },
@@ -195,9 +216,12 @@ router.put('/me/goal', (req, res) => {
 
     // 删除旧目标，创建新目标
     db.removeMany('fitness_goals', { userId: req.user.userId });
-    const goal = db.insert('fitness_goals', {
-      userId: req.user.userId,
-      goalType,
+      const goal = db.insert('fitness_goals', {
+        userId: req.user.userId,
+        goalType,
+        goalTypes: Array.isArray(req.body.goalTypes)
+          ? [...new Set(req.body.goalTypes.filter((item) => allowedGoals.includes(item)))].slice(0, 4)
+          : [goalType],
       targetWeight: targetWeight ? Number(targetWeight) : null,
       targetDate: targetDate || null,
       activityLevel: activityLevel || 'moderate',

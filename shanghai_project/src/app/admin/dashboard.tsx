@@ -12,7 +12,6 @@ import { useTheme } from '@/hooks/use-theme';
 import { fetchAdminStats, type AdminStats } from '@/services/admin';
 
 function StatCard({ icon, label, value, color }: { icon: string; label: string; value: string | number; color: string }) {
-  const colors = useTheme();
   return (
     <Card style={[styles.statCard, { borderLeftColor: color, borderLeftWidth: 3 }]}>
       <View style={styles.statHeader}>
