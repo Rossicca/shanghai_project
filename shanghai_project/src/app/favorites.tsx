@@ -9,6 +9,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
 import { findHealthInspiration, type HealthInspiration } from '@/data/health-inspirations';
 import { useTheme } from '@/hooks/use-theme';
+import { inspirationImageUrl } from '@/services/media';
 import { useInspirationStore } from '@/store/inspirationStore';
 import { useRecipeStore } from '@/store/recipeStore';
 import { useWorkoutStore } from '@/store/workoutStore';
@@ -107,7 +108,7 @@ export default function FavoritesPage() {
             <View style={styles.list}>
               {savedInspirations.map((inspiration) => (
                 <Pressable key={inspiration.id} onPress={() => openInspiration(inspiration)} style={styles.item}>
-                  <Image source={{ uri: inspiration.image }} style={styles.inspirationThumb} contentFit="cover" transition={120} />
+                  <Image source={{ uri: inspirationImageUrl(inspiration.image) }} style={styles.inspirationThumb} contentFit="cover" transition={120} />
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <ThemedText type="smallBold" numberOfLines={1}>{inspiration.title}</ThemedText>
                     <ThemedText type="small" themeColor="textSecondary">

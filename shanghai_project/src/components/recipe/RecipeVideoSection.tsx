@@ -6,7 +6,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Card } from '@/components/ui/Card';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { recipeCoverUrl } from '@/services/media';
+import { inspirationImageUrl } from '@/services/media';
 import { fetchRecipeVideos } from '@/services/recipe';
 import type { Recipe, RecipeVideoRecommendation } from '@/types/recipe';
 import { openExternalLink } from '@/utils/externalLink';
@@ -118,9 +118,12 @@ export function RecipeVideoSection({
               onPress={() => openUrl(video.sourceUrl)}
               style={({ pressed }) => [styles.video, { opacity: pressed ? 0.72 : 1 }]}>
               <View style={[styles.thumbnail, { backgroundColor: colors.backgroundElement }]}>
-                {recipeCoverUrl(video.coverUrl || recipe.sourceVideo?.coverUrl) ? <Image source={{ uri: recipeCoverUrl(video.coverUrl || recipe.sourceVideo?.coverUrl) }} style={styles.image} /> : (
+                {(() => {
+                  const cover = inspirationImageUrl(video.coverUrl || recipe.sourceVideo?.coverUrl);
+                  return cover ? <Image source={{ uri: cover }} style={styles.image} /> : (
                   <View style={styles.imageFallback}><Ionicons name="restaurant-outline" size={24} color={colors.primary} /></View>
-                )}
+                  );
+                })()}
                 <View style={styles.playBadge}>
                   <Ionicons name="play" size={16} color="#FFFFFF" />
                 </View>

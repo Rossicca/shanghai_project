@@ -10,6 +10,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Radius, Spacing } from '@/constants/theme';
 import { HEALTH_INSPIRATIONS, type HealthInspiration } from '@/data/health-inspirations';
 import { useTheme } from '@/hooks/use-theme';
+import { inspirationImageUrl } from '@/services/media';
 import { useInspirationStore } from '@/store/inspirationStore';
 import { useRecipeStore } from '@/store/recipeStore';
 import { useUserStore } from '@/store/userStore';
@@ -146,7 +147,7 @@ export default function RecipeTab() {
             {healthPicks.map((pick) => (
               <Pressable key={pick.id} onPress={() => openHealthPick(pick)} style={[styles.pickCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <View style={[styles.pickImageWrap, { backgroundColor: colors.backgroundElement }]}>
-                  <Image source={{ uri: pick.image }} style={styles.pickImage} resizeMode="cover" />
+                  <Image source={{ uri: inspirationImageUrl(pick.image) }} style={styles.pickImage} resizeMode="cover" />
                   <View style={styles.imageShade} />
                   <View style={styles.mealBadge}><Text style={styles.mealBadgeText}>{pick.meal}</Text></View>
                   {pick.sourceVideo ? (
