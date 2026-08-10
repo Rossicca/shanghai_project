@@ -30,6 +30,70 @@ const EXTRA_IMAGES = {
   素食: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=900&q=84',
 } as const;
 
+/**
+ * 共享/重复图片菜品的真实食物封面（来自对应视频）。
+ * - https://i*.hdslb.com/...  B站官方封面
+ * - /covers/<id>.webp        抖音封面，已下载到 server/data/covers/，由后端 /covers 路由提供
+ */
+const RESOLVED_IMAGES: Record<string, string> = {
+  'asparagus-shrimp': 'https://i0.hdslb.com/bfs/archive/8ba5153623808efff92e541a904ef76056ae7210.jpg',
+  'banana-oat-pancake': 'https://i1.hdslb.com/bfs/archive/eb00e8c1c1898041a500ab075a83f126c55e9cd1.jpg',
+  'beef-pepper-bowl': 'https://i2.hdslb.com/bfs/archive/8497940a654ceb8869e85faace0a6b263f3ad651.jpg',
+  'black-sesame-oat-milk': 'https://i0.hdslb.com/bfs/archive/d653a5722a617a163c8521c1217f5f5df7cad99c.jpg',
+  'blackpepper-beef-rice': 'https://i0.hdslb.com/bfs/archive/108214bad28236f12075ec6d9f7726916ecf7e20.jpg',
+  'broccoli-beef-bowl': 'https://i2.hdslb.com/bfs/archive/33b3f509d664d50cb3045659b48399aec4d77d2e.jpg',
+  'cabbage-tofu-stew': '/covers/7576955901978938664.webp',
+  'chia-overnight-oats': 'https://i2.hdslb.com/bfs/archive/a94aee6e93ff6314dfd58c991bf89496ce891c92.jpg',
+  'chicken-avocado-wrap': 'https://i2.hdslb.com/bfs/archive/13e838e14180719b13bbe3029fb5c772127a9fa7.jpg',
+  'chicken-quinoa-bowl': 'https://i1.hdslb.com/bfs/archive/dad85a01b65a673b499542677732001ce2c6198f.jpg',
+  'chicken-veggie-patty': 'https://i1.hdslb.com/bfs/archive/80b72a0d613abbb57e4609da2f5f018d4502b1cb.jpg',
+  'chickpea-curry': 'https://i1.hdslb.com/bfs/archive/8fbdde1c1dcb2783cdb91dc315b11eda20b74317.jpg',
+  'chickpea-salad': 'https://i0.hdslb.com/bfs/archive/af725b5fb93f0b8e2d8219b4cdb7447f3f8b2519.jpg',
+  'corn-egg-sandwich': 'https://i1.hdslb.com/bfs/archive/77333c9cd75eb31c5a6d08310797044cbf29881e.jpg',
+  'corn-yam-chicken-soup': 'https://i1.hdslb.com/bfs/archive/93f32439b181e54eb088f550b6f3d8f0cc1fad67.jpg',
+  'douyin-broccoli-chicken': '/covers/7125036796890713344.webp',
+  'douyin-chicken-cabbage': '/covers/7532058146686684475.webp',
+  'douyin-chicken-fried-rice': '/covers/7221097927857491239.webp',
+  'douyin-chicken-salad': '/covers/7636384362929474816.webp',
+  'douyin-egg-tofu': 'https://i1.hdslb.com/bfs/archive/eed3b641712f277e8e8b6a17926a31eff1574b14.jpg',
+  'douyin-pea-egg': '/covers/7360214224808840483.webp',
+  'douyin-stirfry-tofu': '/covers/7286415783532530979.webp',
+  'douyin-tomato-egg': '/covers/7575053309933800713.webp',
+  'douyin-yam-fungus': '/covers/7598016733894544674.webp',
+  'douyin-yuanbao-tofu': '/covers/7238557310061251895.webp',
+  'eggplant-chicken': 'https://i2.hdslb.com/bfs/archive/98673e197be1ff4d3e3011a3d15d42a41e126949.jpg',
+  'mango-chia-yogurt': 'https://i2.hdslb.com/bfs/archive/a15a9b53b19e7f273274c939a2ff72c79b62bda4.jpg',
+  'mapo-tofu-lean': 'https://i2.hdslb.com/bfs/archive/4b3e6cbe13f77ae4965902e94c0aebf840d722d5.jpg',
+  'milk-oat-congee': 'https://i2.hdslb.com/bfs/archive/c50c6cf69a821fed7d55c2dc94378f817038acc8.jpg',
+  'mushroom-chicken-soup': 'https://i1.hdslb.com/bfs/archive/c8b2a9a1d60031a97b79e45765f44a570dbe71ed.jpg',
+  'mushroom-soba': 'https://i1.hdslb.com/bfs/archive/5a504a9b46d0e5040622c47f72efd7e323145f2e.jpg',
+  'mushroom-steamed-chicken': 'https://i0.hdslb.com/bfs/archive/0359adec1ff7837e1d969da932c9c9c8396b4f9d.jpg',
+  'oat-breakfast': 'https://i0.hdslb.com/bfs/archive/8420ab3ba516f6b228b608f2363545fcd6386fc8.jpg',
+  'pepper-chicken': 'https://i2.hdslb.com/bfs/archive/06a71f7191dfcc875a24edec7204a0c3aea2aadb.jpg',
+  'pepper-pork-tenderloin': 'https://i2.hdslb.com/bfs/archive/808ef9b2471c8c5cb8fd3acff263f565da6009af.jpg',
+  'pumpkin-millet-congee': 'https://i1.hdslb.com/bfs/archive/412c88229405e9e522b939dac6a5e0aab1e8abd4.jpg',
+  'pumpkin-steamed-chicken': 'https://i0.hdslb.com/bfs/archive/945c35c1ee855a2954a564e06bd5f3068860ccad.jpg',
+  'purple-yam-milk': 'https://i2.hdslb.com/bfs/archive/ee52edacc33103aa10a4a85a0eec20e6a111ab49.jpg',
+  'salmon-avocado-salad': 'https://i2.hdslb.com/bfs/archive/226b9e20d0bd7e99d1e9c115e23a59d5483396b8.jpg',
+  'salmon-bagel': 'https://i0.hdslb.com/bfs/archive/d579852c0d9a3f1bb4668aa21b613e33fa6fbc15.jpg',
+  'salmon-pumpkin-rice': 'https://i2.hdslb.com/bfs/archive/aa024b606713504684c7b6443f5a76a23beaccba.jpg',
+  'seared-chicken': 'https://i0.hdslb.com/bfs/archive/ed21b098066972eb69417922fa096d1da6a1c81b.jpg',
+  'seaweed-tofu-egg-soup': 'https://i1.hdslb.com/bfs/archive/3bf69a8b543259dd620fe2e8508a73fd7258d1fd.jpg',
+  'sesame-tofu-noodles': 'https://i0.hdslb.com/bfs/archive/4a1ad6f887beea32337575d64e3cadf45d2e4832.jpg',
+  'shrimp-quinoa-salad': 'https://i0.hdslb.com/bfs/archive/c6ac5e12934e5c5a7935b1c6e65f51ad7c63ae7c.jpg',
+  'shrimp-scrambled-egg': '/covers/7417358970479824154.webp',
+  'spinach-mushroom-omelet': 'https://i1.hdslb.com/bfs/archive/321e2d9771d3586e677778aa27abbdf9c7d2fb6e.jpg',
+  'steamed-bass': '/covers/7491322053539171596.webp',
+  'tofu-veggie-pancake': 'https://i2.hdslb.com/bfs/archive/edf09785ff586906b85d1aa8b9a0863d7c8438d3.jpg',
+  'tomato-beef-noodles': 'https://i2.hdslb.com/bfs/archive/70e2e7ee9a3b86eac9f776dcbd064cc8fa102dcc.jpg',
+  'tomato-beef-stew': 'https://i1.hdslb.com/bfs/archive/8a2635c7fc183dd313ca8739dc8c38346f900ca5.jpg',
+  'tomato-egg-shrimp-noodle': 'https://i2.hdslb.com/bfs/archive/94e5b7e62c71e83662a67a59ade595e950f4b90a.jpg',
+  'tomato-tofu-soup': 'https://i2.hdslb.com/bfs/archive/fd7e5f8d16d315ca47d42b42fba0c900fcd37255.jpg',
+  'tuna-corn-riceball': 'https://i0.hdslb.com/bfs/archive/545db15b845360628ff93bdcb4ab75362be0b0a3.jpg',
+  'wintermelon-shrimp-soup': 'https://i0.hdslb.com/bfs/archive/7fb1348d297a3647658cf5991007f1bf975c30c8.jpg',
+  'yogurt-oat-bowl': 'https://i2.hdslb.com/bfs/archive/d3f98f3b5c197855fface6734db910c52c70912a.jpg',
+};
+
 function bilibiliVideo(id: string, title: string, author: string, description: string): RecipeSourceVideo {
   return { id, title, author, duration: 0, coverUrl: null, sourceUrl: `https://www.bilibili.com/video/${id}`, description, platform: 'bilibili' };
 }
@@ -98,7 +162,7 @@ function expandExtraInspiration(seed: ExtraInspirationSeed): HealthInspiration {
   };
 }
 
-export const HEALTH_INSPIRATIONS: HealthInspiration[] = [
+const BASE_INSPIRATIONS: HealthInspiration[] = [
   {
     id: 'oat-breakfast', meal: '早餐', group: '早餐', mealType: 'breakfast', title: '牛奶燕麦坚果碗',
     videoSearchAliases: ['牛奶燕麦碗', '燕麦坚果碗'],
@@ -321,6 +385,12 @@ export const HEALTH_INSPIRATIONS: HealthInspiration[] = [
   },
   ...EXTRA_INSPIRATION_SEEDS.map(expandExtraInspiration),
 ];
+
+export const HEALTH_INSPIRATIONS: HealthInspiration[] = BASE_INSPIRATIONS.map((inspiration) => {
+  // 有真实食物封面的菜（B站封面 / 抖音封面）覆盖共享占位图
+  const resolved = RESOLVED_IMAGES[inspiration.id];
+  return resolved ? { ...inspiration, image: resolved } : inspiration;
+});
 
 export function findHealthInspiration(id?: string) {
   return HEALTH_INSPIRATIONS.find((item) => item.id === id);
