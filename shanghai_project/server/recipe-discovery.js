@@ -133,7 +133,7 @@ async function discoverRecipeRecommendations(params) {
   const excluded = [...new Set((params.excludeDishNames || []).map(String).map((name) => name.trim()).filter(Boolean))]
     .sort()
     .join('|');
-  const key = `${names}|p${params.people || 1}|t${params.cookTime || 20}|d${params.difficulty || ''}|m${params.mealType || 'any'}|g${params.user?.goal || ''}|x${excluded}`;
+  const key = `${names}|p${params.people || 1}|t${params.cookTime || 20}|d${params.difficulty || ''}|m${params.mealType || 'any'}|g${params.user?.goal || ''}|c${(params.conditions || []).join(',')}|x${excluded}`;
   const cached = cache.get(key);
   if (cached && Date.now() - cached.createdAt < CACHE_TTL_MS) return cached.value;
 

@@ -2,6 +2,7 @@
  * 演示数据（mock）。真实 AI 未启用或调用失败时使用。
  * 注意：这些是演示数据，页面须标注"演示数据"。
  */
+const { recipeAllowedByConditions, candidateAllowedByConditions } = require('./recipe-conditions');
 
 /** 演示识别结果：直接给一组常见健康食材 */
 const DEMO_INGREDIENTS = [
@@ -98,14 +99,92 @@ const RECIPE_TEMPLATES = [
       tips: ['蔬菜提前沥干水分更爽脆'],
     },
   },
+  // 无明火/微波等厨房条件安全模板（放到末尾：默认无条件下仍优先命中前面更贴合食材的经典模板）
+  {
+    keywords: ['鸡胸', '鸡肉', '鸡腿', '熟鸡肉'],
+    recipe: {
+      name: '手撕鸡胸凉拌菜',
+      coverEmoji: '🥗',
+      description: '高蛋白凉菜，鸡胸手撕后与清爽配菜凉拌，低脂饱腹。',
+      calories: 320,
+      protein: 38,
+      carbs: 16,
+      fat: 10,
+      steps: [
+        '熟鸡胸肉顺着纹理手撕成细丝，黄瓜、胡萝卜切丝。',
+        '蒜末、生抽、香醋、少许香油调成料汁（无需加热）。',
+        '鸡丝与蔬菜丝拌匀，淋上料汁即可食用。',
+      ],
+      cookTime: 12,
+      difficulty: '简单',
+      tips: ['可搭配即食鸡胸肉，更快手'],
+    },
+  },
+  {
+    keywords: ['鸡蛋', '蛋'],
+    recipe: {
+      name: '微波水蒸蛋',
+      coverEmoji: '🥚',
+      description: '全程微波炉完成的高蛋白蒸蛋，嫩滑快手。',
+      calories: 180,
+      protein: 14,
+      carbs: 6,
+      fat: 10,
+      steps: [
+        '鸡蛋打散，加入 1.5 倍温水、少许盐搅匀。',
+        '过筛去除泡沫，倒入可微波的碗中，盖保鲜膜扎几个小孔。',
+        '微波炉中高火加热 2-3 分钟至凝固，取出淋少许生抽和香油。',
+      ],
+      cookTime: 8,
+      difficulty: '简单',
+      tips: ['加热时间按微波炉功率微调'],
+    },
+  },
 ];
 
-function pickMockRecipe(ingredients) {
+function pickMockRecipe(ingredients, conditions) {
   const names = ingredients.map((i) => i.name).join(' ');
-  for (const t of RECIPE_TEMPLATES) {
+  // 厨房条件过滤：先筛掉需要开火/烤箱等不满足条件的模板
+  const pool = conditions && conditions.length
+    ? RECIPE_TEMPLATES.filter((t) => recipeAllowedByConditions(t.recipe, conditions))
+    : RECIPE_TEMPLATES;
+  // 全部模板都不满足厨房条件时，返回无条件安全的兜底菜谱（不能退回全量，否则违背条件）
+  if (!pool.length && conditions && conditions.length) {
+    return structuredClone({
+      name: '凉拌时蔬配即食蛋白',
+      coverEmoji: '🥗',
+      description: '清爽低脂的凉拌做法，现拌现吃。',
+      calories: 280,
+      protein: 22,
+      carbs: 18,
+      fat: 12,
+      steps: [
+        '时蔬（黄瓜、胡萝卜、生菜等）洗净切丝或撕块。',
+        '加入即食鸡胸肉，或电饭煲/微波加热熟的蛋切块。',
+        '用生抽、香醋、少许香油拌均匀即可。',
+      ],
+      cookTime: 10,
+      difficulty: '简单',
+      tips: ['主食可配即食糙米饭或全麦面包'],
+    });
+  }
+  const candidates = pool.length ? pool : RECIPE_TEMPLATES;
+  for (const t of candidates) {
     if (t.keywords.some((k) => names.includes(k))) return structuredClone(t.recipe);
   }
-  return structuredClone(RECIPE_TEMPLATES[0].recipe);
+  return structuredClone(candidates[0].recipe);
+}
+
+/** 条件安全候选（微波/凉拌/蒸/杯碗类）：全部满足 无明火 + 无烤箱 + ≤15 分钟，用于条件筛完候选不足时补足。 */
+function buildConditionSafeCandidates(main) {
+  return [
+    { name: `${main}凉拌时蔬`, emoji: '🥗', category: '凉菜', required: [main, '黄瓜', '胡萝卜'], minutes: 8, calories: 260 },
+    { name: `${main}酸奶燕麦杯`, emoji: '🥣', category: '快手早餐', required: [main, '酸奶', '燕麦'], minutes: 5, calories: 340 },
+    { name: `微波${main}蒸蛋羹`, emoji: '🥚', category: '高蛋白轻食', required: [main, '鸡蛋', '温水'], minutes: 8, calories: 200 },
+    { name: `${main}牛油果沙拉`, emoji: '🥑', category: '轻食', required: [main, '牛油果', '生菜'], minutes: 6, calories: 300 },
+    { name: `${main}紫薯酸奶碗`, emoji: '🍠', category: '轻食加餐', required: [main, '紫薯', '酸奶'], minutes: 10, calories: 310 },
+    { name: `${main}荞麦凉面`, emoji: '🍜', category: '轻食主食', required: [main, '荞麦面', '黄瓜'], minutes: 12, calories: 420 },
+  ];
 }
 
 function mockRecipeRecommendations(params) {
@@ -157,7 +236,15 @@ function mockRecipeRecommendations(params) {
   const excludedNames = new Set(
     (params.excludeDishNames || []).map(String).map((name) => name.trim()).filter(Boolean),
   );
-  return templates.filter((item) => !excludedNames.has(item.name)).slice(0, 6).map((item, index) => {
+  // 厨房条件过滤：无明火/无烤箱/微波炉快手等条件下，先排除不满足条件的候选
+  const conditions = params.conditions;
+  let pool = templates;
+  if (conditions && conditions.length) {
+    const filtered = templates.filter((item) => candidateAllowedByConditions(item, conditions));
+    // 条件筛完后候选太少时，用"条件安全"候选补足（微波/凉拌/蒸等，全部满足无明火/无烤箱/快手）
+    pool = filtered.length >= 3 ? filtered : [...filtered, ...buildConditionSafeCandidates(main)];
+  }
+  return pool.filter((item) => !excludedNames.has(item.name)).slice(0, 6).map((item, index) => {
     const availableIngredients = item.required.filter((required) =>
       availableNames.some((owned) => owned.includes(required) || required.includes(owned))
     );

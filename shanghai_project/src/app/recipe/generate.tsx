@@ -24,6 +24,12 @@ const MEAL_TYPES = [
   { value: 'dinner', label: '晚餐' },
   { value: 'dessert', label: '甜点' },
 ] as const;
+/** 厨房条件（key 与服务端 server/recipe-conditions.js 的 CONDITIONS 保持一致）。 */
+const KITCHEN_CONDITIONS = [
+  { value: 'no_flame', label: '无明火条件', hint: '无燃气灶，用微波炉/电饭煲/空气炸锅或凉拌' },
+  { value: 'no_oven', label: '无烤箱', hint: '不用烤箱，排除烘焙烤制类' },
+  { value: 'microwave_fast', label: '微波炉快手', hint: '全程微波炉，15 分钟内完成' },
+] as const;
 const PANTRY_LABELS = {
   existing: '少量补充',
   topup: '补几样更丰富',
@@ -47,6 +53,7 @@ export default function GenerateRecipe() {
       ? routeParams.mealType as (typeof MEAL_TYPES)[number]['value']
       : 'any'
   );
+  const [conditions, setConditions] = useState<string[]>([]);
   const [recommendations, setRecommendations] = useState<RecipeCandidate[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [seenDishNames, setSeenDishNames] = useState<string[]>([]);
@@ -101,6 +108,13 @@ export default function GenerateRecipe() {
     setRecommendationWarning('');
   }
 
+  function toggleCondition(value: string) {
+    setConditions((current) => current.includes(value)
+      ? current.filter((item) => item !== value)
+      : [...current, value]);
+    clearRecommendations();
+  }
+
   function buildParams(selectedDish?: RecipeGenerateParams['selectedDish']): RecipeGenerateParams {
     return {
       ingredients,
@@ -108,6 +122,7 @@ export default function GenerateRecipe() {
       cookTime,
       difficulty,
       mealType,
+      conditions,
       selectedDish,
       user: {
         caloriesTarget: estimateTargetCalories(),
@@ -375,6 +390,37 @@ export default function GenerateRecipe() {
               </Pressable>
             ))}
           </View>
+
+          <ThemedText type="smallBold" style={styles.condLabel}>
+            厨房条件（可多选）
+          </ThemedText>
+          <View style={styles.chips}>
+            {KITCHEN_CONDITIONS.map((option) => {
+              const selected = conditions.includes(option.value);
+              return (
+                <Pressable
+                  key={option.value}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: selected }}
+                  onPress={() => toggleCondition(option.value)}>
+                  <View
+                    style={[
+                      styles.chip,
+                      { backgroundColor: selected ? colors.primary : colors.backgroundElement },
+                    ]}>
+                    <Text style={{ color: selected ? '#fff' : colors.text, fontWeight: '600' }}>
+                      {option.label}
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+          {conditions.length ? (
+            <ThemedText type="small" themeColor="textSecondary" style={{ marginTop: 4 }}>
+              已按条件生成：{KITCHEN_CONDITIONS.filter((option) => conditions.includes(option.value)).map((option) => option.hint).join('；')}
+            </ThemedText>
+          ) : null}
         </Card>
 
         {error ? <ThemedText themeColor="danger">{error}</ThemedText> : null}

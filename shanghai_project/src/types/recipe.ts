@@ -100,6 +100,8 @@ export interface RecipeGenerateParams {
   cookTime: number;
   difficulty: '简单' | '中等' | '困难';
   mealType: 'any' | 'breakfast' | 'lunch' | 'dinner' | 'dessert';
+  /** 厨房条件（如 no_flame 无明火 / no_oven 无烤箱 / microwave_fast 微波炉快手），生成须满足。 */
+  conditions?: string[];
   /** 换一批时需要排除的历史菜名，避免 AI 重复上一批。 */
   excludeDishNames?: string[];
   selectedDish?: Pick<RecipeCandidate, 'name' | 'missingIngredients' | 'pantryLevel' | 'sourceVideo'>;

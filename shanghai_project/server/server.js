@@ -31,7 +31,7 @@ const communityRoutes = require('./routes/community');
 const { recognizeFood, generateRecipe, recommendWorkout } = require('./ai');
 const { DEMO_INGREDIENTS, WORKOUT_LIBRARY, pickMockRecipe, mockRecipeRecommendations, mockRecommendWorkout } = require('./demo-data');
 const { discoverRecipeRecommendations, sanitizeSelectedDish } = require('./recipe-discovery');
-const { recommendRecipeVideos } = require('./recipe-videos');
+const { recommendRecipeVideos, findRecipeCover } = require('./recipe-videos');
 const { mergeCuratedWorkoutVideos } = require('./workout-video-safety');
 
 const app = express();
@@ -196,6 +196,7 @@ app.post('/api/recipe/recommendations', async (req, res) => {
       cookTime: req.body.cookTime ?? 30,
       difficulty: req.body.difficulty ?? '简单',
       mealType: req.body.mealType ?? 'any',
+      conditions: req.body.conditions,
       excludeDishNames: Array.isArray(req.body.excludeDishNames)
         ? req.body.excludeDishNames.map(String).map((name) => name.trim()).filter(Boolean).slice(0, 60)
         : [],
@@ -210,6 +211,7 @@ app.post('/api/recipe/recommendations', async (req, res) => {
         cookTime: req.body.cookTime ?? 30,
         difficulty: req.body.difficulty ?? '简单',
         mealType: req.body.mealType ?? 'any',
+        conditions: req.body.conditions,
         excludeDishNames: Array.isArray(req.body.excludeDishNames) ? req.body.excludeDishNames : [],
         user: req.body.user,
       });
@@ -233,6 +235,7 @@ app.post('/api/recipe/generate', async (req, res) => {
       difficulty: req.body.difficulty ?? '简单',
       mealType: req.body.mealType ?? 'any',
       selectedDish: sanitizeSelectedDish(req.body.selectedDish),
+      conditions: req.body.conditions,
       user: req.body.user,
     });
     res.json({ recipe: { ...recipe, id: 'r' + Date.now() } });
@@ -263,6 +266,21 @@ app.post('/api/recipe/videos', async (req, res) => {
     res.status(502).json({
       error: { code: 'RECIPE_VIDEO_SEARCH_FAILED', message: '制作视频搜索失败，请稍后重试' },
     });
+  }
+});
+
+// POST /api/recipe/cover — 菜品图封面（宽松匹配，只取一张封面图，不影响视频区的严格匹配）
+app.post('/api/recipe/cover', async (req, res) => {
+  const recipe = req.body?.recipe || req.body;
+  if (!recipe || typeof recipe.name !== 'string' || !recipe.name.trim()) {
+    return res.status(400).json({ error: { code: 'INVALID_PARAMS', message: '缺少菜谱名称' } });
+  }
+  try {
+    const data = await findRecipeCover(recipe);
+    res.json({ data });
+  } catch (error) {
+    console.error('[recipe-cover] error:', error);
+    res.json({ data: null });
   }
 });
 

@@ -10,6 +10,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Spacing } from '@/constants/theme';
+import { useRecipeCover } from '@/hooks/use-recipe-cover';
 import { useTheme } from '@/hooks/use-theme';
 import { getToken } from '@/services/api';
 import { recipeCoverUrl } from '@/services/media';
@@ -47,8 +48,8 @@ export default function RecipeDetail() {
   const [detailRecipe, setDetailRecipe] = useState(currentRecipe?.id === id ? currentRecipe : null);
   const [detailLoading, setDetailLoading] = useState(Boolean(id && currentRecipe?.id !== id && getToken()));
   const [saveError, setSaveError] = useState('');
-  const [failedCoverId, setFailedCoverId] = useState('');
   const recipe = currentRecipe?.id === id ? currentRecipe : detailRecipe?.id === id ? detailRecipe : null;
+  const { coverUrl, failed, setFailed, loading } = useRecipeCover(recipe);
   const saved = recipe ? savedRecipes.some((r) => r.id === recipe.id) : false;
   const targetCalories = recipe?.nutritionTarget?.targetCalories ?? estimateTargetCalories(bodyData, goal);
   const queueActive = recipeQueueRecipeId === recipe?.id;
@@ -135,17 +136,19 @@ export default function RecipeDetail() {
     <ThemedView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={[styles.cover, { backgroundColor: colors.primarySoft }]}>
-          {recipeCoverUrl(recipe.sourceVideo?.coverUrl) && failedCoverId !== recipe.id ? (
+          {loading ? (
+            <ActivityIndicator color={colors.primary} />
+          ) : recipeCoverUrl(coverUrl) && !failed ? (
             <>
               <Image
-                source={{ uri: recipeCoverUrl(recipe.sourceVideo?.coverUrl) }}
+                source={{ uri: recipeCoverUrl(coverUrl)! }}
                 style={styles.coverImage}
                 resizeMode="cover"
-                onError={() => setFailedCoverId(recipe.id)}
+                onError={() => setFailed(true)}
               />
               <View style={styles.coverSource}>
                 <Ionicons name="play-circle" size={14} color="#FFFFFF" />
-                <Text style={styles.coverSourceText}>教程视频封面</Text>
+                <Text style={styles.coverSourceText}>菜品图 · 教程视频封面</Text>
               </View>
             </>
           ) : (

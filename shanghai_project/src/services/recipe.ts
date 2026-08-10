@@ -1,4 +1,4 @@
-import type { Recipe, RecipeCandidate, RecipeGenerateParams, RecipeVideoRecommendation } from '@/types/recipe';
+import type { Recipe, RecipeCandidate, RecipeGenerateParams, RecipeSourceVideo, RecipeVideoRecommendation } from '@/types/recipe';
 import { AI_TIMEOUT } from '@/constants/config';
 
 import { api } from './api';
@@ -41,6 +41,7 @@ export async function generateRecipeV2(params: {
   maxCookTime?: number;
   difficulty?: string;
   mealType?: string;
+  conditions?: string[];
   selectedDish?: RecipeGenerateParams['selectedDish'];
 }) {
   const res = await api.post('/api/v1/recipes/generate', params, { timeout: AI_TIMEOUT });
@@ -58,6 +59,7 @@ export async function generateRecipeFromSession(
     maxCookTime: params.cookTime,
     difficulty: params.difficulty,
     mealType: params.mealType === 'any' ? undefined : params.mealType,
+    conditions: params.conditions,
     selectedDish: params.selectedDish,
   });
   return mapRecipe({
@@ -121,9 +123,33 @@ export async function recommendRecipes(params: RecipeGenerateParams): Promise<{
   };
 }
 
-/** 实时检索与当前菜谱匹配的公开视频。 */
+/** 菜品图封面缓存（宽松检索，仅用于封面展示）。 */
+const recipeCoverCache = new Map<string, { at: number; promise: Promise<{ coverUrl: string; video: RecipeSourceVideo } | null> }>();
+const RECIPE_COVER_CACHE_TTL = 15 * 60 * 1000;
+
+/** 菜品图封面：宽松匹配一条做法教程，取它的封面。只用于菜谱封面，不影响视频区的严格匹配。 */
+export async function fetchRecipeCover(recipe: { name: string; videoSearchAliases?: string[] }) {
+  const key = `${recipe.name}|${(recipe.videoSearchAliases || []).join(',')}`;
+  const hit = recipeCoverCache.get(key);
+  if (hit && Date.now() - hit.at < RECIPE_COVER_CACHE_TTL) return hit.promise;
+  const promise = api.post<{ data: { coverUrl: string; video: RecipeSourceVideo } | null }>('/api/recipe/cover', {
+    recipe: { name: recipe.name, videoSearchAliases: recipe.videoSearchAliases },
+  }, { timeout: AI_TIMEOUT }).then((res) => res.data.data);
+  recipeCoverCache.set(key, { at: Date.now(), promise });
+  promise.catch(() => { if (recipeCoverCache.get(key)?.promise === promise) recipeCoverCache.delete(key); });
+  return promise;
+}
+
+/** 菜谱视频检索结果缓存：详情页封面与视频区共用一次请求，避免重复检索。 */
+const recipeVideosCache = new Map<string, { at: number; promise: Promise<RecipeVideoRecommendation> }>();
+const RECIPE_VIDEOS_CACHE_TTL = 15 * 60 * 1000;
+
+/** 实时检索与当前菜谱匹配的公开视频（按菜谱 id 缓存 15 分钟，去重并发请求）。 */
 export async function fetchRecipeVideos(recipe: Recipe): Promise<RecipeVideoRecommendation> {
-  const res = await api.post('/api/recipe/videos', {
+  const key = recipe.id || `${recipe.name}|${(recipe.ingredients || []).slice(0, 3).map((i) => i.name).join(',')}`;
+  const hit = recipeVideosCache.get(key);
+  if (hit && Date.now() - hit.at < RECIPE_VIDEOS_CACHE_TTL) return hit.promise;
+  const promise = api.post<{ data: RecipeVideoRecommendation }>('/api/recipe/videos', {
     recipe: {
       name: recipe.name,
       videoSearchAliases: recipe.videoSearchAliases,
@@ -131,6 +157,8 @@ export async function fetchRecipeVideos(recipe: Recipe): Promise<RecipeVideoReco
       steps: recipe.steps,
       sourceVideo: recipe.sourceVideo,
     },
-  }, { timeout: AI_TIMEOUT });
-  return res.data.data;
+  }, { timeout: AI_TIMEOUT }).then((res) => res.data.data);
+  recipeVideosCache.set(key, { at: Date.now(), promise });
+  promise.catch(() => { if (recipeVideosCache.get(key)?.promise === promise) recipeVideosCache.delete(key); });
+  return promise;
 }

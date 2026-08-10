@@ -7,6 +7,7 @@
  */
 
 const { DEMO_INGREDIENTS, pickMockRecipe, mockRecipeRecommendations, mockRecommendWorkout } = require('./demo-data');
+const { buildConditionPrompt, recipeAllowedByConditions, candidateAllowedByConditions } = require('./recipe-conditions');
 const { config, isMockMode, isTextLlmReady, isVisionReady, getTextProvider, getVisionProvider } = require('./config');
 
 function httpJson(url, options) {
@@ -319,7 +320,7 @@ async function recommendRecipes(params) {
 4. availableIngredients 尽量从用户现有食材中选取；missingIngredients 不得与现有食材重复。盐、糖、油、酱油、生抽、老抽、醋、料酒、蚝油、鸡精、味精、胡椒粉、花椒、辣椒、姜、蒜、葱、淀粉、香油等所有基础调味品一律不得列为 missingIngredients；
 5. 结合用户目标、身体数据、目标热量、人数和限时，推荐理由要具体；
 6. 严禁使用过敏源；名称之间不得重复；
-7. excludeDishNames 是用户之前已经看过的菜名，新的 6 道菜严禁与其中任何一个同名或只是换同义词，必须更换菜品和制作形式。`,
+7. excludeDishNames 是用户之前已经看过的菜名，新的 6 道菜严禁与其中任何一个同名或只是换同义词，必须更换菜品和制作形式；${buildConditionPrompt(params.conditions)}`,
       },
       {
         role: 'user',
@@ -328,12 +329,13 @@ async function recommendRecipes(params) {
     ],
   });
   const normalized = normalizeRecipeRecommendations(parseJson(content), params);
-  if (normalized.length < 3) throw new Error(`候选菜数量不足: ${normalized.length}`);
-  return normalized;
+  const allowed = normalized.filter((item) => candidateAllowedByConditions(item, params.conditions));
+  if (allowed.length < 3) throw new Error(`符合厨房条件的候选菜数量不足: ${allowed.length}`);
+  return allowed;
 }
 
 function buildSafeRecipeFallback(params, warning) {
-  const recipe = pickMockRecipe(params.ingredients || []);
+  const recipe = pickMockRecipe(params.ingredients || [], params.conditions);
   const allergies = new Set((params.user?.allergies || []).map((item) => String(item).trim()).filter(Boolean));
   const inputIngredients = (params.ingredients || [])
     .map((item) => ({ name: String(item?.name || '').trim(), amount: String(item?.amount || '适量') }))
@@ -403,7 +405,7 @@ async function generateRecipe(params) {
 - 优先基于用户已有食材设计菜谱，尽量用现有食材，减少额外购买；
 - 若现有食材能独立成菜（如鸡蛋+番茄→番茄炒蛋），直接用它们做主料；若现有食材不足以成菜，可适量补充关键主食材（肉类、蔬菜等），补充不超过 4 样；
 - 盐、糖、油、酱油、醋、料酒、蚝油、鸡精、胡椒粉、花椒、辣椒、姜、蒜、葱、淀粉、香油等所有调味品都是每家厨房标配，无需列入 ingredients 也无需提醒购买；
-- 数值要合理，确保总热量在目标热量 ±10% 范围内。食材不超过 14 项，步骤为 4~8 条，每条不超过 60 字，小贴士不超过 3 条。`,
+- 数值要合理，确保总热量在目标热量 ±10% 范围内。食材不超过 14 项，步骤为 4~8 条，每条不超过 60 字，小贴士不超过 3 条。${buildConditionPrompt(params.conditions)}`,
         },
         {
           role: 'user',
@@ -439,6 +441,10 @@ ${params.user?.dietType ? `饮食类型：${params.user.dietType}` : ''}`,
       parsed.calories = Math.round(targetCalories);
     }
     parsed.cookTime = Math.min(Number(params.cookTime) || 120, Math.max(5, Number(parsed.cookTime) || Number(params.cookTime) || 20));
+    // 兜底校验：生成的菜谱必须满足所选厨房条件（如无明火时不能出现需要开火的步骤）
+    if (!recipeAllowedByConditions(parsed, params.conditions)) {
+      return buildSafeRecipeFallback(params, 'AI 生成的菜谱不符合所选厨房条件，已改用满足条件的做法。');
+    }
     return {
       ...parsed,
       ...(params.selectedDish?.name ? { name: String(params.selectedDish.name).slice(0, 40) } : {}),

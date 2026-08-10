@@ -34,7 +34,7 @@ function checkRateLimit(userId) {
  */
 router.post('/generate', async (req, res) => {
   try {
-    const { sessionId, ingredients, mealType, servings, maxCookTime, difficulty, includeNutritionTarget, selectedDish } = req.body;
+    const { sessionId, ingredients, mealType, servings, maxCookTime, difficulty, includeNutritionTarget, selectedDish, conditions } = req.body;
     const userId = req.user?.userId || 'anonymous';
 
     let sourceIngredients = Array.isArray(ingredients) ? ingredients : [];
@@ -103,6 +103,7 @@ router.post('/generate', async (req, res) => {
       cookTime: maxCookTime || 20,
       difficulty: difficulty || '简单',
       selectedDish: sanitizeSelectedDish(selectedDish),
+      conditions,
       user: {
         caloriesTarget: targetCalories,
         goal: goal?.goalType || '保持健康',
@@ -188,7 +189,7 @@ router.post('/generate', async (req, res) => {
  */
 router.post('/:id/reimagine', async (req, res) => {
   try {
-    const { style, maxCookTime } = req.body;
+    const { style, maxCookTime, conditions } = req.body;
     const original = findOwnedRecipe(req, req.params.id);
     if (!original) {
       return res.status(404).json({
@@ -205,6 +206,7 @@ router.post('/:id/reimagine', async (req, res) => {
       cookTime: maxCookTime || original.cookTime || 20,
       difficulty: original.difficulty || '简单',
       style: style || 'stir_fry',
+      conditions,
       user: {
         caloriesTarget: original.calories,
         goal: '保持健康',

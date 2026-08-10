@@ -147,4 +147,51 @@ async function recommendRecipeVideos(recipe) {
   return result;
 }
 
-module.exports = { recommendRecipeVideos };
+/** 菜品图封面检索（宽松）：只要标题像做法教程且不是吃播/探店，取第一条带封面的视频。
+ *  仅用于菜谱封面展示，与视频区的严格匹配（recommendRecipeVideos）相互独立，保证视频区质量。 */
+const coverCache = new Map();
+async function findRecipeCover(recipe) {
+  const name = String(recipe?.name || '').trim().slice(0, 80);
+  if (!name) return null;
+  const dishNames = [name, ...(Array.isArray(recipe.videoSearchAliases) ? recipe.videoSearchAliases : [])]
+    .map((item) => String(item || '').trim().slice(0, 80))
+    .filter(Boolean)
+    .slice(0, 4);
+  const key = `cover|${dishNames.join('|')}`;
+  const cached = coverCache.get(key);
+  if (cached && Date.now() - cached.createdAt < CACHE_TTL_MS) return cached.value;
+  let found = null;
+  try {
+    for (const dishName of dishNames) {
+      const videos = await searchBilibiliVideos(`${dishName} 做法 教程`, 10).catch(() => []);
+      const match = videos.find((video) => {
+        const haystack = `${video.title} ${video.description || ''}`;
+        const hasCover = /^https:\/\//.test(String(video.coverUrl || ''));
+        const tutorial = /做法|教程|制作|怎么做|教你|步骤|烹饪|食谱|家常|快手/.test(haystack);
+        const blocked = /吃播|探店|测评|开箱|盘点|挑战|vlog|混剪/.test(haystack);
+        return hasCover && tutorial && !blocked;
+      });
+      if (match) {
+        found = {
+          coverUrl: match.coverUrl,
+          video: {
+            id: match.id,
+            title: match.title,
+            author: match.author,
+            duration: match.duration,
+            coverUrl: match.coverUrl,
+            sourceUrl: match.sourceUrl,
+            platform: 'bilibili',
+          },
+        };
+        break;
+      }
+    }
+  } catch (error) {
+    console.warn('[recipe-cover] 检索失败:', error.message);
+  }
+  coverCache.set(key, { createdAt: Date.now(), value: found });
+  return found;
+}
+
+module.exports = { recommendRecipeVideos, findRecipeCover };
