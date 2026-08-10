@@ -229,8 +229,8 @@ export default function GenerateRecipe() {
             style={[styles.backButton, { backgroundColor: colors.backgroundElement }]}>
             <Ionicons name="arrow-back" size={21} color={colors.text} />
           </Pressable>
-          <View style={{ flex: 1 }}>
-            <ThemedText type="title">AI 制作菜谱</ThemedText>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <ThemedText style={styles.pageTitle} numberOfLines={1}>AI 制作菜谱</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">先确认食材，再选择制作条件</ThemedText>
           </View>
         </View>
@@ -572,6 +572,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: Spacing.three, gap: Spacing.three },
   pageHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
+  pageTitle: { fontSize: 24, lineHeight: 30, fontWeight: '900' },
   backButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   cardTitle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.two },
   emptyIngredients: { minHeight: 64, borderRadius: Radius.button, padding: Spacing.three, flexDirection: 'row', alignItems: 'center', gap: Spacing.two },

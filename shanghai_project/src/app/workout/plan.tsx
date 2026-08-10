@@ -169,8 +169,8 @@ export default function WorkoutPlanPage() {
           <Pressable accessibilityRole="button" accessibilityLabel="返回" onPress={() => router.back()} hitSlop={10}>
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </Pressable>
-          <View style={{ flex: 1 }}>
-            <ThemedText type="title">生成专属计划</ThemedText>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <ThemedText style={styles.pageTitle} numberOfLines={1}>生成专属计划</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">身体数据、目标、训练与饮食一次配好</ThemedText>
           </View>
           {plan ? (
@@ -435,6 +435,7 @@ function PlanBasisMetric({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   container: { flex: 1 }, safeArea: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two },
+  pageTitle: { fontSize: 24, lineHeight: 30, fontWeight: '900' },
   content: { padding: Spacing.three, paddingBottom: Spacing.six, gap: Spacing.four },
   form: { gap: Spacing.three }, stepper: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
   profilePanel: { gap: Spacing.three, padding: Spacing.three, borderRadius: Radius.card },

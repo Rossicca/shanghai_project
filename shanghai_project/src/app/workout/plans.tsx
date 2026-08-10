@@ -27,7 +27,7 @@ export default function SavedWorkoutPlansPage() {
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.header}>
           <Pressable accessibilityLabel="返回" onPress={() => router.back()} hitSlop={10}><Ionicons name="arrow-back" size={24} color={colors.text} /></Pressable>
-          <View style={{ flex: 1 }}><ThemedText type="title">我的训练计划</ThemedText><ThemedText type="small" themeColor="textSecondary">保存和收藏的个性化方案</ThemedText></View>
+          <View style={{ flex: 1, minWidth: 0 }}><ThemedText style={styles.pageTitle} numberOfLines={1}>我的训练计划</ThemedText><ThemedText type="small" themeColor="textSecondary">保存和收藏的个性化方案</ThemedText></View>
         </View>
         {loading ? (
           <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>
@@ -65,7 +65,7 @@ export default function SavedWorkoutPlansPage() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 }, safeArea: { flex: 1 }, header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, padding: Spacing.three },
+  container: { flex: 1 }, safeArea: { flex: 1 }, header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, padding: Spacing.three }, pageTitle: { fontSize: 24, lineHeight: 30, fontWeight: '900' },
   content: { padding: Spacing.three, gap: Spacing.three, paddingBottom: Spacing.six }, center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   planCard: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three }, planIcon: { width: 46, height: 46, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 }, empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.three, padding: Spacing.four },
