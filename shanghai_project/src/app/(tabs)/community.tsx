@@ -27,6 +27,7 @@ import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useCommunityStore } from '@/store/communityStore';
 import { useUserStore } from '@/store/userStore';
+import { alertDialog } from '@/utils/dialog';
 import type { TimelineEntry } from '@/types/community';
 
 type TabKey = 'feed' | 'follow' | 'wall';
@@ -58,6 +59,8 @@ export default function CommunityTab() {
   const [memoryWeight, setMemoryWeight] = useState('');
   const [memoryBodyFat, setMemoryBodyFat] = useState('');
   const [memoryNote, setMemoryNote] = useState('');
+  // 收进时光阁提交中：防连点重复收录
+  const [submitting, setSubmitting] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -98,6 +101,7 @@ export default function CommunityTab() {
   }
 
   async function submitMemory() {
+    if (submitting) return; // 防连点重复提交
     const entry: TimelineEntry = {
       id: 'ph_' + Date.now(),
       date: new Date().toISOString().slice(0, 10),
@@ -108,8 +112,16 @@ export default function CommunityTab() {
       emoji: '',
       color: DEMO_COLORS[photos.length % DEMO_COLORS.length],
     };
-    await addPhoto(entry);
-    setMemoryOpen(false);
+    setSubmitting(true);
+    try {
+      await addPhoto(entry);
+      setMemoryOpen(false);
+    } catch (error) {
+      // 失败不关弹层，保留已填内容，提示后可直接重试
+      alertDialog('收进时光阁失败', (error as Error)?.message || '请稍后再试');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   const dayCount = photos[0]?.day ?? photos.length;
@@ -207,7 +219,13 @@ export default function CommunityTab() {
         ) : (
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             {photos.length > 0 ? (
-              <TimelineWall entries={photos} onAdd={openMemory} onRemove={removePhoto} />
+              <TimelineWall
+                entries={photos}
+                onAdd={openMemory}
+                onRemove={(id) =>
+                  removePhoto(id).catch((error) => alertDialog('删除失败', (error as Error)?.message || '请稍后再试'))
+                }
+              />
             ) : (
               <Card style={styles.empty}>
                 <Ionicons name="images-outline" size={44} color={colors.backgroundSelected} />
@@ -280,8 +298,13 @@ export default function CommunityTab() {
             />
 
             <View style={styles.memActions}>
-              <Button title="取消" variant="outline" onPress={() => setMemoryOpen(false)} />
-              <Button title="收进时光阁" onPress={submitMemory} disabled={!memoryUri && !memoryNote.trim() && !memoryWeight && !memoryBodyFat} />
+              <Button title="取消" variant="outline" onPress={() => setMemoryOpen(false)} disabled={submitting} />
+              <Button
+                title="收进时光阁"
+                onPress={submitMemory}
+                loading={submitting}
+                disabled={submitting || (!memoryUri && !memoryNote.trim() && !memoryWeight && !memoryBodyFat)}
+              />
             </View>
           </View>
         </View>

@@ -249,8 +249,11 @@ function followingView(userId) {
 function replaceUserPhotos(userId, photos) {
   db.removeMany('community_photos', { userId });
   for (const p of photos) {
+    // 种子照片的固定 id 可能已被其他用户实体化入库，撞唯一约束会 500；
+    // 已存在的 id 改派新 id，保证每个用户都能各自实体化种子且互不冲突
+    const idTaken = db.find('community_photos', { id: p.id }).length > 0;
     db.insert('community_photos', {
-      id: p.id,
+      id: idTaken ? db.generateId() : p.id,
       userId,
       date: p.date,
       // sql.js 不允许绑定 undefined，可选字段统一兜底为 null
