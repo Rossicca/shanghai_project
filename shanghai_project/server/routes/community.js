@@ -131,7 +131,7 @@ function requireLogin(req, res) {
 // ---- 序列化与视图 ----
 
 /** 帖子行/种子 → CommunityPost（与客户端类型对齐） */
-function toPostView(row, { comments, likes, liked }) {
+function toPostView(row, { comments, likes, liked, canDelete = false }) {
   const post = {
     id: row.id,
     author: { name: row.authorName, avatar: row.authorAvatar, tag: row.authorTag },
@@ -141,6 +141,8 @@ function toPostView(row, { comments, likes, liked }) {
     likes,
     liked,
     comments,
+    // 仅发帖人本人可删帖（种子帖无归属，不可删）
+    canDelete,
   };
   if (row.imageEmoji) {
     post.image = { emoji: row.imageEmoji, color: row.imageColor };
@@ -204,6 +206,8 @@ function postsView(userId) {
       comments: commentCounts[row.id] ?? 0,
       likes: (row.likes || 0) + (likeCounts[row.id] || 0),
       liked: myLiked.has(row.id),
+      // 仅作者本人可删；种子帖 userId 为空，任何人都删不了
+      canDelete: Boolean(userId && row.userId && row.userId === userId),
     })
   );
 }
@@ -322,6 +326,8 @@ router.post('/posts', (req, res) => {
   }
 
   const row = db.insert('community_posts', {
+    // 记录发帖人 userId，用于「仅作者可删帖」的权限校验
+    userId: req.user.userId,
     authorName: author.name,
     authorAvatar: author.avatar,
     // sql.js 不允许绑定 undefined，可选字段统一兜底为 null
@@ -334,7 +340,25 @@ router.post('/posts', (req, res) => {
     imageUri,
     likes: 0,
   });
-  res.status(201).json({ data: toPostView(row, { comments: 0, likes: 0, liked: false }), message: '发布成功' });
+  res.status(201).json({ data: toPostView(row, { comments: 0, likes: 0, liked: false, canDelete: true }), message: '发布成功' });
+});
+
+// 删除动态（需登录；仅发帖人本人可删，种子帖不可删）
+router.delete('/posts/:id', (req, res) => {
+  if (!requireLogin(req, res)) return;
+  const { id } = req.params;
+  const post = db.findById('community_posts', id);
+  if (!post) {
+    return res.status(404).json({ error: { code: 'POST_NOT_FOUND', message: '动态不存在' } });
+  }
+  if (post.userId !== req.user.userId) {
+    return res.status(403).json({ error: { code: 'FORBIDDEN', message: '只能删除自己发布的动态' } });
+  }
+  // 连带清理该帖的点赞与评论
+  db.remove('community_posts', id);
+  db.removeMany('community_post_likes', { postId: id });
+  db.removeMany('community_comments', { postId: id });
+  res.json({ data: { id }, message: '已删除' });
 });
 
 // 切换点赞（需登录；点赞只对当前用户生效）

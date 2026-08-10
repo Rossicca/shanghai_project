@@ -12,6 +12,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { useCommunityStore } from '@/store/communityStore';
 import type { CommunityPost } from '@/types/community';
 import { isSelfAuthor } from '@/utils/community';
+import { alertDialog, confirmDialog } from '@/utils/dialog';
 
 const CATEGORY_COLORS: Record<CommunityPost['category'], string> = {
   打卡: '#2FA886',
@@ -44,7 +45,7 @@ function buildShareText(post: CommunityPost): string {
 export function PostCard({ post, onToggleLike, showFollow = true }: Props) {
   const colors = useTheme();
   const catColor = CATEGORY_COLORS[post.category];
-  const { commentsByPost, following, followers } = useCommunityStore();
+  const { commentsByPost, following, followers, removePost } = useCommunityStore();
   const [toast, setToast] = useState('');
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const commentCount = commentsByPost[post.id]?.length ?? post.comments;
@@ -55,6 +56,22 @@ export function PostCard({ post, onToggleLike, showFollow = true }: Props) {
     setToast(msg);
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(''), 1800);
+  }
+
+  /** 仅作者可删：先确认再调后端（后端会再次校验作者身份） */
+  function handleDelete() {
+    confirmDialog({
+      title: '删除动态',
+      message: '删除后不可恢复，确定删除这条动态吗？',
+      confirmText: '删除',
+      cancelText: '取消',
+      destructive: true,
+      onConfirm: () => {
+        removePost(post.id)
+          .then(() => showToast('已删除'))
+          .catch((error) => alertDialog('删除失败', (error as Error)?.message || '请稍后再试'));
+      },
+    });
   }
 
   async function handleShare() {
@@ -166,6 +183,15 @@ export function PostCard({ post, onToggleLike, showFollow = true }: Props) {
         <Pressable hitSlop={8} style={styles.action} onPress={handleShare}>
           <Ionicons name="share-social-outline" size={18} color={colors.textSecondary} />
         </Pressable>
+        {/* 仅作者可删：删除按钮靠右 */}
+        {post.canDelete ? (
+          <Pressable
+            hitSlop={8}
+            style={[styles.action, styles.deleteAction]}
+            onPress={handleDelete}>
+            <Ionicons name="trash-outline" size={18} color={colors.textSecondary} />
+          </Pressable>
+        ) : null}
       </View>
 
       {/* 分享反馈 toast */}
@@ -204,6 +230,7 @@ const styles = StyleSheet.create({
   imagePlaceholderText: { marginTop: 7, fontSize: 11, fontWeight: '800' },
   actions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.four, paddingTop: 2 },
   action: { minWidth: 44, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 5 },
+  deleteAction: { marginLeft: 'auto' },
   actionText: { fontSize: 13, fontWeight: '600' },
   toast: {
     position: 'absolute',

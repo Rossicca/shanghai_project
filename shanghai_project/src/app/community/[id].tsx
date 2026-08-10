@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/Button';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useCommunityStore } from '@/store/communityStore';
+import { alertDialog, confirmDialog } from '@/utils/dialog';
 
 const CATEGORY_COLORS: Record<string, string> = {
   打卡: '#2FA886',
@@ -31,7 +32,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 export default function CommunityPostDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useTheme();
-  const { posts, commentsByPost, addComment, toggleLike, load, syncFeed, loaded } = useCommunityStore();
+  const { posts, commentsByPost, addComment, toggleLike, removePost, load, syncFeed, loaded } = useCommunityStore();
   const post = posts.find((p) => p.id === id);
   const comments = commentsByPost[id ?? ''] ?? [];
   const [draft, setDraft] = useState('');
@@ -54,6 +55,23 @@ export default function CommunityPostDetail() {
     if (!text) return;
     addComment(id, text);
     setDraft('');
+  }
+
+  /** 仅作者可删：删除后返回列表 */
+  function handleDelete() {
+    if (!id) return;
+    confirmDialog({
+      title: '删除动态',
+      message: '删除后不可恢复，确定删除这条动态吗？',
+      confirmText: '删除',
+      cancelText: '取消',
+      destructive: true,
+      onConfirm: () => {
+        removePost(id)
+          .then(() => router.back())
+          .catch((error) => alertDialog('删除失败', (error as Error)?.message || '请稍后再试'));
+      },
+    });
   }
 
   if (!post && !notFound) {
@@ -93,6 +111,12 @@ export default function CommunityPostDetail() {
                 </View>
                 <ThemedText type="small" themeColor="textSecondary">{post.timeLabel}</ThemedText>
               </View>
+              {/* 仅作者可删 */}
+              {post.canDelete ? (
+                <Pressable hitSlop={8} style={styles.deleteBtn} onPress={handleDelete}>
+                  <Ionicons name="trash-outline" size={18} color={colors.textSecondary} />
+                </Pressable>
+              ) : null}
             </View>
 
             <ThemedText style={styles.contentText}>{post.content}</ThemedText>
@@ -178,6 +202,7 @@ const styles = StyleSheet.create({
   avatar: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   avatarEmoji: { fontSize: 20 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
+  deleteBtn: { marginLeft: 'auto', padding: 4 },
   tag: { fontSize: 10, fontWeight: '700', paddingHorizontal: 6, paddingVertical: 2, borderRadius: Radius.chip, overflow: 'hidden' },
   contentText: { fontSize: 14, lineHeight: 22 },
   image: { height: 120, borderRadius: Radius.card, alignItems: 'center', justifyContent: 'center' },

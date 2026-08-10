@@ -20,6 +20,8 @@ export interface CommunityPost {
   likes: number;
   liked: boolean;
   comments: number;
+  /** 当前登录用户是否为作者（仅作者可删帖） */
+  canDelete?: boolean;
 }
 
 /** 帖子评论 */

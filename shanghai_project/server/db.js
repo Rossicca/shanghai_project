@@ -272,6 +272,7 @@ function initTables() {
   db.run(`
     CREATE TABLE IF NOT EXISTS community_posts (
       id TEXT PRIMARY KEY,
+      userId TEXT,
       authorName TEXT,
       authorAvatar TEXT,
       authorTag TEXT,
@@ -402,6 +403,8 @@ const COLUMN_MIGRATIONS = [
   { table: 'community_posts', column: 'updatedAt', type: 'TEXT' },
   // 社区帖子配图：真实图片 uri（可选，无 uri 时用 emoji+色块占位）
   { table: 'community_posts', column: 'imageUri', type: 'TEXT' },
+  // 社区帖子作者：记录发帖 userId，用于「仅作者可删帖」
+  { table: 'community_posts', column: 'userId', type: 'TEXT' },
   { table: 'community_comments', column: 'updatedAt', type: 'TEXT' },
   { table: 'community_photos', column: 'updatedAt', type: 'TEXT' },
   { table: 'community_following', column: 'updatedAt', type: 'TEXT' },

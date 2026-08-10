@@ -141,6 +141,11 @@ export async function toggleLike(postId: string): Promise<{ id: string; likes: n
   return res.data?.data;
 }
 
+/** 删除自己的动态（仅作者可删，后端校验权限） */
+export async function deletePost(postId: string): Promise<void> {
+  await api.delete(`/api/v1/community/posts/${encodeURIComponent(postId)}`);
+}
+
 /** 发表评论：作者身份由后端从登录用户取出，返回创建的评论 */
 export async function createComment(postId: string, content: string): Promise<Comment> {
   const res = await api.post(`/api/v1/community/posts/${encodeURIComponent(postId)}/comments`, { content });
