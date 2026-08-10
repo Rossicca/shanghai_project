@@ -30,6 +30,8 @@ router.get('/dashboard', (req, res) => {
     // 视频统计
     const savedWorkouts = db.find('saved_workouts', { userId });
     const watchedWorkouts = db.find('workout_history', { userId });
+    // 每日打卡：与真实训练完成一起计入「训练次数」
+    const checkins = db.find('daily_checkins', { userId });
 
     // 本周活动（模拟最近7天）
     const today = new Date();
@@ -60,8 +62,8 @@ router.get('/dashboard', (req, res) => {
 
     res.json({
       data: {
-        streakDays: Math.min(watchedWorkouts.length, 30),
-        totalWorkouts: watchedWorkouts.length,
+        streakDays: Math.min(watchedWorkouts.length + checkins.length, 30),
+        totalWorkouts: watchedWorkouts.length + checkins.length,
         totalCaloriesBurned: watchedWorkouts.reduce(
           (sum, workout) => sum + Number(workout.calories || 0),
           0

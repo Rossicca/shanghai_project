@@ -5,6 +5,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PostCard } from '@/components/community/PostCard';
+import { DailyCheckinCard } from '@/components/home/DailyCheckinCard';
 import { FastingTimer } from '@/components/home/FastingTimer';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -235,6 +236,9 @@ export default function HomeScreen() {
               <Text style={styles.ctaText}>拍照记一餐</Text>
             </Pressable>
           </View>
+
+          {/* 每日训练打卡：每天一次，同步到个人主页「训练次数」 */}
+          <DailyCheckinCard />
 
           {/* 高频入口 */}
           <View style={styles.section}>

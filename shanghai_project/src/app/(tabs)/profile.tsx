@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -50,11 +50,19 @@ export default function ProfileTab() {
     loadCommunity();
     loadInspirations();
     if (getToken()) {
-      fetchDashboard().then(setDashboard).catch((error) => setDashboardError(error.message));
       fetchSavedWorkoutPlans().then((plans) => setSavedPlanCount(plans.length)).catch(() => setSavedPlanCount(0));
       fetchAdminStats().then(() => setIsAdmin(true)).catch(() => setIsAdmin(false));
     }
   }, [load, loadRecipes, loadWorkouts, loadCommunity, loadInspirations]);
+
+  // 每次切到个人主页重新拉取统计：首页打卡后「训练次数」即时更新
+  useFocusEffect(
+    useCallback(() => {
+      if (getToken()) {
+        fetchDashboard().then(setDashboard).catch((error) => setDashboardError(error.message));
+      }
+    }, [])
+  );
 
   const bmi = calcBMI(bodyData);
   const bmiLabel = bmi ? (bmi < 18.5 ? '偏瘦' : bmi < 24 ? '正常' : bmi < 28 ? '偏胖' : '肥胖') : '';

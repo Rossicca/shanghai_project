@@ -23,6 +23,7 @@ const recipeRoutes = require('./routes/recipes');
 const workoutRoutes = require('./routes/workouts');
 const workoutPlanRoutes = require('./routes/workout-plans');
 const statsRoutes = require('./routes/stats');
+const checkinRoutes = require('./routes/checkins');
 const adminRoutes = require('./routes/admin');
 const communityRoutes = require('./routes/community');
 
@@ -122,6 +123,7 @@ app.use('/api/v1/recipes', authMiddleware, recipeRoutes);
 app.use('/api/v1/workouts', authMiddleware, workoutRoutes);
 app.use('/api/v1/workout-plans', authMiddleware, workoutPlanRoutes);
 app.use('/api/v1/stats', authMiddleware, statsRoutes);
+app.use('/api/v1/checkins', authMiddleware, checkinRoutes);
 app.use('/api/v1/admin', authMiddleware, adminMiddleware, adminRoutes);
 // 社区路由不加全局 authMiddleware：读接口对游客开放，写接口在路由内校验登录
 app.use('/api/v1/community', communityRoutes);

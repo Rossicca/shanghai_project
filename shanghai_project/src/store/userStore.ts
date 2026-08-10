@@ -9,6 +9,7 @@ import type { User } from '@/types/user';
 import { useInspirationStore } from '@/store/inspirationStore';
 import { useRecipeStore } from '@/store/recipeStore';
 import { useWorkoutStore } from '@/store/workoutStore';
+import { useCheckinStore } from '@/store/checkinStore';
 
 interface UserState {
   user: User | null;
@@ -100,6 +101,7 @@ export const useUserStore = create<UserState>((set) => ({
     useInspirationStore.getState().clearLocalData();
     useRecipeStore.getState().clearLocalData();
     useWorkoutStore.getState().clearLocalData();
+    useCheckinStore.getState().clearLocalData();
     set({ user: null, bodyData: null, goal: null, bodyHistory: [], isLoggedIn: false, loaded: true });
   },
 }));
