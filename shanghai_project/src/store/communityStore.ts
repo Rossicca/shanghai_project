@@ -29,6 +29,7 @@ interface CommunityState {
   toggleLike: (id: string) => Promise<void>;
   removePost: (id: string) => Promise<void>;
   addComment: (postId: string, content: string) => Promise<void>;
+  removeComment: (postId: string, commentId: string) => Promise<void>;
   toggleFollow: (name: string) => Promise<void>;
   addPhoto: (photo: TimelineEntry) => Promise<void>;
   removePhoto: (id: string) => Promise<void>;
@@ -140,6 +141,23 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       });
     } catch (error) {
       console.warn('[community] 评论失败:', error);
+    }
+  },
+
+  removeComment: async (postId, commentId) => {
+    try {
+      // 后端校验评论作者；删除后本地同步移除该条评论并更新帖子评论计数
+      await communityService.deleteComment(postId, commentId);
+      set((s) => {
+        const next = (s.commentsByPost[postId] ?? []).filter((c) => c.id !== commentId);
+        return {
+          commentsByPost: { ...s.commentsByPost, [postId]: next },
+          posts: s.posts.map((p) => (p.id === postId ? { ...p, comments: next.length } : p)),
+        };
+      });
+    } catch (error) {
+      console.warn('[community] 删除评论失败:', error);
+      throw error;
     }
   },
 

@@ -11,7 +11,7 @@ export interface CommunityAuthor {
 export interface CommunityPost {
   id: string;
   author: CommunityAuthor;
-  /** 相对时间文案，如「2小时前」 */
+  /** 精确发表时间，如「08-10 09:45」（后端按 createdAt 生成） */
   timeLabel: string;
   category: '打卡' | '食谱' | '提问' | '晒变化';
   content: string;
@@ -33,9 +33,11 @@ export interface Comment {
     /** 头像 emoji（本地无真实头像） */
     avatar: string;
   };
-  /** 相对时间文案，如「2小时前」；新评论为「刚刚」 */
+  /** 精确发表时间，如「08-10 09:45」（后端按 createdAt 生成） */
   timeLabel: string;
   content: string;
+  /** 当前登录用户是否为评论作者（仅作者可删评论） */
+  canDelete?: boolean;
 }
 
 /** 时光阁条目（按时间记录的锻炼记忆） */

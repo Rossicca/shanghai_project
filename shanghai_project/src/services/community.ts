@@ -154,6 +154,11 @@ export async function createComment(postId: string, content: string): Promise<Co
   return comment;
 }
 
+/** 删除自己的评论（仅作者可删，后端校验权限） */
+export async function deleteComment(postId: string, commentId: string): Promise<void> {
+  await api.delete(`/api/v1/community/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`);
+}
+
 /** 切换关注：返回最新关注列表 */
 export async function toggleFollow(name: string): Promise<string[]> {
   const res = await api.post('/api/v1/community/following/toggle', { name });

@@ -32,7 +32,8 @@ const CATEGORY_COLORS: Record<string, string> = {
 export default function CommunityPostDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useTheme();
-  const { posts, commentsByPost, addComment, toggleLike, removePost, load, syncFeed, loaded } = useCommunityStore();
+  const { posts, commentsByPost, addComment, toggleLike, removePost, removeComment, load, syncFeed, loaded } =
+    useCommunityStore();
   const post = posts.find((p) => p.id === id);
   const comments = commentsByPost[id ?? ''] ?? [];
   const [draft, setDraft] = useState('');
@@ -55,6 +56,23 @@ export default function CommunityPostDetail() {
     if (!text) return;
     addComment(id, text);
     setDraft('');
+  }
+
+  /** 仅评论作者可删：确认后调后端（后端会再次校验作者身份） */
+  function handleDeleteComment(commentId: string) {
+    if (!id) return;
+    confirmDialog({
+      title: '删除评论',
+      message: '确定删除这条评论吗？',
+      confirmText: '删除',
+      cancelText: '取消',
+      destructive: true,
+      onConfirm: () => {
+        removeComment(id, commentId).catch((error) =>
+          alertDialog('删除失败', (error as Error)?.message || '请稍后再试')
+        );
+      },
+    });
   }
 
   /** 仅作者可删：删除后返回列表 */
@@ -163,6 +181,12 @@ export default function CommunityPostDetail() {
                   </View>
                   <Text style={[styles.commentBody, { color: colors.text }]}>{c.content}</Text>
                 </View>
+                {/* 仅评论作者可删 */}
+                {c.canDelete ? (
+                  <Pressable hitSlop={8} style={styles.commentDeleteBtn} onPress={() => handleDeleteComment(c.id)}>
+                    <Ionicons name="trash-outline" size={16} color={colors.textSecondary} />
+                  </Pressable>
+                ) : null}
               </View>
             ))
           ) : (
@@ -223,6 +247,7 @@ const styles = StyleSheet.create({
   commentName: { fontSize: 13, fontWeight: '700' },
   commentTime: { fontSize: 11 },
   commentBody: { fontSize: 14, lineHeight: 20, marginTop: 2 },
+  commentDeleteBtn: { padding: 4, marginLeft: 2 },
   empty: { alignItems: 'center', gap: Spacing.two, paddingVertical: Spacing.five },
   emptyText: { fontSize: 13 },
   inputBar: {

@@ -24,37 +24,62 @@ const COMMUNITY_UPLOAD_DIR = path.join(__dirname, '..', 'data', 'uploads', 'comm
 const MAX_COMMUNITY_IMAGE_BYTES = 3 * 1024 * 1024;
 fs.mkdirSync(COMMUNITY_UPLOAD_DIR, { recursive: true });
 
+// ---- 时间处理 ----
+
+/** 模块加载时的基准时刻：种子数据的 createdAt 相对此刻往前推，演示帖时间始终"新鲜" */
+const SEED_BASE_NOW = Date.now();
+const MINUTE = 60 * 1000;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+
+/** 相对基准时刻往前推 ms 的 ISO 时间戳（种子帖/评论用） */
+function ago(ms) {
+  return new Date(SEED_BASE_NOW - ms).toISOString();
+}
+
+/**
+ * ISO 时间 → 精确发表时间文案（如「08-10 09:45」；跨年带年份「2026-08-10 09:45」）。
+ * 帖子/评论的真实发布时间，不再用写死的相对文案。
+ */
+function formatPostTime(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso || '');
+  const pad = (n) => String(n).padStart(2, '0');
+  const mmdd = `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return d.getFullYear() === new Date().getFullYear() ? mmdd : `${d.getFullYear()}-${mmdd}`;
+}
+
 // ---- 种子数据（与客户端 src/services/community.ts 保持一致） ----
 
 /** 种子动态（拍平为与 DB 行同构，方便统一序列化） */
 const SEED_POSTS = [
   {
     id: 'p_seed_1', authorName: '晓雯', authorAvatar: '🦩', authorTag: '减脂第 21 天',
-    timeLabel: '2小时前', category: '打卡',
+    createdAt: ago(2 * HOUR), category: '打卡',
     content: '今天午餐吃了拍照识别的鸡胸肉沙拉，环形进度刚好达标！坚持真的会看到变化 🌿',
     imageEmoji: '🥗', imageColor: '#E4F3ED', likes: 128,
   },
   {
     id: 'p_seed_2', authorName: '阿哲', authorAvatar: '🦁', authorTag: '增肌第 45 天',
-    timeLabel: '5小时前', category: '晒变化',
+    createdAt: ago(5 * HOUR), category: '晒变化',
     content: '同一个角度，第 1 天和今天对比。体脂从 21% 降到 17%，照片墙比体重秤更直观！',
     imageEmoji: '💪', imageColor: '#FDF0DC', likes: 342,
   },
   {
     id: 'p_seed_3', authorName: '小满', authorAvatar: '🐰', authorTag: '保持健康',
-    timeLabel: '昨天', category: '食谱',
+    createdAt: ago(1 * DAY), category: '食谱',
     content: '求推荐适合宿舍党（只有小煮锅）的低脂晚餐，最近晚上总忍不住点外卖 😭',
     likes: 56,
   },
   {
     id: 'p_seed_4', authorName: 'Kevin', authorAvatar: '🐻', authorTag: '减脂第 7 天',
-    timeLabel: '昨天', category: '提问',
+    createdAt: ago(1 * DAY + 1 * HOUR), category: '提问',
     content: '深蹲后大腿前侧酸，是不是动作不对？视频里教练说膝盖不要内扣，但我总控制不住。',
     likes: 89,
   },
   {
     id: 'p_seed_5', authorName: '沐沐', authorAvatar: '🐬', authorTag: '塑形中',
-    timeLabel: '2天前', category: '打卡',
+    createdAt: ago(2 * DAY), category: '打卡',
     content: '坚持一周每晚饭后 20 分钟跟练，睡眠变好了，早上也不赖床了，记录一下 🧘',
     imageEmoji: '🧘', imageColor: '#E7F0FA', likes: 203,
   },
@@ -63,31 +88,31 @@ const SEED_POSTS = [
 /** 种子评论（postId -> 评论数组，评论数以其长度为准） */
 const SEED_COMMENTS = {
   p_seed_1: [
-    { id: 'c_seed_1a', postId: 'p_seed_1', author: { name: '阿哲', avatar: '🦁' }, timeLabel: '1小时前', content: '环形进度达标太有成就感了，继续加油！' },
-    { id: 'c_seed_1b', postId: 'p_seed_1', author: { name: '小满', avatar: '🐰' }, timeLabel: '40分钟前', content: '沙拉里加个溏心蛋，蛋白质更够～' },
-    { id: 'c_seed_1c', postId: 'p_seed_1', author: { name: 'Kevin', avatar: '🐻' }, timeLabel: '20分钟前', content: '求沙拉酱的配方，我用的都是油醋汁' },
+    { id: 'c_seed_1a', postId: 'p_seed_1', author: { name: '阿哲', avatar: '🦁' }, createdAt: ago(1 * HOUR), content: '环形进度达标太有成就感了，继续加油！' },
+    { id: 'c_seed_1b', postId: 'p_seed_1', author: { name: '小满', avatar: '🐰' }, createdAt: ago(40 * MINUTE), content: '沙拉里加个溏心蛋，蛋白质更够～' },
+    { id: 'c_seed_1c', postId: 'p_seed_1', author: { name: 'Kevin', avatar: '🐻' }, createdAt: ago(20 * MINUTE), content: '求沙拉酱的配方，我用的都是油醋汁' },
   ],
   p_seed_2: [
-    { id: 'c_seed_2a', postId: 'p_seed_2', author: { name: '晓雯', avatar: '🦩' }, timeLabel: '4小时前', content: '这也太明显了！锁骨都出来了' },
-    { id: 'c_seed_2b', postId: 'p_seed_2', author: { name: '沐沐', avatar: '🐬' }, timeLabel: '3小时前', content: '照片墙这个坚持方式太适合我了，已用上' },
-    { id: 'c_seed_2c', postId: 'p_seed_2', author: { name: '小满', avatar: '🐰' }, timeLabel: '2小时前', content: '体脂 17%！求问增肌期怎么兼顾有氧' },
-    { id: 'c_seed_2d', postId: 'p_seed_2', author: { name: 'Kevin', avatar: '🐻' }, timeLabel: '1小时前', content: '同一个角度拍真的能看出差别，学到了' },
+    { id: 'c_seed_2a', postId: 'p_seed_2', author: { name: '晓雯', avatar: '🦩' }, createdAt: ago(4 * HOUR), content: '这也太明显了！锁骨都出来了' },
+    { id: 'c_seed_2b', postId: 'p_seed_2', author: { name: '沐沐', avatar: '🐬' }, createdAt: ago(3 * HOUR), content: '照片墙这个坚持方式太适合我了，已用上' },
+    { id: 'c_seed_2c', postId: 'p_seed_2', author: { name: '小满', avatar: '🐰' }, createdAt: ago(2 * HOUR), content: '体脂 17%！求问增肌期怎么兼顾有氧' },
+    { id: 'c_seed_2d', postId: 'p_seed_2', author: { name: 'Kevin', avatar: '🐻' }, createdAt: ago(1 * HOUR), content: '同一个角度拍真的能看出差别，学到了' },
   ],
   p_seed_3: [
-    { id: 'c_seed_3a', postId: 'p_seed_3', author: { name: '晓雯', avatar: '🦩' }, timeLabel: '昨天', content: '宿舍党来答：番茄鸡蛋汤 + 玉米，热量低又顶饱' },
-    { id: 'c_seed_3b', postId: 'p_seed_3', author: { name: '阿哲', avatar: '🦁' }, timeLabel: '昨天', content: '小煮锅可以煮荞麦面，配上水煮虾仁，绝了' },
-    { id: 'c_seed_3c', postId: 'p_seed_3', author: { name: '沐沐', avatar: '🐬' }, timeLabel: '昨天', content: '提前备好食材，晚上饿了就不想点外卖了' },
+    { id: 'c_seed_3a', postId: 'p_seed_3', author: { name: '晓雯', avatar: '🦩' }, createdAt: ago(22 * HOUR), content: '宿舍党来答：番茄鸡蛋汤 + 玉米，热量低又顶饱' },
+    { id: 'c_seed_3b', postId: 'p_seed_3', author: { name: '阿哲', avatar: '🦁' }, createdAt: ago(20 * HOUR), content: '小煮锅可以煮荞麦面，配上水煮虾仁，绝了' },
+    { id: 'c_seed_3c', postId: 'p_seed_3', author: { name: '沐沐', avatar: '🐬' }, createdAt: ago(18 * HOUR), content: '提前备好食材，晚上饿了就不想点外卖了' },
   ],
   p_seed_4: [
-    { id: 'c_seed_4a', postId: 'p_seed_4', author: { name: '小满', avatar: '🐰' }, timeLabel: '昨天', content: '我之前也一样，把重量降一档，先找对膝盖位置' },
-    { id: 'c_seed_4b', postId: 'p_seed_4', author: { name: '沐沐', avatar: '🐬' }, timeLabel: '昨天', content: '对着镜子做，脚趾朝前，想象屁股往后坐' },
-    { id: 'c_seed_4c', postId: 'p_seed_4', author: { name: '晓雯', avatar: '🦩' }, timeLabel: '昨天', content: '热身开髋+踝，深蹲前一定要做' },
+    { id: 'c_seed_4a', postId: 'p_seed_4', author: { name: '小满', avatar: '🐰' }, createdAt: ago(23 * HOUR), content: '我之前也一样，把重量降一档，先找对膝盖位置' },
+    { id: 'c_seed_4b', postId: 'p_seed_4', author: { name: '沐沐', avatar: '🐬' }, createdAt: ago(21 * HOUR), content: '对着镜子做，脚趾朝前，想象屁股往后坐' },
+    { id: 'c_seed_4c', postId: 'p_seed_4', author: { name: '晓雯', avatar: '🦩' }, createdAt: ago(19 * HOUR), content: '热身开髋+踝，深蹲前一定要做' },
   ],
   p_seed_5: [
-    { id: 'c_seed_5a', postId: 'p_seed_5', author: { name: '阿哲', avatar: '🦁' }, timeLabel: '昨天', content: '跟着练睡眠真的变好了，睡前拉伸太香' },
-    { id: 'c_seed_5b', postId: 'p_seed_5', author: { name: '小满', avatar: '🐰' }, timeLabel: '昨天', content: '我也坚持一周了，现在到点就困 😂' },
-    { id: 'c_seed_5c', postId: 'p_seed_5', author: { name: 'Kevin', avatar: '🐻' }, timeLabel: '昨天', content: '晚饭后跟练会不会太兴奋影响入睡？' },
-    { id: 'c_seed_5d', postId: 'p_seed_5', author: { name: '晓雯', avatar: '🦩' }, timeLabel: '昨天', content: '控制在睡前 1 小时结束，亲测有效' },
+    { id: 'c_seed_5a', postId: 'p_seed_5', author: { name: '阿哲', avatar: '🦁' }, createdAt: ago(26 * HOUR), content: '跟着练睡眠真的变好了，睡前拉伸太香' },
+    { id: 'c_seed_5b', postId: 'p_seed_5', author: { name: '小满', avatar: '🐰' }, createdAt: ago(25 * HOUR), content: '我也坚持一周了，现在到点就困 😂' },
+    { id: 'c_seed_5c', postId: 'p_seed_5', author: { name: 'Kevin', avatar: '🐻' }, createdAt: ago(24 * HOUR), content: '晚饭后跟练会不会太兴奋影响入睡？' },
+    { id: 'c_seed_5d', postId: 'p_seed_5', author: { name: '晓雯', avatar: '🦩' }, createdAt: ago(23 * HOUR), content: '控制在睡前 1 小时结束，亲测有效' },
   ],
 };
 
@@ -135,7 +160,8 @@ function toPostView(row, { comments, likes, liked, canDelete = false }) {
   const post = {
     id: row.id,
     author: { name: row.authorName, avatar: row.authorAvatar, tag: row.authorTag },
-    timeLabel: row.timeLabel,
+    // 真实发布时间：有 createdAt 就格式化为精确时间，老数据兜底 timeLabel
+    timeLabel: row.createdAt ? formatPostTime(row.createdAt) : row.timeLabel,
     category: row.category,
     content: row.content,
     likes,
@@ -212,19 +238,24 @@ function postsView(userId) {
   );
 }
 
-/** 评论视图：种子评论 + 用户评论，按 postId 分组 */
-function commentsView() {
+/**
+ * 评论视图：种子评论 + 用户评论，按 postId 分组。
+ * 传入当前 userId 用于标记「仅评论作者本人可删」（种子评论不可删）。
+ */
+function commentsView(userId) {
   const map = {};
   for (const [postId, list] of Object.entries(SEED_COMMENTS)) {
-    map[postId] = list.map((c) => ({ ...c }));
+    map[postId] = list.map((c) => ({ ...c, canDelete: false }));
   }
   for (const row of db.find('community_comments')) {
     const comment = {
       id: row.id,
       postId: row.postId,
       author: { name: row.authorName, avatar: row.authorAvatar },
-      timeLabel: row.timeLabel,
+      timeLabel: row.createdAt ? formatPostTime(row.createdAt) : row.timeLabel,
       content: row.content,
+      // 仅评论作者本人可删；种子评论无 userId，删不了
+      canDelete: Boolean(userId && row.userId && row.userId === userId),
     };
     (map[row.postId] ||= []).push(comment);
   }
@@ -335,7 +366,7 @@ router.post('/posts', (req, res) => {
     authorAvatar: author.avatar,
     // sql.js 不允许绑定 undefined，可选字段统一兜底为 null
     authorTag: author.tag || null,
-    timeLabel: '刚刚',
+    timeLabel: formatPostTime(new Date().toISOString()),
     category,
     content,
     imageEmoji: image?.emoji || null,
@@ -388,7 +419,7 @@ router.post('/posts/:id/like', (req, res) => {
 
 // 评论列表（postId -> 评论数组）
 router.get('/comments', (req, res) => {
-  res.json({ data: { comments: commentsView() } });
+  res.json({ data: { comments: commentsView(req.user?.userId) } });
 });
 
 // 发表评论（需登录；作者取 token 对应用户）
@@ -403,17 +434,44 @@ router.post('/posts/:id/comments', (req, res) => {
     return res.status(400).json({ error: { code: 'INVALID_PARAMS', message: '评论内容不能为空' } });
   }
   const author = authorIdentity(req.user.userId);
+  const nowIso = new Date().toISOString();
   const row = db.insert('community_comments', {
     postId: id,
+    // 记录评论作者 userId，用于「仅作者可删评论」的权限校验
+    userId: req.user.userId,
     authorName: author.name,
     authorAvatar: author.avatar,
-    timeLabel: '刚刚',
+    timeLabel: formatPostTime(nowIso),
     content,
   });
   res.status(201).json({
-    data: { id: row.id, postId: id, author: { name: author.name, avatar: author.avatar }, timeLabel: '刚刚', content },
+    // 能发出来必然是作者本人，直接标记可删
+    data: { id: row.id, postId: id, author: { name: author.name, avatar: author.avatar }, timeLabel: formatPostTime(nowIso), content, canDelete: true },
     message: '评论成功',
   });
+});
+
+// 删除评论（需登录；仅评论作者本人可删，种子评论不可删）
+router.delete('/posts/:postId/comments/:commentId', (req, res) => {
+  if (!requireLogin(req, res)) return;
+  const { postId, commentId } = req.params;
+  if (!postExists(postId)) {
+    return res.status(404).json({ error: { code: 'POST_NOT_FOUND', message: '动态不存在' } });
+  }
+  // 种子评论是常量视图，不存在于 DB，先拦下避免误报「评论不存在」
+  const isSeedComment = Object.values(SEED_COMMENTS).some((list) => list.some((c) => c.id === commentId));
+  if (isSeedComment) {
+    return res.status(403).json({ error: { code: 'FORBIDDEN', message: '只能删除自己发布的评论' } });
+  }
+  const comment = db.findById('community_comments', commentId);
+  if (!comment) {
+    return res.status(404).json({ error: { code: 'COMMENT_NOT_FOUND', message: '评论不存在' } });
+  }
+  if (comment.userId !== req.user.userId) {
+    return res.status(403).json({ error: { code: 'FORBIDDEN', message: '只能删除自己发布的评论' } });
+  }
+  db.remove('community_comments', commentId);
+  res.json({ data: { id: commentId, postId }, message: '已删除' });
 });
 
 // 我的照片墙

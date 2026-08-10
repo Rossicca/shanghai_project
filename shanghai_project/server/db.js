@@ -300,6 +300,7 @@ function initTables() {
     CREATE TABLE IF NOT EXISTS community_comments (
       id TEXT PRIMARY KEY,
       postId TEXT NOT NULL,
+      userId TEXT,
       authorName TEXT,
       authorAvatar TEXT,
       timeLabel TEXT,
@@ -417,6 +418,8 @@ const COLUMN_MIGRATIONS = [
   // 社区帖子作者：记录发帖 userId，用于「仅作者可删帖」
   { table: 'community_posts', column: 'userId', type: 'TEXT' },
   { table: 'community_comments', column: 'updatedAt', type: 'TEXT' },
+  // 社区评论作者：记录 userId，用于「仅作者可删评论」
+  { table: 'community_comments', column: 'userId', type: 'TEXT' },
   { table: 'community_photos', column: 'updatedAt', type: 'TEXT' },
   { table: 'community_following', column: 'updatedAt', type: 'TEXT' },
 ];
