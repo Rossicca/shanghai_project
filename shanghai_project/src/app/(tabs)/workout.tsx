@@ -115,6 +115,15 @@ export default function WorkoutTab() {
     if (delta > 0 && nextIndex >= feed.length - 2 && hasMore) void loadMore();
   }
 
+  const webScrollStyle = Platform.OS === 'web'
+    ? ({
+        overflowY: 'auto',
+        overscrollBehaviorY: 'contain',
+        touchAction: 'pan-y',
+        WebkitOverflowScrolling: 'touch',
+      } as any)
+    : null;
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -182,6 +191,7 @@ export default function WorkoutTab() {
               snapToAlignment="start"
               decelerationRate="fast"
               disableIntervalMomentum
+              scrollEnabled
               showsVerticalScrollIndicator={false}
               onViewableItemsChanged={onViewableItemsChanged}
               viewabilityConfig={viewabilityConfig}
@@ -189,7 +199,7 @@ export default function WorkoutTab() {
               onEndReachedThreshold={0.6}
               getItemLayout={(_, index) => ({ length: listHeight || 600, offset: (listHeight || 600) * index, index })}
               {...(Platform.OS === 'web' ? ({ onWheel: handleWheel } as any) : {})}
-              style={[styles.feedList, Platform.OS === 'web' ? ({ overflowY: 'hidden' } as any) : null]}
+              style={[styles.feedList, webScrollStyle]}
               renderItem={({ item, index }) => (
                 <View style={{ height: listHeight || 600 }}>
                   <WorkoutFeedItem

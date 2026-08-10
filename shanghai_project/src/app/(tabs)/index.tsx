@@ -154,14 +154,39 @@ export default function HomeScreen() {
                 <PlanMetric label="频率" value={`每周${weeklyFrequency}次`} />
               </View>
               {activePlan ? (
-                <View style={styles.planPreview}>
-                  {activePlan.weeklySchedule.slice(0, 3).map((day) => (
-                    <View key={day.day} style={styles.planDay}>
-                      <Text style={styles.planDayNumber}>第{day.day}天</Text>
-                      <Text style={styles.planDayTitle} numberOfLines={1}>{day.title}</Text>
-                      <Text style={styles.planDayMeta}>{day.durationMinutes} 分钟</Text>
+                <View style={styles.planSchedule}>
+                  <View style={styles.planSectionLabel}>
+                    <Ionicons name="barbell-outline" size={14} color="#FFFFFF" />
+                    <Text style={styles.planSectionLabelText}>训练安排</Text>
+                  </View>
+                  <View style={styles.planPreview}>
+                    {activePlan.weeklySchedule.slice(0, 3).map((day) => (
+                      <View key={day.day} style={styles.planDay}>
+                        <Text style={styles.planDayNumber}>第{day.day}天</Text>
+                        <Text style={styles.planDayTitle} numberOfLines={1}>{day.title}</Text>
+                        <Text style={styles.planDayMeta}>{day.durationMinutes} 分钟</Text>
+                      </View>
+                    ))}
+                  </View>
+                  {todayDietDay?.meals?.length ? (
+                    <View style={styles.todayMealPlan}>
+                      <View style={styles.todayMealHeading}>
+                        <View style={styles.planSectionLabel}>
+                          <Ionicons name="restaurant-outline" size={14} color="#FFFFFF" />
+                          <Text style={styles.planSectionLabelText}>今天吃什么</Text>
+                        </View>
+                        <Text style={styles.todayMealFocus} numberOfLines={1}>{todayDietDay.focus}</Text>
+                      </View>
+                      <View style={styles.todayMealList}>
+                        {todayDietDay.meals.slice(0, 3).map((meal) => (
+                          <View key={`${meal.mealType}-${meal.name}`} style={styles.todayMealRow}>
+                            <Text style={styles.todayMealType}>{meal.mealType}</Text>
+                            <Text style={styles.todayMealName} numberOfLines={1}>{meal.name}</Text>
+                          </View>
+                        ))}
+                      </View>
                     </View>
-                  ))}
+                  ) : null}
                 </View>
               ) : null}
             </Pressable>
@@ -481,11 +506,21 @@ const styles = StyleSheet.create({
   planMetric: { flex: 1, minWidth: 0, backgroundColor: 'rgba(255,255,255,0.13)', borderRadius: 12, paddingVertical: 9, paddingHorizontal: 6 },
   planMetricValue: { color: '#fff', fontSize: 13, fontWeight: '800', textAlign: 'center' },
   planMetricLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 9, textAlign: 'center', marginTop: 2 },
+  planSchedule: { gap: 8 },
+  planSectionLabel: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  planSectionLabelText: { color: '#fff', fontSize: 11, fontWeight: '800' },
   planPreview: { flexDirection: 'row', gap: 6 },
   planDay: { flex: 1, minWidth: 0, backgroundColor: 'rgba(0,0,0,0.12)', borderRadius: 12, padding: 8 },
   planDayNumber: { color: 'rgba(255,255,255,0.7)', fontSize: 9, fontWeight: '700' },
   planDayTitle: { color: '#fff', fontSize: 11, fontWeight: '700', marginTop: 2 },
   planDayMeta: { color: 'rgba(255,255,255,0.65)', fontSize: 9, marginTop: 2 },
+  todayMealPlan: { gap: 8, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 14, padding: 10 },
+  todayMealHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  todayMealFocus: { flex: 1, color: 'rgba(255,255,255,0.68)', fontSize: 9, textAlign: 'right' },
+  todayMealList: { gap: 6 },
+  todayMealRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  todayMealType: { width: 38, color: 'rgba(255,255,255,0.72)', fontSize: 9, fontWeight: '700' },
+  todayMealName: { flex: 1, color: '#fff', fontSize: 11, fontWeight: '700' },
   // 金刚区
   section: { paddingHorizontal: Spacing.three + 4, gap: 10 },
   sectionTitle: { fontSize: 15 },

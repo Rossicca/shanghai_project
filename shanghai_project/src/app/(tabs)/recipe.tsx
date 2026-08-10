@@ -10,29 +10,49 @@ import { ThemedView } from '@/components/themed-view';
 import { Radius, Spacing } from '@/constants/theme';
 import { HEALTH_INSPIRATIONS, type HealthInspiration } from '@/data/health-inspirations';
 import { useTheme } from '@/hooks/use-theme';
+import { useInspirationStore } from '@/store/inspirationStore';
 import { useRecipeStore } from '@/store/recipeStore';
 import { useUserStore } from '@/store/userStore';
 import type { Recipe } from '@/types/recipe';
 
 const HEALTH_FILTERS = ['全部', '早餐', '正餐', '加餐', '素食'] as const;
+const HEALTH_BATCH_SIZE = 8;
+
+function prioritizeVideoBacked(items: HealthInspiration[]) {
+  const bilibili = items.filter((item) => item.sourceVideo?.platform === 'bilibili');
+  const douyin = items.filter((item) => item.sourceVideo?.platform === 'douyin');
+  const verified: HealthInspiration[] = [];
+  for (let index = 0; index < Math.max(bilibili.length, douyin.length); index += 1) {
+    if (bilibili[index]) verified.push(bilibili[index]);
+    if (douyin[index]) verified.push(douyin[index]);
+  }
+  return [...verified, ...items.filter((item) => !item.sourceVideo)];
+}
 
 export default function RecipeTab() {
   const colors = useTheme();
   const goal = useUserStore((state) => state.goal);
   const { savedRecipes, recipeHistory, saveRecipe, unsaveRecipe, loadLocal, selectRecipe } = useRecipeStore();
+  const { savedIds: savedInspirationIds, loadLocal: loadInspirations, toggleSaved: toggleInspiration } = useInspirationStore();
   const [healthFilter, setHealthFilter] = useState<(typeof HEALTH_FILTERS)[number]>('全部');
+  const [batchOffset, setBatchOffset] = useState(0);
 
   useEffect(() => {
     loadLocal();
-  }, [loadLocal]);
+    loadInspirations();
+  }, [loadInspirations, loadLocal]);
 
   const savedIds = new Set(savedRecipes.map((recipe) => recipe.id));
-  const healthPicks = [...HEALTH_INSPIRATIONS]
+  const healthPool = prioritizeVideoBacked([...HEALTH_INSPIRATIONS]
     .filter((item) => healthFilter === '全部' || item.group === healthFilter)
     .sort((a, b) => {
-    if (!goal) return 0;
-    return Number(b.goals.includes(goal.type)) - Number(a.goals.includes(goal.type));
-    });
+      if (!goal) return 0;
+      return Number(b.goals.includes(goal.type)) - Number(a.goals.includes(goal.type));
+    }));
+  const healthPicks = healthPool.length <= HEALTH_BATCH_SIZE
+    ? healthPool
+    : Array.from({ length: HEALTH_BATCH_SIZE }, (_, index) => healthPool[(batchOffset + index) % healthPool.length]);
+  const savedInspirationSet = new Set(savedInspirationIds);
 
   function openRecipe(recipe: Recipe) {
     selectRecipe(recipe);
@@ -41,6 +61,16 @@ export default function RecipeTab() {
 
   function openHealthPick(pick: HealthInspiration) {
     router.push({ pathname: '/recipe/inspiration/[id]', params: { id: pick.id } });
+  }
+
+  function selectHealthFilter(filter: (typeof HEALTH_FILTERS)[number]) {
+    setHealthFilter(filter);
+    setBatchOffset(0);
+  }
+
+  function showNextHealthBatch() {
+    if (healthPool.length <= HEALTH_BATCH_SIZE) return;
+    setBatchOffset((offset) => (offset + HEALTH_BATCH_SIZE) % healthPool.length);
   }
 
   return (
@@ -85,20 +115,27 @@ export default function RecipeTab() {
           <View style={styles.sectionHeading}>
             <View>
               <ThemedText type="subtitle">健康饮食灵感</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">当前 {healthPicks.length} 个灵感，点击先看搭配思路和食材</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">共 {healthPool.length} 种 · 已核验视频优先，其他内容实时匹配</ThemedText>
             </View>
-            {goal ? (
-              <View style={[styles.goalTag, { backgroundColor: colors.primarySoft }]}>
-                <Text style={[styles.goalTagText, { color: colors.primary }]}>{goal.type}</Text>
-              </View>
-            ) : null}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="换一批健康饮食灵感"
+              disabled={healthPool.length <= HEALTH_BATCH_SIZE}
+              onPress={showNextHealthBatch}
+              style={({ pressed }) => [
+                styles.refreshButton,
+                { backgroundColor: colors.primarySoft, opacity: healthPool.length <= HEALTH_BATCH_SIZE ? 0.45 : pressed ? 0.7 : 1 },
+              ]}>
+              <Ionicons name="refresh" size={16} color={colors.primary} />
+              <Text style={[styles.refreshText, { color: colors.primary }]}>换一批</Text>
+            </Pressable>
           </View>
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterList}>
             {HEALTH_FILTERS.map((filter) => {
               const selected = filter === healthFilter;
               return (
-                <Pressable key={filter} onPress={() => setHealthFilter(filter)} style={[styles.filterChip, { backgroundColor: selected ? colors.primary : colors.backgroundElement }]}>
+                <Pressable key={filter} onPress={() => selectHealthFilter(filter)} style={[styles.filterChip, { backgroundColor: selected ? colors.primary : colors.backgroundElement }]}>
                   <Text style={[styles.filterText, { color: selected ? '#fff' : colors.text }]}>{filter}</Text>
                 </Pressable>
               );
@@ -112,6 +149,23 @@ export default function RecipeTab() {
                   <Image source={{ uri: pick.image }} style={styles.pickImage} resizeMode="cover" />
                   <View style={styles.imageShade} />
                   <View style={styles.mealBadge}><Text style={styles.mealBadgeText}>{pick.meal}</Text></View>
+                  {pick.sourceVideo ? (
+                    <View style={styles.videoBadge}>
+                      <Ionicons name={pick.sourceVideo.platform === 'douyin' ? 'musical-notes' : 'tv'} size={11} color="#FFFFFF" />
+                      <Text style={styles.videoBadgeText}>{pick.sourceVideo.platform === 'douyin' ? '抖音教程' : 'B站教程'}</Text>
+                    </View>
+                  ) : null}
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={savedInspirationSet.has(pick.id) ? `取消收藏${pick.title}` : `收藏${pick.title}`}
+                    hitSlop={6}
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      void toggleInspiration(pick.id);
+                    }}
+                    style={({ pressed }) => [styles.saveButton, { opacity: pressed ? 0.72 : 1 }]}>
+                    <Ionicons name={savedInspirationSet.has(pick.id) ? 'bookmark' : 'bookmark-outline'} size={19} color="#FFFFFF" />
+                  </Pressable>
                 </View>
                 <View style={styles.pickBody}>
                   <ThemedText type="smallBold" numberOfLines={1}>{pick.title}</ThemedText>
@@ -183,8 +237,8 @@ const styles = StyleSheet.create({
   manualEntry: { alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: -Spacing.one },
   manualText: { fontSize: 12, fontWeight: '700' },
   sectionHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', gap: Spacing.two },
-  goalTag: { paddingHorizontal: Spacing.two, paddingVertical: 5, borderRadius: Radius.chip },
-  goalTagText: { fontSize: 11, fontWeight: '800' },
+  refreshButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 12, borderRadius: Radius.button },
+  refreshText: { fontSize: 12, fontWeight: '800' },
   filterList: { gap: Spacing.two, paddingRight: Spacing.three },
   filterChip: { minHeight: 40, justifyContent: 'center', paddingHorizontal: 14, borderRadius: Radius.chip },
   filterText: { fontSize: 12, fontWeight: '800' },
@@ -195,6 +249,9 @@ const styles = StyleSheet.create({
   imageShade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(0,0,0,0.12)' },
   mealBadge: { position: 'absolute', top: Spacing.two, left: Spacing.two, backgroundColor: 'rgba(0,0,0,0.56)', borderRadius: Radius.chip, paddingHorizontal: 9, paddingVertical: 4 },
   mealBadgeText: { color: '#fff', fontSize: 10, fontWeight: '800' },
+  videoBadge: { position: 'absolute', left: Spacing.two, bottom: Spacing.two, minHeight: 24, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(7,20,15,0.72)', borderRadius: Radius.chip, paddingHorizontal: 8, paddingVertical: 4 },
+  videoBadgeText: { color: '#fff', fontSize: 9, fontWeight: '800' },
+  saveButton: { position: 'absolute', top: Spacing.two, right: Spacing.two, width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(7,20,15,0.68)', alignItems: 'center', justifyContent: 'center' },
   pickBody: { padding: Spacing.two, gap: 5 },
   pickMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   balanceGuide: { borderWidth: 1, borderRadius: Radius.card, padding: Spacing.three, gap: Spacing.three },

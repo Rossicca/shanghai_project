@@ -1,18 +1,22 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { RecipeVideoSection } from '@/components/recipe/RecipeVideoSection';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Radius, Spacing } from '@/constants/theme';
 import { findHealthInspiration } from '@/data/health-inspirations';
 import { useTheme } from '@/hooks/use-theme';
+import { useInspirationStore } from '@/store/inspirationStore';
 import { useRecipeStore } from '@/store/recipeStore';
 import { useUserStore } from '@/store/userStore';
+import type { Recipe } from '@/types/recipe';
 
 export default function HealthInspirationDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -20,6 +24,13 @@ export default function HealthInspirationDetail() {
   const inspiration = findHealthInspiration(id);
   const goal = useUserStore((state) => state.goal);
   const setIngredients = useRecipeStore((state) => state.setIngredients);
+  const savedIds = useInspirationStore((state) => state.savedIds);
+  const toggleSaved = useInspirationStore((state) => state.toggleSaved);
+  const loadInspirations = useInspirationStore((state) => state.loadLocal);
+
+  useEffect(() => {
+    void loadInspirations();
+  }, [loadInspirations]);
 
   if (!inspiration) {
     return (
@@ -44,6 +55,29 @@ export default function HealthInspirationDetail() {
   }
 
   const matchedGoal = goal && inspiration.goals.includes(goal.type);
+  const saved = savedIds.includes(inspiration.id);
+  const videoRecipe: Recipe = {
+    id: `inspiration-${inspiration.id}`,
+    name: inspiration.title,
+    videoSearchAliases: inspiration.videoSearchAliases,
+    description: inspiration.description,
+    coverEmoji: '',
+    sourceVideo: inspiration.sourceVideo
+      ? { ...inspiration.sourceVideo, coverUrl: inspiration.sourceVideo.coverUrl || inspiration.image }
+      : null,
+    calories: inspiration.calories,
+    protein: inspiration.protein,
+    carbs: 0,
+    fat: 0,
+    ingredients: inspiration.ingredients.map((name) => ({ name, amount: '适量' })),
+    steps: [
+      `准备${inspiration.ingredients.join('、')}。`,
+      `按${inspiration.title}的常见做法处理主食材并完成搭配。`,
+      '装盘后按个人训练目标调整份量。',
+    ],
+    cookTime: inspiration.time,
+    difficulty: inspiration.time <= 15 ? '简单' : '中等',
+  };
 
   return (
     <ThemedView style={styles.container}>
@@ -54,8 +88,15 @@ export default function HealthInspirationDetail() {
           </Pressable>
           <View style={{ flex: 1 }}>
             <ThemedText type="smallBold">健康饮食灵感</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">先了解，再决定是否生成做法</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">先了解，再跟着匹配视频做</ThemedText>
           </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={saved ? '取消收藏这条饮食灵感' : '收藏这条饮食灵感'}
+            onPress={() => void toggleSaved(inspiration.id)}
+            style={[styles.headerButton, { backgroundColor: saved ? colors.primarySoft : colors.card }]}>
+            <Ionicons name={saved ? 'bookmark' : 'bookmark-outline'} size={21} color={saved ? colors.primary : colors.text} />
+          </Pressable>
         </View>
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -120,6 +161,14 @@ export default function HealthInspirationDetail() {
               ))}
             </View>
           </Card>
+
+          <RecipeVideoSection
+            recipe={videoRecipe}
+            maxVideos={1}
+            hidePlatformSearches
+            title="制作步骤视频"
+            description={`只展示与“${inspiration.title}”菜名一致且通过质量筛选的制作教程`}
+          />
 
           <View style={[styles.evidence, { backgroundColor: colors.backgroundElement }]}>
             <Ionicons name="library-outline" size={19} color={colors.primary} />

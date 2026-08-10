@@ -14,7 +14,45 @@ function platformSearches(query) {
 }
 
 function fallbackReason(recipeName) {
-  return `搜索结果与“${recipeName}”的制作方法相关，打开后可核对具体食材和步骤。`;
+  return `视频标题明确对应“${recipeName}”，并包含完整做法或教程信息。`;
+}
+
+function normalizeDishName(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[\s·•_—\-（）()【】\[\]“”'"，,。.!！?？:：]/g, '');
+}
+
+function isVerifiedTutorial(video, dishNames) {
+  const title = normalizeDishName(video?.title);
+  const description = normalizeDishName(video?.description);
+  const searchable = `${title}${description}`;
+  const curatedDishNames = (Array.isArray(video?.matchedDishes) ? video.matchedDishes : [])
+    .map(normalizeDishName)
+    .filter(Boolean);
+  // matchedDishes 只由人工核验索引提供；即使原视频标题较口语化，也属于已确认的制作教程。
+  const tutorialSignal = curatedDishNames.length > 0 || /做法|教程|制作|怎么做|教你|步骤|烹饪|食谱|复刻|演示|过程/.test(searchable);
+  const blockedSignal = /吃播|探店|测评|开箱|盘点|挑战|vlog|reaction|混剪/.test(searchable);
+  const exactDish = dishNames.some((dishName) => {
+    const normalized = normalizeDishName(dishName);
+    return normalized.length >= 4 && (
+      title.includes(normalized) ||
+      curatedDishNames.some((curatedName) => curatedName.includes(normalized) || normalized.includes(curatedName))
+    );
+  });
+  const duration = Number(video?.duration) || 0;
+  const usefulDuration = duration === 0 || (duration >= 30 && duration <= 3600);
+  return exactDish && tutorialSignal && !blockedSignal && usefulDuration;
+}
+
+function qualityScore(video) {
+  const title = String(video?.title || '');
+  const tutorialTerms = ['完整', '详细', '步骤', '教程', '做法'];
+  const tutorialScore = tutorialTerms.reduce((score, term) => score + (title.includes(term) ? 8 : 0), 0);
+  const duration = Number(video?.duration) || 0;
+  const durationScore = duration >= 120 && duration <= 1200 ? 18 : duration >= 30 && duration <= 1800 ? 8 : 0;
+  const playScore = Math.min(20, Math.log10(Math.max(1, Number(video?.playCount) || 1)) * 3);
+  return tutorialScore + durationScore + playScore;
 }
 
 async function recommendRecipeVideos(recipe) {
@@ -24,9 +62,13 @@ async function recommendRecipeVideos(recipe) {
     .map((item) => String(item?.name || item || '').trim())
     .filter(Boolean)
     .slice(0, 10);
+  const dishNames = [name, ...(Array.isArray(recipe.videoSearchAliases) ? recipe.videoSearchAliases : [])]
+    .map((item) => String(item || '').trim().slice(0, 80))
+    .filter(Boolean)
+    .slice(0, 4);
   const query = `${name} 做法 教程`;
   const preferredVideo = validateRecipeVideo(recipe?.sourceVideo);
-  const key = `${name}|${ingredients.join('|')}|${preferredVideo?.id || ''}`;
+  const key = `${dishNames.join('|')}|${ingredients.join('|')}|${preferredVideo?.id || ''}`;
   const cached = cache.get(key);
   if (cached && Date.now() - cached.createdAt < CACHE_TTL_MS) return cached.value;
 
@@ -40,13 +82,21 @@ async function recommendRecipeVideos(recipe) {
   };
 
   try {
-    const [searched, curated] = await Promise.all([
-      searchBilibiliVideos(query).catch(() => []),
-      Promise.resolve(findCuratedRecipeVideos({ name, ingredients })),
+    const [searchedGroups, curated] = await Promise.all([
+      Promise.all(dishNames.slice(0, 3).map((dishName) =>
+        searchBilibiliVideos(`${dishName} 做法 教程`, 12).catch(() => [])
+      )),
+      Promise.resolve(dishNames.flatMap((dishName) =>
+        findCuratedRecipeVideos({ name: dishName, ingredients })
+      )),
     ]);
-    const merged = [...curated, ...searched];
+    const searched = searchedGroups.flat();
+    const verifiedCurated = curated.filter((video) => isVerifiedTutorial(video, dishNames));
+    const verifiedSearched = searched.filter((video) => isVerifiedTutorial(video, dishNames));
+    const merged = [...verifiedCurated, ...verifiedSearched]
+      .sort((a, b) => qualityScore(b) - qualityScore(a));
     const unique = [...new Map(merged.map((video) => [String(video.id), video])).values()];
-    const candidates = preferredVideo
+    const candidates = preferredVideo && isVerifiedTutorial(preferredVideo, dishNames)
       ? [preferredVideo, ...unique.filter((video) => video.id !== preferredVideo.id)]
       : unique;
     let ranked = [];
@@ -70,18 +120,23 @@ async function recommendRecipeVideos(recipe) {
       }
     }
     const ordered = ranked.length > 0 ? ranked : candidates;
-    const selected = preferredVideo
+    const verifiedPreferred = candidates.find((video) => video.id === preferredVideo?.id);
+    const selected = verifiedPreferred
       ? [preferredVideo, ...ordered.filter((video) => video.id !== preferredVideo.id)]
       : ordered;
     // AI 排过序就只保留 AI 选中的（宁缺毋滥）；搜索排序最多展示 4 条国内教程。
     const maxVideos = ranked.length > 0 ? ranked.length : 4;
     result.videos = selected.slice(0, maxVideos).map((video) => ({
       ...video,
-      reason: video.id === preferredVideo?.id
+      reason: video.id === verifiedPreferred?.id
         ? '这是你选择菜谱时参考的原教程，菜名、步骤与视频来源保持一致。'
         : video.reason || fallbackReason(name),
       platform: video.platform === 'douyin' ? 'douyin' : 'bilibili',
     }));
+    if (!result.videos.length) {
+      result.warning = `暂时没有找到与“${name}”菜名一致、且质量合格的制作教程。`;
+      result.rankingMode = 'no_match';
+    }
   } catch (error) {
     console.warn('[recipe-videos] 国内平台检索失败:', error.message);
     result.warning = '暂时无法读取视频列表，可打开抖音或 B 站继续搜索';

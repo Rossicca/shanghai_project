@@ -126,6 +126,7 @@ export async function fetchRecipeVideos(recipe: Recipe): Promise<RecipeVideoReco
   const res = await api.post('/api/recipe/videos', {
     recipe: {
       name: recipe.name,
+      videoSearchAliases: recipe.videoSearchAliases,
       ingredients: recipe.ingredients,
       steps: recipe.steps,
       sourceVideo: recipe.sourceVideo,

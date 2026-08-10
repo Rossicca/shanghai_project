@@ -4,6 +4,18 @@
  */
 const CURATED_RECIPE_VIDEOS = [
   {
+    id: '7491322053539171596', platform: 'douyin', title: '清蒸鲈鱼的正确方法', author: '庆阳强哥教做菜', duration: 129,
+    sourceUrl: 'https://www.douyin.com/video/7491322053539171596', coverUrl: null, playCount: 0,
+    description: '菜名一致的清蒸鲈鱼教程，讲解蒸制火候与白灼汁调味。',
+    dishAliases: ['清蒸鲈鱼', '清蒸鲈鱼配时蔬'], ingredients: ['鲈鱼', '葱', '姜'],
+  },
+  {
+    id: '7576955901978938664', platform: 'douyin', title: '暖呼呼的白菜豆腐煲，好吃又下饭', author: '袁锐（萌新的圆）', duration: 205,
+    sourceUrl: 'https://www.douyin.com/video/7576955901978938664', coverUrl: null, playCount: 0,
+    description: '菜名一致的白菜豆腐煲完整制作视频。',
+    dishAliases: ['白菜豆腐煲', '白菜豆腐菌菇煲'], ingredients: ['白菜', '豆腐', '菌菇'],
+  },
+  {
     id: '7417358970479824154', platform: 'douyin', title: '鸡蛋的 12 种家常做法', author: '杰哥厨房', duration: 720,
     sourceUrl: 'https://www.douyin.com/video/7417358970479824154', coverUrl: null, playCount: 7374000,
     description: '包含鸡蛋豆腐、酱油蒸蛋、虾仁滑蛋、糖醋荷包蛋、洋葱炒蛋等分步做法。',
