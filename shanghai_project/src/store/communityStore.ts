@@ -159,6 +159,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       set((s) => ({ photos: [created, ...s.photos] }));
     } catch (error) {
       console.warn('[community] 添加记忆失败:', error);
+      throw error;
     }
   },
 
@@ -168,6 +169,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       set((s) => ({ photos: s.photos.filter((p) => p.id !== id) }));
     } catch (error) {
       console.warn('[community] 删除记忆失败:', error);
+      throw error;
     }
   },
 }));
