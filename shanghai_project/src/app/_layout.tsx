@@ -37,6 +37,7 @@ export default function RootLayout() {
         <Stack.Screen name="recipe/inspiration/[id]" options={{ title: '健康饮食灵感', headerShown: false }} />
         <Stack.Screen name="recipe/[id]" options={{ title: '菜谱详情' }} />
         <Stack.Screen name="community/[id]" options={{ title: '动态详情' }} />
+        <Stack.Screen name="community/photo/[id]" options={{ title: '记忆详情' }} />
         <Stack.Screen name="community/user/[name]" options={{ title: '个人主页' }} />
         <Stack.Screen name="workout/[id]" options={{ title: '视频详情' }} />
         <Stack.Screen name="workout/plan" options={{ headerShown: false }} />
