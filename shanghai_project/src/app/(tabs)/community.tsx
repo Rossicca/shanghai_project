@@ -56,6 +56,7 @@ export default function CommunityTab() {
   // 添加记忆表单
   const [memoryUri, setMemoryUri] = useState<string | undefined>();
   const [memoryWeight, setMemoryWeight] = useState('');
+  const [memoryBodyFat, setMemoryBodyFat] = useState('');
   const [memoryNote, setMemoryNote] = useState('');
 
   useFocusEffect(
@@ -70,6 +71,7 @@ export default function CommunityTab() {
 
   function openMemory() {
     setMemoryWeight(bodyData?.weight != null ? String(bodyData.weight) : '');
+    setMemoryBodyFat('');
     setMemoryNote('');
     setMemoryUri(undefined);
     setMemoryOpen(true);
@@ -100,6 +102,7 @@ export default function CommunityTab() {
       id: 'ph_' + Date.now(),
       date: new Date().toISOString().slice(0, 10),
       weight: memoryWeight ? Number(memoryWeight) : undefined,
+      bodyFat: memoryBodyFat ? Number(memoryBodyFat) : undefined,
       note: memoryNote.trim() || undefined,
       uri: memoryUri,
       emoji: '',
@@ -256,8 +259,16 @@ export default function CommunityTab() {
                 keyboardType="numeric"
                 style={[styles.memInput, { color: colors.text, backgroundColor: colors.backgroundElement }]}
               />
-              <Text style={{ color: colors.textSecondary, fontSize: 12 }}>今天第 {dayCount} 天</Text>
+              <TextInput
+                value={memoryBodyFat}
+                onChangeText={setMemoryBodyFat}
+                placeholder="体脂 %"
+                placeholderTextColor={colors.textSecondary}
+                keyboardType="numeric"
+                style={[styles.memInput, { color: colors.text, backgroundColor: colors.backgroundElement }]}
+              />
             </View>
+            <Text style={{ color: colors.textSecondary, fontSize: 12 }}>今天第 {dayCount} 天</Text>
 
             <TextInput
               value={memoryNote}
@@ -270,7 +281,7 @@ export default function CommunityTab() {
 
             <View style={styles.memActions}>
               <Button title="取消" variant="outline" onPress={() => setMemoryOpen(false)} />
-              <Button title="收进时光阁" onPress={submitMemory} disabled={!memoryUri && !memoryNote.trim()} />
+              <Button title="收进时光阁" onPress={submitMemory} disabled={!memoryUri && !memoryNote.trim() && !memoryWeight && !memoryBodyFat} />
             </View>
           </View>
         </View>

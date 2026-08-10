@@ -1,10 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { confirmDialog } from '@/utils/dialog';
+import { formatShortDate } from '@/utils/date';
 import type { TimelineEntry } from '@/types/community';
 
 type Props = {
@@ -14,7 +17,9 @@ type Props = {
 };
 
 /** 卡片固定高度（保证节点与轴线对齐） */
-const CARD_H = 236;
+const CARD_H = 200;
+/** 图片区高度 */
+const PHOTO_H = 136;
 /** 卡片纵向间距 */
 const ITEM_GAP = 16;
 /** S 曲线周期数（2 ≈ 两个 S 弯） */
@@ -23,16 +28,11 @@ const WAVE_PERIOD = 2;
 const TOP_PAD = 60;
 const BOTTOM_PAD = 60;
 
-function formatDate(date: string) {
-  const [y, m, d] = date.split('-');
-  return `${y}年${Number(m)}月${Number(d)}日`;
-}
-
-/** 曲线振幅：随屏宽缩放（窄屏收小，保证两侧有地方放照片） */
+/** 曲线振幅：随屏宽缩放（窄屏收小 → 卡片更宽，手机端更好读） */
 function curveAmp(width: number) {
   return width < 480
-    ? Math.min(width * 0.10, 40)
-    : Math.min(width * 0.20, 96);
+    ? Math.min(width * 0.05, 26)
+    : Math.min(width * 0.16, 72);
 }
 
 /** S 曲线 x 坐标：给定纵向 y(px, 从顶部起算) 与整条线高度，返回曲线 x */
@@ -155,39 +155,46 @@ export function TimelineWall({ entries, onAdd, onRemove }: Props) {
                   { left: nodeX - 9, top: nodeY - 9, borderColor: colors.background, shadowColor: colors.primary },
                 ]}
               />
-              {/* 时光卡（拍立得风，固定高度） */}
-              <View style={[styles.card, { left, top: nodeY - CARD_H / 2, width: cw, backgroundColor: colors.card }]}>
-                {entry.uri ? (
-                  <Image source={{ uri: entry.uri }} style={styles.photo} contentFit="cover" />
-                ) : (
-                  <View style={[styles.photo, { backgroundColor: entry.color }]}>
+              {/* 时光卡：图片 + 短日期 + 体重/体脂；点卡片进详情，完整备注在详情页 */}
+              <Pressable
+                onPress={() => router.push({ pathname: '/community/photo/[id]', params: { id: entry.id } })}
+                style={[styles.card, { left, top: nodeY - CARD_H / 2, width: cw, backgroundColor: colors.card }]}>
+                <View style={[styles.photo, { backgroundColor: entry.color }]}>
+                  {entry.uri ? (
+                    <Image source={{ uri: entry.uri }} style={StyleSheet.absoluteFill} contentFit="cover" />
+                  ) : (
                     <Ionicons name="image-outline" size={34} color="#5A7A6F" />
-                  </View>
-                )}
+                  )}
+                  {entry.day != null ? (
+                    <View style={[styles.dayBadge, { backgroundColor: colors.primarySoft }]}>
+                      <Text style={[styles.dayText, { color: colors.success }]}>第 {entry.day} 天</Text>
+                    </View>
+                  ) : null}
+                </View>
                 <View style={styles.cardBody}>
-                  <View style={styles.cardMeta}>
-                    <Text style={[styles.date, { color: colors.text }]}>{formatDate(entry.date)}</Text>
-                    {entry.day != null ? (
-                      <View style={[styles.dayBadge, { backgroundColor: colors.primarySoft }]}>
-                        <Text style={[styles.dayText, { color: colors.success }]}>第 {entry.day} 天</Text>
-                      </View>
-                    ) : null}
-                  </View>
+                  <Text style={[styles.date, { color: colors.text }]}>{formatShortDate(entry.date)}</Text>
                   {entry.weight != null ? (
                     <Text style={[styles.metric, { color: colors.textSecondary }]}>
                       体重 {entry.weight}kg{entry.bodyFat != null ? ` · 体脂 ${entry.bodyFat}%` : ''}
                     </Text>
                   ) : null}
-                  {entry.note ? (
-                    <Text style={[styles.note, { color: colors.text }]} numberOfLines={2}>
-                      「{entry.note}」
-                    </Text>
-                  ) : null}
                 </View>
-                <Pressable hitSlop={6} style={styles.delBtn} onPress={() => onRemove(entry.id)}>
+                <Pressable
+                  hitSlop={6}
+                  style={styles.delBtn}
+                  onPress={() =>
+                    confirmDialog({
+                      title: '删除这条记忆',
+                      message: '删除后不可恢复，确定删除吗？',
+                      confirmText: '删除',
+                      cancelText: '取消',
+                      destructive: true,
+                      onConfirm: () => onRemove(entry.id),
+                    })
+                  }>
                   <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
                 </Pressable>
-              </View>
+              </Pressable>
             </View>
           );
         })}
@@ -234,7 +241,6 @@ const styles = StyleSheet.create({
   card: {
     position: 'absolute',
     borderRadius: Radius.card,
-    overflow: 'hidden',
     height: CARD_H,
     shadowColor: '#000',
     shadowOpacity: 0.12,
@@ -242,14 +248,27 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 3,
   },
-  photo: { height: 132, alignItems: 'center', justifyContent: 'center' },
+  photo: {
+    width: '100%',
+    height: PHOTO_H,
+    borderTopLeftRadius: Radius.card,
+    borderTopRightRadius: Radius.card,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   cardBody: { padding: Spacing.two + 2, gap: 4 },
-  cardMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  date: { fontSize: 12, fontWeight: '700' },
-  dayBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: Radius.chip },
+  date: { fontSize: 13, fontWeight: '700' },
+  dayBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: Radius.chip,
+  },
   dayText: { fontSize: 11, fontWeight: '700' },
   metric: { fontSize: 12 },
-  note: { fontSize: 13, lineHeight: 18 },
   delBtn: { position: 'absolute', top: 8, right: 8 },
   addBtn: {
     flexDirection: 'row',
