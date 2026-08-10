@@ -13,6 +13,7 @@ import { Card } from '@/components/ui/Card';
 import { Radius, Spacing } from '@/constants/theme';
 import { findHealthInspiration } from '@/data/health-inspirations';
 import { useTheme } from '@/hooks/use-theme';
+import { inspirationImageUrl } from '@/services/media';
 import { useInspirationStore } from '@/store/inspirationStore';
 import { useRecipeStore } from '@/store/recipeStore';
 import { useUserStore } from '@/store/userStore';
@@ -63,7 +64,7 @@ export default function HealthInspirationDetail() {
     description: inspiration.description,
     coverEmoji: '',
     sourceVideo: inspiration.sourceVideo
-      ? { ...inspiration.sourceVideo, coverUrl: inspiration.sourceVideo.coverUrl || inspiration.image }
+      ? { ...inspiration.sourceVideo, coverUrl: inspirationImageUrl(inspiration.sourceVideo.coverUrl || inspiration.image) }
       : null,
     calories: inspiration.calories,
     protein: inspiration.protein,
@@ -101,7 +102,7 @@ export default function HealthInspirationDetail() {
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.hero}>
-            <Image source={{ uri: inspiration.image }} style={styles.heroImage} contentFit="cover" transition={180} />
+            <Image source={{ uri: inspirationImageUrl(inspiration.image) }} style={styles.heroImage} contentFit="cover" transition={180} />
             <View pointerEvents="none" style={styles.heroShade} />
             <View style={styles.heroCopy}>
               <View style={styles.heroBadge}><Text style={styles.heroBadgeText}>{inspiration.meal}</Text></View>
