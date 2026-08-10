@@ -334,6 +334,16 @@ function initTables() {
       FOREIGN KEY (userId) REFERENCES users(id)
     )
   `);
+  // 每日训练打卡：按用户 + 日期记录，一天一次；打卡数计入个人主页「训练次数」
+  db.run(`
+    CREATE TABLE IF NOT EXISTS daily_checkins (
+      id TEXT PRIMARY KEY,
+      userId TEXT NOT NULL,
+      date TEXT NOT NULL,
+      createdAt TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (userId) REFERENCES users(id)
+    )
+  `);
 
   // 创建索引
   db.run('CREATE INDEX IF NOT EXISTS idx_body_data_userId ON body_data(userId)');
@@ -349,6 +359,7 @@ function initTables() {
   db.run('CREATE INDEX IF NOT EXISTS idx_community_comments_post ON community_comments(postId)');
   db.run('CREATE INDEX IF NOT EXISTS idx_community_photos_user ON community_photos(userId)');
   db.run('CREATE INDEX IF NOT EXISTS idx_community_following_user ON community_following(userId)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_daily_checkins_user_date ON daily_checkins(userId, date)');
 
   applyMigrations();
 }
