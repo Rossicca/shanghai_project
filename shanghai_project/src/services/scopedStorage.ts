@@ -8,6 +8,7 @@ export const USER_SCOPED_BASE_KEYS = [
   'user:bodyHistory',
   'recipe:saved',
   'recipe:history',
+  'recipe:inspirations:saved',
   'workout:saved',
   'workout:history',
   'ingredient:history',

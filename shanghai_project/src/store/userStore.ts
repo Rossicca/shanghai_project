@@ -6,6 +6,7 @@ import { getToken } from '@/services/api';
 import type { BodySnapshot } from '@/services/user';
 import type { BodyData, FitnessGoal } from '@/types/workout';
 import type { User } from '@/types/user';
+import { useInspirationStore } from '@/store/inspirationStore';
 import { useRecipeStore } from '@/store/recipeStore';
 import { useWorkoutStore } from '@/store/workoutStore';
 
@@ -96,6 +97,7 @@ export const useUserStore = create<UserState>((set) => ({
 
   logout: async () => {
     await userService.clearUser();
+    useInspirationStore.getState().clearLocalData();
     useRecipeStore.getState().clearLocalData();
     useWorkoutStore.getState().clearLocalData();
     set({ user: null, bodyData: null, goal: null, bodyHistory: [], isLoggedIn: false, loaded: true });

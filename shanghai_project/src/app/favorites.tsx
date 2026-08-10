@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useEffect } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -6,7 +7,9 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
+import { findHealthInspiration, type HealthInspiration } from '@/data/health-inspirations';
 import { useTheme } from '@/hooks/use-theme';
+import { useInspirationStore } from '@/store/inspirationStore';
 import { useRecipeStore } from '@/store/recipeStore';
 import { useWorkoutStore } from '@/store/workoutStore';
 import type { Recipe } from '@/types/recipe';
@@ -17,11 +20,16 @@ export default function FavoritesPage() {
   const colors = useTheme();
   const { savedRecipes, loadLocal: loadRecipes, selectRecipe, unsaveRecipe } = useRecipeStore();
   const { savedVideos, loadLocal: loadWorkouts, selectVideo, toggleSave } = useWorkoutStore();
+  const { savedIds: savedInspirationIds, loadLocal: loadInspirations, toggleSaved: toggleInspiration } = useInspirationStore();
+  const savedInspirations = savedInspirationIds
+    .map((id) => findHealthInspiration(id))
+    .filter((item): item is HealthInspiration => Boolean(item));
 
   useEffect(() => {
     loadRecipes();
     loadWorkouts();
-  }, [loadRecipes, loadWorkouts]);
+    loadInspirations();
+  }, [loadInspirations, loadRecipes, loadWorkouts]);
 
   function openRecipe(r: Recipe) {
     selectRecipe(r);
@@ -30,6 +38,9 @@ export default function FavoritesPage() {
   function openVideo(v: WorkoutVideo) {
     selectVideo(v);
     router.push({ pathname: '/workout/[id]', params: { id: v.id } });
+  }
+  function openInspiration(inspiration: HealthInspiration) {
+    router.push({ pathname: '/recipe/inspiration/[id]', params: { id: inspiration.id } });
   }
 
   return (
@@ -53,7 +64,7 @@ export default function FavoritesPage() {
                       {r.cookTime} 分钟 · {r.calories} 千卡
                     </ThemedText>
                   </View>
-                  <Pressable hitSlop={8} onPress={() => unsaveRecipe(r.id)}>
+                  <Pressable accessibilityLabel={`取消收藏${r.name}`} onPress={(event) => { event.stopPropagation(); void unsaveRecipe(r.id); }} style={styles.removeButton}>
                     <Ionicons name="heart" size={20} color={colors.danger} />
                   </Pressable>
                 </Pressable>
@@ -78,7 +89,7 @@ export default function FavoritesPage() {
                       {v.category} · {Math.round(v.duration / 60)} 分钟
                     </ThemedText>
                   </View>
-                  <Pressable hitSlop={8} onPress={() => toggleSave(v)}>
+                  <Pressable accessibilityLabel={`取消收藏${v.title}`} onPress={(event) => { event.stopPropagation(); void toggleSave(v); }} style={styles.removeButton}>
                     <Ionicons name="bookmark" size={20} color="#FFC94D" />
                   </Pressable>
                 </Pressable>
@@ -87,7 +98,35 @@ export default function FavoritesPage() {
           </View>
         ) : null}
 
-        {savedRecipes.length === 0 && savedVideos.length === 0 ? (
+        {savedInspirations.length > 0 ? (
+          <View style={styles.section}>
+            <View style={styles.sectionHead}>
+              <ThemedText type="smallBold">健康饮食灵感</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">{savedInspirations.length} 个</ThemedText>
+            </View>
+            <View style={styles.list}>
+              {savedInspirations.map((inspiration) => (
+                <Pressable key={inspiration.id} onPress={() => openInspiration(inspiration)} style={styles.item}>
+                  <Image source={{ uri: inspiration.image }} style={styles.inspirationThumb} contentFit="cover" transition={120} />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <ThemedText type="smallBold" numberOfLines={1}>{inspiration.title}</ThemedText>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      {inspiration.meal} · {inspiration.time} 分钟 · 可跟视频做
+                    </ThemedText>
+                  </View>
+                  <Pressable
+                    accessibilityLabel={`取消收藏${inspiration.title}`}
+                    onPress={(event) => { event.stopPropagation(); void toggleInspiration(inspiration.id); }}
+                    style={styles.removeButton}>
+                    <Ionicons name="bookmark" size={20} color={colors.primary} />
+                  </Pressable>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        ) : null}
+
+        {savedRecipes.length === 0 && savedVideos.length === 0 && savedInspirations.length === 0 ? (
           <View style={styles.empty}>
             <Ionicons name="heart-outline" size={36} color={colors.backgroundSelected} />
             <Text style={{ color: colors.textSecondary, fontSize: 13 }}>还没有收藏内容</Text>
@@ -115,5 +154,7 @@ const styles = StyleSheet.create({
   emojiWrap: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   emoji: { fontSize: 20 },
   dot: { width: 20, height: 20, borderRadius: 10, marginHorizontal: 4 },
+  inspirationThumb: { width: 52, height: 52, borderRadius: 12 },
+  removeButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   empty: { alignItems: 'center', gap: Spacing.two, paddingVertical: Spacing.five },
 });

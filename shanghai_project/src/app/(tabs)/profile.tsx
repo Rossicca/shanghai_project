@@ -10,11 +10,13 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Card } from '@/components/ui/Card';
 import { Radius, Spacing } from '@/constants/theme';
+import { findHealthInspiration, type HealthInspiration } from '@/data/health-inspirations';
 import { useTheme } from '@/hooks/use-theme';
 import { getToken } from '@/services/api';
 import { fetchAdminStats } from '@/services/admin';
 import { fetchDashboard, fetchSavedWorkoutPlans } from '@/services/workout';
 import { useCommunityStore } from '@/store/communityStore';
+import { useInspirationStore } from '@/store/inspirationStore';
 import { useRecipeStore } from '@/store/recipeStore';
 import { useUserStore } from '@/store/userStore';
 import { useWorkoutStore } from '@/store/workoutStore';
@@ -33,6 +35,7 @@ export default function ProfileTab() {
     selectVideo,
   } = useWorkoutStore();
   const { following, followers, load: loadCommunity } = useCommunityStore();
+  const { savedIds: savedInspirationIds, loadLocal: loadInspirations } = useInspirationStore();
   const [dashboard, setDashboard] = useState<any>(null);
   const [dashboardError, setDashboardError] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
@@ -45,12 +48,13 @@ export default function ProfileTab() {
     loadRecipes();
     loadWorkouts();
     loadCommunity();
+    loadInspirations();
     if (getToken()) {
       fetchDashboard().then(setDashboard).catch((error) => setDashboardError(error.message));
       fetchSavedWorkoutPlans().then((plans) => setSavedPlanCount(plans.length)).catch(() => setSavedPlanCount(0));
       fetchAdminStats().then(() => setIsAdmin(true)).catch(() => setIsAdmin(false));
     }
-  }, [load, loadRecipes, loadWorkouts, loadCommunity]);
+  }, [load, loadRecipes, loadWorkouts, loadCommunity, loadInspirations]);
 
   const bmi = calcBMI(bodyData);
   const bmiLabel = bmi ? (bmi < 18.5 ? '偏瘦' : bmi < 24 ? '正常' : bmi < 28 ? '偏胖' : '肥胖') : '';
@@ -58,18 +62,22 @@ export default function ProfileTab() {
   const totalWorkouts = Number(dashboard?.totalWorkouts ?? workoutHistory.length ?? 0);
   const totalCalories = workoutHistory.reduce((sum, v) => sum + (v.calories ?? 0), 0);
   const totalRecipes = Number(dashboard?.totalRecipes ?? recipeHistory.length ?? 0);
+  const savedInspirations = savedInspirationIds
+    .map((id) => findHealthInspiration(id))
+    .filter((item): item is HealthInspiration => Boolean(item));
   const totalSaved = Number(
     dashboard
       ? (dashboard.totalSavedRecipes ?? 0) + (dashboard.totalSavedWorkouts ?? 0)
       : savedRecipes.length + savedVideos.length
-  );
+  ) + savedInspirations.length;
   // 游客也有本地 user，但只有持有 Token 才是已登录账号。
   const loggedIn = Boolean(user && getToken());
   // 我的收藏：预览最多展示 3 项，超过 3 项在右上角给「更多」入口进完整页
-  const favTotal = savedRecipes.length + savedVideos.length;
+  const favTotal = savedRecipes.length + savedVideos.length + savedInspirations.length;
   const favoritesPreview = [
     ...savedRecipes.map((r) => ({ kind: 'recipe' as const, r })),
     ...savedVideos.map((v) => ({ kind: 'video' as const, v })),
+    ...savedInspirations.map((inspiration) => ({ kind: 'inspiration' as const, inspiration })),
   ].slice(0, 3);
 
   function openRecipe(r: Recipe) {
@@ -79,6 +87,9 @@ export default function ProfileTab() {
   function openVideo(v: WorkoutVideo) {
     selectVideo(v);
     router.push({ pathname: '/workout/[id]', params: { id: v.id } });
+  }
+  function openInspiration(inspiration: HealthInspiration) {
+    router.push({ pathname: '/recipe/inspiration/[id]', params: { id: inspiration.id } });
   }
 
   return (
@@ -190,6 +201,20 @@ export default function ProfileTab() {
                 <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
               </Card>
             </Pressable>
+            <Pressable onPress={() => router.push('/favorites')}>
+              <Card style={styles.row}>
+                <View style={[styles.rowIcon, { backgroundColor: colors.yellowSoft }]}>
+                  <Ionicons name="bookmark-outline" size={22} color="#B07A26" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <ThemedText type="smallBold">健康饮食灵感收藏</ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {savedInspirations.length ? `已收藏 ${savedInspirations.length} 个想尝试的搭配` : '收藏喜欢的灵感，之后可以直接跟视频做'}
+                  </ThemedText>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+              </Card>
+            </Pressable>
             <Pressable onPress={() => router.push('/more')}>
               <Card style={styles.row}>
                 <View style={[styles.rowIcon, { backgroundColor: colors.backgroundElement }]}>
@@ -233,11 +258,19 @@ export default function ProfileTab() {
                       </ThemedText>
                       <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
                     </Pressable>
-                  ) : (
+                  ) : item.kind === 'video' ? (
                     <Pressable key={`v${item.v.id}`} onPress={() => openVideo(item.v)} style={styles.snippet}>
                       <View style={[styles.snippetDot, { backgroundColor: item.v.coverColor }]} />
                       <ThemedText type="small" style={{ flex: 1 }} numberOfLines={1}>
                         {item.v.title}
+                      </ThemedText>
+                      <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+                    </Pressable>
+                  ) : (
+                    <Pressable key={`i${item.inspiration.id}`} onPress={() => openInspiration(item.inspiration)} style={styles.snippet}>
+                      <Ionicons name="leaf-outline" size={18} color={colors.primary} />
+                      <ThemedText type="small" style={{ flex: 1 }} numberOfLines={1}>
+                        {item.inspiration.title}
                       </ThemedText>
                       <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
                     </Pressable>

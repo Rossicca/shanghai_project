@@ -69,6 +69,25 @@ async function main() {
     assert.ok(result.platformSearches.every((item) => item.url.startsWith('https://')));
     assert.equal(fetchCalls.length, 2);
     assert.match(fetchCalls[1].options.headers.Cookie, /buvid3=test-buvid/);
+
+    const noMatch = await recommendRecipeVideos({
+      name: '红薯酸奶坚果杯',
+      ingredients: [{ name: '红薯' }, { name: '酸奶' }, { name: '坚果' }],
+      steps: ['蒸熟红薯', '加入酸奶与坚果'],
+    });
+    assert.equal(noMatch.rankingMode, 'no_match');
+    assert.equal(noMatch.videos.length, 0);
+    assert.match(noMatch.warning, /没有找到/);
+
+    const douyinMatch = await recommendRecipeVideos({
+      name: '西兰花炒鸡胸肉',
+      videoSearchAliases: ['鸡胸肉炒西兰花'],
+      ingredients: [{ name: '鸡胸肉' }, { name: '西兰花' }],
+      sourceVideo: { id: '7125036796890713344', platform: 'douyin' },
+    });
+    assert.equal(douyinMatch.videos[0].platform, 'douyin');
+    assert.equal(douyinMatch.videos[0].id, '7125036796890713344');
+    assert.match(douyinMatch.videos[0].sourceUrl, /^https:\/\/www\.douyin\.com\/video\//);
     console.log('PASS: 菜谱视频检索与多平台入口测试通过');
   } finally {
     global.fetch = originalFetch;

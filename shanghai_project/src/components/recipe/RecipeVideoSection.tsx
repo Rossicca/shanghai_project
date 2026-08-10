@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -23,22 +23,54 @@ const PLATFORM_ICONS = {
   douyin: 'musical-notes-outline',
 } as const;
 
-export function RecipeVideoSection({ recipe }: { recipe: Recipe }) {
+type RecipeVideoSectionProps = {
+  recipe: Recipe;
+  maxVideos?: number;
+  title?: string;
+  description?: string;
+  hidePlatformSearches?: boolean;
+};
+
+export function RecipeVideoSection({
+  recipe,
+  maxVideos,
+  title = '跟着视频做',
+  description,
+  hidePlatformSearches = false,
+}: RecipeVideoSectionProps) {
   const colors = useTheme();
-  const [result, setResult] = useState<RecipeVideoRecommendation | null>(null);
+  const [fetchedResult, setFetchedResult] = useState<RecipeVideoRecommendation | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const boundResult = useMemo<RecipeVideoRecommendation | null>(() => recipe.sourceVideo ? ({
+    query: `${recipe.name} 做法 教程`,
+    searchUrl: recipe.sourceVideo.sourceUrl,
+    platformSearches: [],
+    rankingMode: 'search',
+    videos: [{
+      ...recipe.sourceVideo,
+      reason: `已核验：视频内容与“${recipe.name}”的制作步骤一致。`,
+    }],
+    warning: null,
+  }) : null, [recipe.name, recipe.sourceVideo]);
+
   useEffect(() => {
     let active = true;
+    if (recipe.sourceVideo) {
+      return () => { active = false; };
+    }
     fetchRecipeVideos(recipe)
-      .then((data) => active && setResult(data))
+      .then((data) => active && setFetchedResult(data))
       .catch((requestError) => {
         if (active) setError((requestError as Error).message || '制作视频加载失败');
       })
       .finally(() => active && setLoading(false));
     return () => { active = false; };
   }, [recipe]);
+
+  const result = boundResult ?? fetchedResult;
+  const isLoading = recipe.sourceVideo ? false : loading;
 
   async function openUrl(url: string) {
     setError('');
@@ -51,6 +83,7 @@ export function RecipeVideoSection({ recipe }: { recipe: Recipe }) {
 
   const searchUrl = result?.searchUrl ||
     `https://search.bilibili.com/all?keyword=${encodeURIComponent(`${recipe.name} 做法 教程`)}`;
+  const videos = maxVideos ? result?.videos.slice(0, maxVideos) ?? [] : result?.videos ?? [];
 
   return (
     <Card style={styles.section}>
@@ -59,25 +92,25 @@ export function RecipeVideoSection({ recipe }: { recipe: Recipe }) {
           <Ionicons name="play" size={18} color={colors.primary} />
         </View>
         <View style={styles.headerCopy}>
-          <ThemedText type="subtitle">跟着视频做</ThemedText>
+          <ThemedText type="subtitle">{title}</ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
-            {recipe.sourceVideo
+            {description || (recipe.sourceVideo
               ? '首条是你选菜时参考的原教程，菜谱与视频保持一致'
-              : '汇集多个视频平台，优先展示 AI 匹配结果'}
+              : '汇集多个视频平台，优先展示 AI 匹配结果')}
           </ThemedText>
         </View>
       </View>
 
-      {loading ? (
+      {isLoading ? (
         <View style={styles.status}>
           <ActivityIndicator color={colors.primary} />
           <ThemedText type="small" themeColor="textSecondary">正在寻找合适的制作教程…</ThemedText>
         </View>
       ) : null}
 
-      {!loading && result?.videos.length ? (
+      {!isLoading && videos.length ? (
         <View style={styles.list}>
-          {result.videos.map((video) => (
+          {videos.map((video) => (
             <Pressable
               key={video.id}
               accessibilityRole="link"
@@ -114,7 +147,7 @@ export function RecipeVideoSection({ recipe }: { recipe: Recipe }) {
         </View>
       ) : null}
 
-      {!loading && !result?.videos.length ? (
+      {!isLoading && !videos.length ? (
         <View style={styles.status}>
           <Ionicons name="search-outline" size={24} color={colors.textSecondary} />
           <ThemedText type="small" themeColor="textSecondary" style={styles.centerText}>
@@ -123,12 +156,12 @@ export function RecipeVideoSection({ recipe }: { recipe: Recipe }) {
         </View>
       ) : null}
 
-      {result?.warning && result.videos.length ? (
+      {result?.warning && videos.length ? (
         <ThemedText type="small" themeColor="textSecondary">{result.warning}</ThemedText>
       ) : null}
-      {error && result?.videos.length ? <ThemedText type="small" themeColor="danger">{error}</ThemedText> : null}
+      {error && videos.length ? <ThemedText type="small" themeColor="danger">{error}</ThemedText> : null}
 
-      {!loading ? (
+      {!loading && !hidePlatformSearches ? (
         <View style={styles.moreSection}>
           <ThemedText type="smallBold">去更多平台搜索</ThemedText>
           <View style={styles.platforms}>

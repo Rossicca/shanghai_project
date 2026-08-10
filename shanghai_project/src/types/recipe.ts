@@ -14,6 +14,8 @@ export interface Recipe {
   /** 生成时间戳（毫秒），用于统计"今日摄入" */
   createdAt?: number;
   name: string;
+  /** 仅用于检索同一道菜的常见名称，不参与菜谱展示。 */
+  videoSearchAliases?: string[];
   description: string;
   coverEmoji: string;
   sourceVideo?: RecipeSourceVideo | null;
@@ -69,7 +71,7 @@ export interface RecipeVideoRecommendation {
     url: string;
     resultType: 'video' | 'search';
   }[];
-  rankingMode: 'ai' | 'search' | 'fallback';
+  rankingMode: 'ai' | 'search' | 'fallback' | 'no_match';
   videos: RecipeVideo[];
   warning?: string | null;
 }
