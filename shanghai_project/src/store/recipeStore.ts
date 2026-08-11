@@ -79,7 +79,9 @@ export const useRecipeStore = create<RecipeState>((set, get) => ({
     set({ isLoading: true });
     try {
       const sessionId = get().recognitionSessionId;
-      const recipe = sessionId
+      // 登录用户始终走会持久化到 SQLite 的 v1 接口；没有识别会话时也可用手动食材生成。
+      // 游客继续使用兼容接口并保存到本机，避免强制登录打断试用流程。
+      const recipe = getToken()
         ? await recipeService.generateRecipeFromSession(sessionId, params)
         : await recipeService.generateRecipe(params);
       recipe.createdAt = Date.now();
@@ -97,7 +99,7 @@ export const useRecipeStore = create<RecipeState>((set, get) => ({
   saveRecipe: async (recipe) => {
     set({ error: '' });
     if (getToken()) {
-      await recipeService.saveRecipe(recipe.id).catch((error) => {
+      await recipeService.saveRecipe(recipe).catch((error) => {
         const message = (error as Error).message || '收藏失败，请重试';
         set({ error: message });
         throw error;

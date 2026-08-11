@@ -3,7 +3,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { IngredientResult } from '@/components/camera/IngredientResult';
@@ -68,6 +68,16 @@ export default function Scan() {
   }
 
   async function openCamera() {
+    if (
+      Platform.OS === 'web' &&
+      typeof window !== 'undefined' &&
+      !window.isSecureContext &&
+      !['localhost', '127.0.0.1'].includes(window.location.hostname)
+    ) {
+      setError('当前网页使用 HTTP，手机浏览器会禁止直接打开相机。请先从相册选择照片识别；部署 HTTPS 后即可直接拍照。');
+      setMode('idle');
+      return;
+    }
     const nextPermission = permission?.granted ? permission : await requestPermission();
     if (!nextPermission.granted) {
       setError('未获得相机权限，请在系统设置中允许相机访问，或改用相册选图');

@@ -424,6 +424,24 @@ async function run() {
       },
     });
     assert.equal(legacyRecipe.data.recipe.name, selectedDish.name);
+    const legacyRecipeId = legacyRecipe.data.recipe.id;
+    await request(`/api/v1/recipes/${legacyRecipeId}/save`, {
+      method: 'POST',
+      token,
+      body: { recipe: legacyRecipe.data.recipe },
+    });
+    const savedLegacyRecipes = await request('/api/v1/recipes/saved/list', { token });
+    assert.ok(
+      savedLegacyRecipes.data.data.some((item) => item.recipeId === legacyRecipeId),
+      '旧接口生成的临时菜谱应能在收藏时安全补建到当前账号',
+    );
+    await request(`/api/v1/recipes/${legacyRecipeId}/save`, {
+      method: 'POST',
+      token: secondToken,
+      body: { recipe: legacyRecipe.data.recipe },
+      status: 404,
+    });
+    await request(`/api/v1/recipes/${legacyRecipeId}/save`, { method: 'DELETE', token });
     const legacyWorkout = await request('/api/workout/recommend', {
       method: 'POST',
       body: {

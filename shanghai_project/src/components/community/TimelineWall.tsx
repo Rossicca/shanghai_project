@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
@@ -157,7 +157,7 @@ export function TimelineWall({ entries, onAdd, onRemove }: Props) {
               />
               {/* 时光卡：图片 + 短日期 + 体重/体脂；点卡片进详情，完整备注在详情页 */}
               <Pressable
-                onPress={() => router.push({ pathname: '/community/photo/[id]', params: { id: entry.id } })}
+                onPress={() => router.push(`/community/photo/${encodeURIComponent(entry.id)}` as Href)}
                 style={[styles.card, { left, top: nodeY - CARD_H / 2, width: cw, backgroundColor: colors.card }]}>
                 <View style={[styles.photo, { backgroundColor: entry.color }]}>
                   {entry.uri ? (

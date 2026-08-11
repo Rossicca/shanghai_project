@@ -49,11 +49,11 @@ export async function generateRecipeV2(params: {
 }
 
 export async function generateRecipeFromSession(
-  sessionId: string,
+  sessionId: string | null,
   params: RecipeGenerateParams
 ): Promise<Recipe> {
   const data = await generateRecipeV2({
-    sessionId,
+    sessionId: sessionId || undefined,
     ingredients: params.ingredients,
     servings: params.people,
     maxCookTime: params.cookTime,
@@ -88,8 +88,11 @@ export async function fetchRecipe(recipeId: string): Promise<Recipe> {
 }
 
 /** 收藏菜谱 */
-export async function saveRecipe(recipeId: string): Promise<void> {
-  await api.post(`/api/v1/recipes/${recipeId}/save`);
+export async function saveRecipe(recipe: Recipe): Promise<void> {
+  await api.post(`/api/v1/recipes/${recipe.id}/save`, {
+    // 旧版本生成的菜谱只有前端临时 ID。随收藏请求带上快照，后端可在校验后补建记录。
+    recipe,
+  });
 }
 
 /** 取消收藏 */
