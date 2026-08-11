@@ -14,7 +14,7 @@ import { useRecipeCover } from '@/hooks/use-recipe-cover';
 import { useTheme } from '@/hooks/use-theme';
 import { getToken } from '@/services/api';
 import { recipeCoverUrl } from '@/services/media';
-import { fetchRecipe, reimagineRecipe } from '@/services/recipe';
+import { fetchRecipe } from '@/services/recipe';
 import { useRecipeStore } from '@/store/recipeStore';
 import { useUserStore } from '@/store/userStore';
 import { estimateTargetCalories } from '@/utils/nutrition';
@@ -35,19 +35,18 @@ export default function RecipeDetail() {
     recipeQueueRecipeId,
     recipeQueueTotal,
     advanceRecipeQueue,
-    moveRecipeQueue,
     clearRecipeQueue,
   } =
     useRecipeStore();
   const bodyData = useUserStore((s) => s.bodyData);
   const goal = useUserStore((s) => s.goal);
 
-  const [switching, setSwitching] = useState(false);
   const [generatingNext, setGeneratingNext] = useState(false);
-  const [switchError, setSwitchError] = useState('');
+  const [actionError, setActionError] = useState('');
   const [detailRecipe, setDetailRecipe] = useState(currentRecipe?.id === id ? currentRecipe : null);
   const [detailLoading, setDetailLoading] = useState(Boolean(id && currentRecipe?.id !== id && getToken()));
   const [saveError, setSaveError] = useState('');
+  const [saving, setSaving] = useState(false);
   const recipe = currentRecipe?.id === id ? currentRecipe : detailRecipe?.id === id ? detailRecipe : null;
   const { coverUrl, failed, setFailed, loading } = useRecipeCover(recipe);
   const saved = recipe ? savedRecipes.some((r) => r.id === recipe.id) : false;
@@ -68,7 +67,7 @@ export default function RecipeDetail() {
         setDetailRecipe(next);
         selectRecipe(next);
       })
-      .catch((error) => active && setSwitchError((error as Error).message || '菜谱加载失败'))
+      .catch((error) => active && setActionError((error as Error).message || '菜谱加载失败'))
       .finally(() => active && setDetailLoading(false));
     return () => { active = false; };
   }, [currentRecipe?.id, id, selectRecipe]);
@@ -88,26 +87,10 @@ export default function RecipeDetail() {
     );
   }
 
-  async function switchRecipe() {
-    if (switching || !recipe) return;
-    setSwitching(true);
-    setSwitchError('');
-    try {
-      const next = await reimagineRecipe(recipe.id, 'stir_fry');
-      selectRecipe(next);
-      if (queueActive) moveRecipeQueue(next.id);
-      router.replace({ pathname: '/recipe/[id]', params: { id: next.id } });
-    } catch (error) {
-      setSwitchError((error as Error).message || '换做法失败，请重试');
-    } finally {
-      setSwitching(false);
-    }
-  }
-
   async function makeNextRecipe() {
     if (!nextCandidate || !recipeQueueParams || generatingNext) return;
     setGeneratingNext(true);
-    setSwitchError('');
+    setActionError('');
     try {
       const next = await generateRecipe({
         ...recipeQueueParams,
@@ -121,7 +104,7 @@ export default function RecipeDetail() {
       advanceRecipeQueue(next.id);
       router.replace({ pathname: '/recipe/[id]', params: { id: next.id } });
     } catch (error) {
-      setSwitchError((error as Error).message || '下一道菜生成失败，请重试');
+      setActionError((error as Error).message || '下一道菜生成失败，请重试');
     } finally {
       setGeneratingNext(false);
     }
@@ -230,23 +213,28 @@ export default function RecipeDetail() {
           </Card>
         ) : null}
 
-        <View style={styles.actions}>
+        <View style={styles.favoriteAction}>
           <Button
-            title={saved ? '已收藏' : '收藏'}
-            variant="outline"
+            title={saved ? '已收藏到“我的”' : '收藏这道菜'}
+            variant={saved ? 'secondary' : 'primary'}
             icon={saved ? 'heart' : 'heart-outline'}
+            size="large"
+            loading={saving}
+            style={styles.favoriteButton}
             onPress={async () => {
+              if (saving) return;
               setSaveError('');
+              setSaving(true);
               try {
                 if (saved) await unsaveRecipe(recipe.id);
                 else await saveRecipe(recipe);
               } catch (error) {
                 setSaveError((error as Error).message || '收藏操作失败，请重试');
+              } finally {
+                setSaving(false);
               }
             }}
           />
-          <View style={{ width: Spacing.two }} />
-          <Button title="换一种做法" icon="refresh" variant="secondary" onPress={switchRecipe} loading={switching} style={{ flex: 1 }} />
         </View>
 
         {nextCandidate ? (
@@ -260,7 +248,6 @@ export default function RecipeDetail() {
               icon="arrow-forward"
               onPress={makeNextRecipe}
               loading={generatingNext}
-              disabled={switching}
             />
           </View>
         ) : queueActive ? (
@@ -273,12 +260,19 @@ export default function RecipeDetail() {
               title="完成本次制作"
               icon="checkmark-circle"
               onPress={finishCookingQueue}
-              disabled={switching || generatingNext}
+              disabled={generatingNext}
             />
           </View>
         ) : null}
 
-        {switchError || saveError ? <ThemedText type="small" themeColor="danger">{switchError || saveError}</ThemedText> : null}
+        {actionError || saveError ? (
+          <View style={[styles.actionError, { backgroundColor: colors.pinkSoft }]}>
+            <Ionicons name="alert-circle-outline" size={18} color={colors.danger} />
+            <ThemedText type="small" themeColor="danger" style={{ flex: 1 }}>
+              {actionError || saveError}
+            </ThemedText>
+          </View>
+        ) : null}
 
         <ThemedText type="small" themeColor="textSecondary" style={styles.tip}>
           AI 生成的营养与用量为估算值，仅供日常饮食参考
@@ -304,7 +298,9 @@ const styles = StyleSheet.create({
   stepRow: { flexDirection: 'row', gap: Spacing.three, marginVertical: Spacing.two, alignItems: 'flex-start' },
   stepNum: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   tipRow: { flexDirection: 'row', gap: Spacing.two, marginVertical: Spacing.one, alignItems: 'center' },
-  actions: { flexDirection: 'row' },
+  favoriteAction: { width: '100%', marginTop: Spacing.one },
+  favoriteButton: { width: '100%' },
+  actionError: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.two, padding: Spacing.three, borderRadius: 12 },
   nextCard: { borderRadius: 16, padding: Spacing.three, gap: Spacing.two },
   nextCopy: { gap: Spacing.one },
   tip: { textAlign: 'center' },

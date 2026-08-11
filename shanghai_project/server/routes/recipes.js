@@ -18,6 +18,69 @@ function findOwnedRecipe(req, recipeId) {
   return recipe;
 }
 
+function normalizeRecipeSnapshot(value, recipeId, userId) {
+  if (!value || typeof value !== 'object') return null;
+  const name = String(value.name || '').trim().slice(0, 100);
+  const ingredients = (Array.isArray(value.ingredients) ? value.ingredients : [])
+    .map((item) => ({
+      name: String(item?.name || '').trim().slice(0, 80),
+      amount: String(item?.amount || '适量').trim().slice(0, 40),
+    }))
+    .filter((item) => item.name)
+    .slice(0, 40);
+  const steps = (Array.isArray(value.steps) ? value.steps : [])
+    .map((step) => String(step || '').trim().slice(0, 500))
+    .filter(Boolean)
+    .slice(0, 30);
+  if (!name || ingredients.length === 0 || steps.length === 0) return null;
+
+  const video = value.sourceVideo;
+  const sourceUrl = String(video?.sourceUrl || '').trim();
+  const safeSourceVideo = video &&
+    ['bilibili', 'douyin'].includes(video.platform) &&
+    /^https:\/\//i.test(sourceUrl)
+    ? {
+        id: String(video.id || '').slice(0, 120),
+        title: String(video.title || '').slice(0, 160),
+        author: String(video.author || '').slice(0, 100),
+        duration: Math.max(0, Number(video.duration) || 0),
+        coverUrl: video.coverUrl ? String(video.coverUrl).slice(0, 1000) : null,
+        sourceUrl: sourceUrl.slice(0, 1000),
+        description: video.description ? String(video.description).slice(0, 300) : '',
+        platform: video.platform,
+      }
+    : null;
+
+  return {
+    id: String(recipeId).slice(0, 120),
+    userId,
+    name,
+    description: String(value.description || '').trim().slice(0, 600),
+    coverEmoji: String(value.coverEmoji || '🍽️').slice(0, 8),
+    sourceVideo: safeSourceVideo,
+    generationMode: ['ai', 'safe_fallback', 'demo'].includes(value.generationMode)
+      ? value.generationMode
+      : 'ai',
+    generationWarning: value.generationWarning ? String(value.generationWarning).slice(0, 300) : null,
+    calories: Math.max(0, Number(value.calories) || 0),
+    protein: Math.max(0, Number(value.protein) || 0),
+    carbs: Math.max(0, Number(value.carbs) || 0),
+    fat: Math.max(0, Number(value.fat) || 0),
+    fiber: Math.max(0, Number(value.fiber) || 0),
+    ingredients,
+    steps,
+    cookTime: Math.max(1, Math.min(360, Number(value.cookTime) || 20)),
+    difficulty: String(value.difficulty || '简单').slice(0, 20),
+    tips: (Array.isArray(value.tips) ? value.tips : [])
+      .map((tip) => String(tip || '').trim().slice(0, 300))
+      .filter(Boolean)
+      .slice(0, 12),
+    mealType: String(value.mealType || 'lunch').slice(0, 20),
+    servings: Math.max(1, Math.min(20, Number(value.servings) || 1)),
+    isSaved: false,
+  };
+}
+
 function checkRateLimit(userId) {
   const now = Date.now();
   const window = 60 * 1000;
@@ -273,7 +336,21 @@ router.get('/:id', (req, res) => {
  */
 router.post('/:id/save', (req, res) => {
   try {
-    const recipe = findOwnedRecipe(req, req.params.id);
+    const userId = req.user.userId;
+    let recipe = findOwnedRecipe(req, req.params.id);
+    const occupiedRecipe = db.findById('recipes', req.params.id);
+
+    // 兼容旧版生成接口留下的前端临时菜谱：收藏时携带完整快照，校验后补写到当前账号。
+    // 若同 ID 已属于其他账号，仍按不存在处理，避免越权覆盖。
+    if (!recipe && !occupiedRecipe && req.body?.recipe) {
+      const snapshot = normalizeRecipeSnapshot(req.body.recipe, req.params.id, userId);
+      if (!snapshot) {
+        return res.status(422).json({
+          error: { code: 'INVALID_RECIPE_SNAPSHOT', message: '菜谱信息不完整，无法收藏，请重新生成' },
+        });
+      }
+      recipe = db.insert('recipes', snapshot);
+    }
     if (!recipe) {
       return res.status(404).json({
         error: { code: 'RECIPE_NOT_FOUND', message: '菜谱不存在' },
@@ -281,7 +358,6 @@ router.post('/:id/save', (req, res) => {
     }
     db.update('recipes', req.params.id, { isSaved: true });
     // 记录到收藏表
-    const userId = req.user?.userId || 'anonymous';
     const existing = db.find('saved_recipes', { userId, recipeId: req.params.id });
     if (existing.length === 0) {
       db.insert('saved_recipes', { userId, recipeId: req.params.id });

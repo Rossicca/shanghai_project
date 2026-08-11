@@ -7,6 +7,7 @@ const multer = require('multer');
 const router = express.Router();
 const db = require('../db');
 const { recognizeFood, normalizeVisionImage } = require('../ai');
+const { isVisionReady } = require('../config');
 
 const imageUpload = multer({
   storage: multer.memoryStorage(),
@@ -50,6 +51,15 @@ router.post('/upload', parseImageUpload, async (req, res) => {
     if (!req.file && Buffer.byteLength(imageBase64, 'base64') > 10 * 1024 * 1024) {
       return res.status(400).json({
         error: { code: 'IMAGE_TOO_LARGE', message: '图片不能超过 10MB' },
+      });
+    }
+
+    if (process.env.AI_FORCE_DEMO !== 'true' && !isVisionReady()) {
+      return res.status(503).json({
+        error: {
+          code: 'AI_VISION_NOT_READY',
+          message: '图片识别服务尚未配置完成，请联系管理员检查视觉模型',
+        },
       });
     }
 
@@ -112,8 +122,12 @@ router.post('/upload', parseImageUpload, async (req, res) => {
     });
   } catch (e) {
     console.error('[recognition] upload error:', e);
+    const timedOut = /timeout/i.test(String(e?.message || ''));
     res.status(502).json({
-      error: { code: 'AI_RECOGNITION_FAILED', message: '图片识别失败，请重试' },
+      error: {
+        code: timedOut ? 'AI_RECOGNITION_TIMEOUT' : 'AI_RECOGNITION_FAILED',
+        message: timedOut ? '图片识别等待超时，请检查网络后重试' : '图片识别服务调用失败，请稍后重试',
+      },
     });
   }
 });
